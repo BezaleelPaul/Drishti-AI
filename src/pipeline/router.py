@@ -211,6 +211,7 @@ class ScreeningPipelineRouter:
             rejection_reasons=[],
             recapture_attempt_count=recapture_attempt_count,
             reassessment_outcome=reassessment_outcome,
+            suspected_clinical_cause=None,
             dr_prediction=dr_result,
             confidence_assessment=confidence_result,
             gradcam_result=gradcam_res,

@@ -259,8 +259,9 @@ with tab_clinical:
 
                 if record.rejection_reasons:
                     st.write(f"**Photographic Defects:** {', '.join(record.rejection_reasons)}")
-                if record.suspected_clinical_cause:
-                    st.info(f"**Suspected Clinical Cause:** {record.suspected_clinical_cause}")
+                suspected_cause = getattr(record, "suspected_clinical_cause", None)
+                if suspected_cause:
+                    st.info(f"**Suspected Clinical Cause:** {suspected_cause}")
 
                 st.divider()
 
