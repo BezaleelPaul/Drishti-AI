@@ -33,6 +33,12 @@ st.set_page_config(
     layout="wide",
 )
 
+# Load custom UI/UX stylesheet (Sinduri's design styling hook)
+css_file = os.path.join(os.path.dirname(__file__), "custom_style.css")
+if os.path.exists(css_file):
+    with open(css_file, "r", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
 st.title("👁️ Explainable AI for Diabetic Retinopathy Screening in Rural India")
 st.caption(
     "Smart India Hackathon 2026 (SIH26038 • MathWorks) — Complete Clinical Pipeline, Retinal Segmentation & Simulink Telemedicine Simulation"
