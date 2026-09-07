@@ -20,11 +20,12 @@ from src.pipeline.schema import (
     QualityGrade,
     ReassessmentOutcome,
 )
+import json
 from src.quality.checker import ImageQualityChecker, QualityThresholds
 from src.quality.enhancer import AdaptiveQualityEnhancer
 from src.segmentation import RetinalStructureSegmenter
 from src.simulation import TelemedicineSimulinkEngine, DistrictSimulationParams
-from src.reporting import generate_clinical_screening_pdf
+from src.reporting import generate_clinical_screening_pdf, export_abdm_fhir_diagnostic_report
 
 st.set_page_config(
     page_title="MathWorks SIH26038: AI DR Screening & Telemedicine Platform",
@@ -40,8 +41,9 @@ st.caption(
 # -------------------------------------------------------------------------
 # Navigation: Clinical Screening Platform vs. Simulink District Simulation
 # -------------------------------------------------------------------------
-tab_clinical, tab_simulink, tab_specs = st.tabs([
+tab_clinical, tab_bilateral, tab_simulink, tab_specs = st.tabs([
     "🩺 Integrated Clinical Screening Pipeline (Req 1, 2, 3, 4)",
+    "👁️ Bilateral Staging & Longitudinal Progression Tracker",
     "📡 Simulink District Telemedicine Simulation (Req 5 - 100k Patients)",
     "📋 MathWorks Problem Compliance Matrix"
 ])
@@ -459,16 +461,181 @@ with tab_clinical:
                 doctor_action=", ".join(clinical_orders) if clinical_orders else "Routine Care",
             )
 
-            st.download_button(
-                label="📥 Download Official Clinical Screening PDF Dossier (Printable A4)",
-                data=pdf_data,
-                file_name=f"DR_Screening_Report_{patient_profile.patient_id}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
+            fhir_json = export_abdm_fhir_diagnostic_report(
+                patient_data=patient_dict,
+                screening_record=record,
+                biomarkers=biomarker_dict,
+                doctor_name=doctor_name,
+                doctor_action=", ".join(clinical_orders) if clinical_orders else "Routine Care",
             )
+            fhir_data_str = json.dumps(fhir_json, indent=2)
+
+            dl_col1, dl_col2 = st.columns(2)
+            with dl_col1:
+                st.download_button(
+                    label="📥 Download Official Hospital Screening PDF (Printable A4)",
+                    data=pdf_data,
+                    file_name=f"DR_Screening_Report_{patient_profile.patient_id}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+            with dl_col2:
+                st.download_button(
+                    label="🌐 Download ABDM / FHIR R4 JSON-LD Record",
+                    data=fhir_data_str,
+                    file_name=f"ABDM_FHIR_DiagnosticReport_{patient_profile.patient_id}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
+
+            with st.expander("🔍 View Raw ABDM / FHIR R4 DiagnosticReport JSON"):
+                st.json(fhir_json)
 
 # =========================================================================
-# TAB 2: SIMULINK DISTRICT TELEMEDICINE SIMULATION (REQ #5)
+# TAB 2: BILATERAL STAGING & LONGITUDINAL PROGRESSION TRACKER
+# =========================================================================
+with tab_bilateral:
+    st.subheader("👁️ Bilateral Retinal Staging & Longitudinal Progression Tracker")
+    st.caption(
+        "Clinical standard ETDRS protocol: Paired evaluation of Right Eye (OD) and Left Eye (OS) "
+        "plus multi-year disease progression tracking for diabetic retinopathy surveillance."
+    )
+
+    st.markdown("### Part 1: Bilateral Eye Staging (Oculus Dexter & Oculus Sinister)")
+    bi_col1, bi_col2 = st.columns(2)
+
+    with bi_col1:
+        st.markdown("#### 👁️‍🗨️ Right Eye (OD - Oculus Dexter)")
+        od_sample = st.selectbox(
+            "Select OD Retinal Image",
+            [
+                "Scenario 1: Moderate NPDR (Grade 2 - Real Fundus)",
+                "Scenario 3: Mild NPDR (Grade 1 - Real Fundus)",
+                "Healthy / Grade 0 (No DR)",
+                "Degraded / Defocused Capture (BAD)",
+            ],
+            key="od_select"
+        )
+        if "Grade 2" in od_sample:
+            od_grade = 2
+            od_status = "Grade 2 — Moderate NPDR (Referable)"
+            od_mas = 12
+            od_fovea_prox = 310
+        elif "Grade 1" in od_sample:
+            od_grade = 1
+            od_status = "Grade 1 — Mild NPDR"
+            od_mas = 4
+            od_fovea_prox = 580
+        elif "Grade 0" in od_sample:
+            od_grade = 0
+            od_status = "Grade 0 — No DR"
+            od_mas = 0
+            od_fovea_prox = 999
+        else:
+            od_grade = None
+            od_status = "UNGRADABLE (Quality Rejected)"
+            od_mas = 0
+            od_fovea_prox = 0
+
+        st.info(f"**OD Diagnosis:** {od_status}\n- Microaneurysms: {od_mas}\n- Fovea Proximity: {od_fovea_prox} px")
+
+    with bi_col2:
+        st.markdown("#### 👁️‍🗨️ Left Eye (OS - Oculus Sinister)")
+        os_sample = st.selectbox(
+            "Select OS Retinal Image",
+            [
+                "Scenario 3: Mild NPDR (Grade 1 - Real Fundus)",
+                "Scenario 1: Moderate NPDR (Grade 2 - Real Fundus)",
+                "Healthy / Grade 0 (No DR)",
+                "Severe NPDR / Grade 3 (High Risk)",
+            ],
+            key="os_select"
+        )
+        if "Grade 3" in os_sample:
+            os_grade = 3
+            os_status = "Grade 3 — Severe NPDR (Urgent Referable)"
+            os_mas = 24
+            os_fovea_prox = 180
+        elif "Grade 2" in os_sample:
+            os_grade = 2
+            os_status = "Grade 2 — Moderate NPDR (Referable)"
+            os_mas = 11
+            os_fovea_prox = 340
+        elif "Grade 1" in os_sample:
+            os_grade = 1
+            os_status = "Grade 1 — Mild NPDR"
+            os_mas = 3
+            os_fovea_prox = 620
+        else:
+            os_grade = 0
+            os_status = "Grade 0 — No DR"
+            os_mas = 0
+            os_fovea_prox = 999
+
+        st.info(f"**OS Diagnosis:** {os_status}\n- Microaneurysms: {os_mas}\n- Fovea Proximity: {os_fovea_prox} px")
+
+    # Composite Patient Staging
+    valid_grades = [g for g in [od_grade, os_grade] if g is not None]
+    if valid_grades:
+        overall_grade = max(valid_grades)
+        is_referable = overall_grade >= 2
+        
+        st.divider()
+        st.markdown("#### 🏥 Overall Composite Patient Diagnosis (Worst-Eye Rule)")
+        if is_referable:
+            st.error(
+                f"🚨 **Patient DR Staging: Grade {overall_grade} (REFERABLE RETINOPATHY)**\n\n"
+                f"- Clinical Protocol: Governed by worst eye (`max(OD={od_grade}, OS={os_grade})`).\n"
+                f"- Tele-referral: Action required within 14 days at District Hospital Eye Unit."
+            )
+        else:
+            st.success(
+                f"🟢 **Patient DR Staging: Grade {overall_grade} (NON-REFERABLE)**\n\n"
+                f"- Clinical Protocol: Both eyes below treatment threshold. Routine 12-month rescreening."
+            )
+
+        if od_grade is not None and os_grade is not None and abs(od_grade - os_grade) >= 2:
+            st.warning(
+                f"⚠️ **Marked Inter-Ocular Asymmetry Detected (OD: Grade {od_grade} vs OS: Grade {os_grade})**\n\n"
+                f"Marked asymmetry in diabetic retinopathy is atypical and warrants clinical investigation for "
+                f"ipsilateral carotid artery stenosis or prior unilateral laser/vitrectomy."
+            )
+
+    st.divider()
+    st.markdown("### Part 2: Longitudinal Surveillance & Progression Tracker")
+    st.caption("Tracking a patient's multi-year screening history across rural health check-up camps.")
+
+    # Historical cohort data
+    history_data = {
+        "Screening Date": ["14-Mar-2024", "18-Mar-2025", "07-Sep-2026 (Today)"],
+        "Encampment Location": ["Vellore PHC Camp", "Vellore Sub-Centre", "Ranipet District Camp"],
+        "HbA1c (%)": [6.8, 7.6, 8.9],
+        "OD Grade": [0, 1, 2],
+        "OS Grade": [0, 1, 1],
+        "Overall Grade": [0, 1, 2],
+        "Total MA Count": [0, 5, 15],
+        "Status / Velocity": ["Normal Baseline", "Early Onset (+1 Step)", "Accelerated Progression (+1 Step)"],
+    }
+    st.dataframe(history_data, use_container_width=True)
+
+    col_chart1, col_chart2 = st.columns(2)
+    with col_chart1:
+        st.markdown("**📈 Severity Grade Progression over Time**")
+        chart_data_grade = {"Grade": [0, 1, 2]}
+        st.line_chart(chart_data_grade)
+    with col_chart2:
+        st.markdown("**🩸 Microaneurysm Count vs HbA1c Correlation**")
+        chart_data_ma = {"HbA1c (%)": [6.8, 7.6, 8.9], "Microaneurysms": [0, 5, 15]}
+        st.bar_chart(chart_data_ma)
+
+    st.warning(
+        "⚡ **Clinical Surveillance Alert:** Patient demonstrates rapid DR progression (+2 ETDRS severity grades in 2.5 years) "
+        "strongly correlated with glycemic worsening (HbA1c increased from 6.8% to 8.9%). "
+        "Recommend immediate escalation of oral hypoglycemics / insulin therapy in addition to retinal referral."
+    )
+
+# =========================================================================
+# TAB 3: SIMULINK DISTRICT TELEMEDICINE SIMULATION (REQ #5)
 # =========================================================================
 with tab_simulink:
     st.subheader("📡 Simulink District Telemedicine Screening Simulation")
