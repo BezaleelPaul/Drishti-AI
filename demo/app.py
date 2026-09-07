@@ -99,11 +99,46 @@ with st.sidebar:
 @st.cache_resource
 def get_screening_engine(cam_type: str, profile_mode: str):
     if "Forus" in cam_type:
-        th = QualityThresholds.for_forus_3nethra()
+        if hasattr(QualityThresholds, "for_forus_3nethra"):
+            th = QualityThresholds.for_forus_3nethra()
+        else:
+            th = QualityThresholds(
+                blur_good_threshold=75.0,
+                blur_bad_threshold=32.0,
+                min_brightness_good=35.0,
+                min_brightness_bad=19.0,
+                max_brightness_good=215.0,
+                min_contrast_good=14.0,
+                min_contrast_bad=6.0,
+                min_fov_ratio_good=0.32,
+            )
     elif "Remidio" in cam_type:
-        th = QualityThresholds.for_remidio_fop()
+        if hasattr(QualityThresholds, "for_remidio_fop"):
+            th = QualityThresholds.for_remidio_fop()
+        else:
+            th = QualityThresholds(
+                blur_good_threshold=65.0,
+                blur_bad_threshold=28.0,
+                min_brightness_good=32.0,
+                min_brightness_bad=18.0,
+                max_brightness_good=225.0,
+                min_contrast_good=13.0,
+                min_contrast_bad=5.5,
+                min_fov_ratio_good=0.30,
+            )
     elif "Volk" in cam_type:
-        th = QualityThresholds.for_volk_inview()
+        if hasattr(QualityThresholds, "for_volk_inview"):
+            th = QualityThresholds.for_volk_inview()
+        else:
+            th = QualityThresholds(
+                blur_good_threshold=60.0,
+                blur_bad_threshold=25.0,
+                min_brightness_good=30.0,
+                min_brightness_bad=15.0,
+                min_contrast_good=12.0,
+                min_contrast_bad=5.0,
+                min_fov_ratio_good=0.22,
+            )
     elif "Permissive" in profile_mode:
         th = QualityThresholds(
             blur_good_threshold=70.0,
@@ -113,7 +148,7 @@ def get_screening_engine(cam_type: str, profile_mode: str):
             min_brightness_good=35.0,
         )
     elif "Conservative" in profile_mode:
-        th = QualityThresholds.strict()
+        th = getattr(QualityThresholds, "strict", QualityThresholds)()
     else:
         th = QualityThresholds()
     
