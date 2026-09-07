@@ -48,11 +48,11 @@ class DRGrade(int, Enum):
 
 class QualityReason(str, Enum):
     ADEQUATE = "Adequate diagnostic quality"
-    SEVERE_BLUR = "Severe blur / loss of retinal focus"
-    INADEQUATE_ILLUMINATION = "Inadequate illumination / underexposure"
-    OVEREXPOSURE = "Severe glare / overexposure"
+    SEVERE_BLUR = "Severe blur / loss of retinal focus (Suspected camera defocus or media opacity/cataract)"
+    INADEQUATE_ILLUMINATION = "Inadequate illumination (Suspected insufficient pupil dilation or non-mydriatic issue)"
+    OVEREXPOSURE = "Severe glare / overexposure (Corneal reflection or tear film drying)"
     LOW_CONTRAST = "Low vessel-background contrast"
-    INSUFFICIENT_FIELD_OF_VIEW = "Insufficient retinal field of view / off-center"
+    INSUFFICIENT_FIELD_OF_VIEW = "Insufficient retinal field of view (Patient fixation loss or uncooperative gaze)"
     NON_FUNDUS_OR_CORRUPT = "Non-fundus or corrupt image file"
     BORDERLINE_MARGINAL = "Marginal quality across focus or illumination"
 
@@ -73,13 +73,14 @@ class QualityAssessmentResult:
     reasons: List[QualityReason] = field(default_factory=list)
     metrics: QualityMetrics = field(default_factory=QualityMetrics)
     details: str = ""
+    suspected_clinical_cause: Optional[str] = None
 
 
 @dataclass
 class DRClassificationResult:
     predicted_grade: DRGrade
     probabilities: List[float]            # 5-class probability vector [P0, P1, P2, P3, P4]
-    confidence: float                     # Top-1 softmax probability
+    confidence: float                     # Top-1 softmax probability (uncalibrated)
     top2_margin: float                    # Top-1 minus Top-2 probability
     is_referable: bool                    # Grade >= 2
 
@@ -92,16 +93,24 @@ class ConfidenceAssessment:
     requires_human_review: bool
     flags: List[str] = field(default_factory=list)
 
+    def format_confidence_label(self, confidence_val: float) -> str:
+        pct = confidence_val * 100.0
+        if not self.is_confident or self.is_ambiguous or self.is_high_risk:
+            return f"{pct:.1f}% — Low confidence; human review recommended"
+        return f"{pct:.1f}% — High confidence; meets automated screening threshold"
+
 
 @dataclass
 class GradCAMResult:
     heatmap_generated: bool
-    heatmap_array: Optional[Any] = None   # uint8 RGB overlay or normalized heatmap array
+    heatmap_array: Optional[Any] = None   # uint8 RGB overlay
     overlay_path: Optional[str] = None
     target_layer: str = "final_conv_layer"
+    description: str = "Grad-CAM visualization showing image regions influencing the model prediction."
     disclaimer: str = (
-        "Grad-CAM indicates regions most influential to the model prediction. "
-        "It does not prove the presence of specific lesions and is not lesion segmentation."
+        "Grad-CAM visualization showing image regions influencing the model prediction. "
+        "It highlights gradient activation areas for clinician audit and does not prove the "
+        "presence of specific lesions (microaneurysms, hemorrhages, or exudates)."
     )
 
 
@@ -114,9 +123,7 @@ class HumanReviewType(str, Enum):
 @dataclass
 class ScreeningRecord:
     """
-    Standard screening record matching Section 25 of the Approved Specification.
-    Strict non-negotiable rule: A Bad or still-unreliable image must NEVER carry
-    a DR grade in its report, even a low-confidence one.
+    Standard screening record matching Section 25 with medically calibrated phrasing.
     """
     image_path: str
     quality_grade: QualityGrade
@@ -124,6 +131,7 @@ class ScreeningRecord:
     rejection_reasons: List[str] = field(default_factory=list)
     recapture_attempt_count: int = 0
     reassessment_outcome: ReassessmentOutcome = ReassessmentOutcome.NOT_APPLICABLE
+    suspected_clinical_cause: Optional[str] = None
     
     # Model 2 fields (Only populated if quality cleared to Reliable Original Image)
     dr_prediction: Optional[DRClassificationResult] = None
@@ -140,22 +148,31 @@ class ScreeningRecord:
         """Formats the official screening report per Section 25."""
         if not self.quality_grade == QualityGrade.GOOD and self.dr_prediction is None:
             reasons_str = " / ".join(self.rejection_reasons) if self.rejection_reasons else "Image quality verification failed"
+            cause_str = f"\nSuspected Cause:  {self.suspected_clinical_cause}" if self.suspected_clinical_cause else ""
             return (
                 f"Image Quality:    {self.quality_grade.value}\n"
-                f"Reason:           {reasons_str}\n"
+                f"Reason:           {reasons_str}{cause_str}\n"
                 f"DR Prediction:    Not generated\n"
                 f"Action:           {self.action}"
             )
         else:
             grade_str = f"Grade {self.dr_prediction.predicted_grade.value} — {self.dr_prediction.predicted_grade.label}"
-            conf_pct = f"{self.dr_prediction.confidence * 100:.1f}%"
-            gradcam_str = "Grad-CAM generated" if (self.gradcam_result and self.gradcam_result.heatmap_generated) else "Not generated"
+            if self.confidence_assessment:
+                conf_display = self.confidence_assessment.format_confidence_label(self.dr_prediction.confidence)
+            else:
+                conf_display = f"{self.dr_prediction.confidence * 100:.1f}%"
+                
+            gradcam_str = (
+                "Grad-CAM visualization showing image regions influencing the model prediction"
+                if (self.gradcam_result and self.gradcam_result.heatmap_generated)
+                else "Not generated"
+            )
             
             report = (
                 f"Image Quality:    GOOD\n"
                 f"Quality Status:   {self.quality_status}\n"
                 f"DR Prediction:    {grade_str}\n"
-                f"Confidence:       {conf_pct}\n"
+                f"Model Confidence: {conf_display}\n"
                 f"Explainability:   {gradcam_str}\n"
                 f"Action:           {self.action}"
             )

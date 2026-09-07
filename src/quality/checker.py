@@ -153,6 +153,19 @@ class ImageQualityChecker:
             reasons.append(QualityReason.INSUFFICIENT_FIELD_OF_VIEW)
             is_bad = True
 
+        # Determine suspected biological / ocular cause
+        clinical_causes = []
+        if QualityReason.SEVERE_BLUR in reasons:
+            clinical_causes.append("Suspected media opacity/cataract or optical defocus")
+        if QualityReason.INADEQUATE_ILLUMINATION in reasons:
+            clinical_causes.append("Suspected small pupil / non-mydriatic capture")
+        if QualityReason.OVEREXPOSURE in reasons:
+            clinical_causes.append("Corneal reflection or tear-film artifact")
+        if QualityReason.INSUFFICIENT_FIELD_OF_VIEW in reasons:
+            clinical_causes.append("Loss of fixation or uncooperative gaze")
+        
+        suspected_cause_str = "; ".join(clinical_causes) if clinical_causes else None
+
         if is_bad:
             return QualityAssessmentResult(
                 grade=QualityGrade.BAD,
@@ -160,6 +173,7 @@ class ImageQualityChecker:
                 reasons=reasons,
                 metrics=metrics,
                 details=f"Fails reliability gate: {', '.join(r.value for r in reasons)}",
+                suspected_clinical_cause=suspected_cause_str,
             )
 
         # 5. Check for Borderline criteria
@@ -186,12 +200,14 @@ class ImageQualityChecker:
             is_borderline = True
 
         if is_borderline:
+            bord_cause = "Subtle media opacity or marginal focus requiring repeat capture or specialist over-read"
             return QualityAssessmentResult(
                 grade=QualityGrade.BORDERLINE,
                 is_reliable=False,
                 reasons=[QualityReason.BORDERLINE_MARGINAL],
                 metrics=metrics,
                 details=f"Borderline image: {'; '.join(borderline_notes)}",
+                suspected_clinical_cause=bord_cause,
             )
 
         # 6. All criteria passed -> Good
@@ -201,6 +217,7 @@ class ImageQualityChecker:
             reasons=[QualityReason.ADEQUATE],
             metrics=metrics,
             details="Image certified as reliable for DR classification.",
+            suspected_clinical_cause=None,
         )
 
     def _load_image_as_rgb(self, image_input: Union[str, np.ndarray, Image.Image]) -> Tuple[Optional[np.ndarray], Optional[str]]:
