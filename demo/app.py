@@ -24,6 +24,7 @@ from src.quality.checker import ImageQualityChecker, QualityThresholds
 from src.quality.enhancer import AdaptiveQualityEnhancer
 from src.segmentation import RetinalStructureSegmenter
 from src.simulation import TelemedicineSimulinkEngine, DistrictSimulationParams
+from src.reporting import generate_clinical_screening_pdf
 
 st.set_page_config(
     page_title="MathWorks SIH26038: AI DR Screening & Telemedicine Platform",
@@ -303,6 +304,7 @@ with tab_clinical:
                 st.markdown("#### 3️⃣ Structure Segmentation & Explainability (Req 2 & 4)")
                 
                 # MathWorks Req 2: Structure segmentation
+                seg_res = None
                 if enable_segmentation and record.quality_grade != QualityGrade.BAD:
                     seg_res = segmenter.segment_structures(img_np)
                     col_s1, col_s2 = st.columns(2)
@@ -316,23 +318,153 @@ with tab_clinical:
                         f"🔬 **Clinical Audit in <30 Seconds:** Optic Disc at ({seg_res.optic_disc_center[0]}, {seg_res.optic_disc_center[1]}), "
                         f"Fovea at ({seg_res.fovea_center[0]}, {seg_res.fovea_center[1]}), {len(seg_res.microaneurysm_candidates)} microaneurysm candidates detected."
                     )
+
+                    # -------------------------------------------------------------
+                    # 4. Quantitative Retinal Biomarkers & CSME Risk
+                    # -------------------------------------------------------------
+                    st.markdown("#### 4️⃣ Quantitative Biomarkers & Macular Risk (CSME)")
+                    b_col1, b_col2, b_col3, b_col4 = st.columns(4)
+                    b_col1.metric("Microaneurysms", f"{len(seg_res.microaneurysm_candidates)}")
+                    b_col2.metric("Vessel Density", f"{seg_res.vessel_density_pct}%")
+                    b_col3.metric("Fovea Proximity", f"{seg_res.min_fovea_distance_px:.0f} px")
+                    b_col4.metric("CSME Risk", seg_res.csme_risk.split()[0])
+
+                    if "HIGH" in seg_res.csme_risk:
+                        st.error(f"⚠️ **Macular Edema Alert:** {seg_res.csme_risk}. Microaneurysms detected in immediate foveal avascular border.")
+                    elif "MODERATE" in seg_res.csme_risk:
+                        st.warning(f"🟡 **Paramacular Note:** {seg_res.csme_risk}.")
+                    else:
+                        st.success("🟢 **Macular Center Clear:** No focal lesions detected within central 500-micron foveal zone.")
+
                 elif record.gradcam_result and record.gradcam_result.heatmap_generated:
                     st.image(record.gradcam_result.heatmap_array, caption="Grad-CAM Visual Activation Heatmap", use_container_width=True)
 
-            # Unified Dossier
+            # -------------------------------------------------------------
+            # Bilingual Rural Patient Action Card (User Perspective)
+            # -------------------------------------------------------------
             st.divider()
-            st.subheader("Step 3: Consolidated Clinical Screening Dossier")
-            st.code(
-                f"=== COMPREHENSIVE CLINICAL SCREENING REPORT ===\n"
-                f"Patient ID:             {patient_profile.patient_id}\n"
-                f"Age / Gender:           {patient_profile.age} yrs / {patient_profile.gender}\n"
-                f"BMI / Asian Cutoff:     {patient_profile.bmi:.1f} kg/m² ({'Elevated' if patient_profile.bmi >= 23.0 else 'Normal'})\n"
-                f"Diabetes Status:        {assessment.diabetes_status.value} ({patient_profile.known_diabetes_years or 0:.1f} yrs duration)\n"
-                f"Stage 1 ML Risk Score:  {assessment.risk_score:.0f}/100 ({assessment.risk_level.value})\n"
-                f"--------------------------------------------------\n"
-                f"{record.format_report_text()}\n"
-                f"==================================================",
-                language="yaml"
+            st.subheader("Step 3: 🗣️ Rural Patient Action Card / रोगी परामर्श कार्ड")
+            dr_val = record.dr_prediction.predicted_grade.value if record.dr_prediction else None
+            
+            if dr_val is not None and dr_val >= 2:
+                card_type = st.error
+                card_title = "🚨 HIGH URGENCY / उच्च प्राथमिकता — DISTRICT HOSPITAL REFERRAL"
+                eng_msg = "Signs of active diabetic retinopathy detected. You require specialized eye examination within 2 weeks at the District Hospital to prevent permanent vision loss."
+                hin_msg = "आपकी आँखों के पर्दे पर मधुमेह (शुगर) के गंभीर लक्षण मिले हैं। आँखों की रोशनी बचाने के लिए कृपया अगले 2 सप्ताह में जिला अस्पताल के नेत्र विशेषज्ञ से संपर्क करें।"
+            elif dr_val == 1:
+                card_type = st.warning
+                card_title = "🟡 MILD RETINAL CHANGES / प्रारंभिक लक्षण — MONITOR SUGAR & BP"
+                eng_msg = "Early diabetic changes detected. Maintain strict control of blood sugar and blood pressure. Re-screen your eyes in 6 months."
+                hin_msg = "आँखों में मधुमेह के शुरुआती हल्के लक्षण हैं। अपनी शुगर और बीपी को पूरी तरह नियंत्रित रखें और 6 महीने बाद पुनः आँखों की जांच कराएं।"
+            elif dr_val == 0:
+                card_type = st.success
+                card_title = "🟢 NORMAL SCREENING / सामान्य — ROUTINE ANNUAL RESCREENING"
+                eng_msg = "No diabetic eye damage found today. Continue prescribed medication, healthy diet, and undergo your next retinal screen in 12 months."
+                hin_msg = "आज की जांच में आँखों में कोई खराबी नहीं पाई गई। नियमित दवाएं लेते रहें और 1 वर्ष बाद दोबारा वार्षिक जांच अवश्य कराएं।"
+            else:
+                card_type = st.info
+                card_title = "🔄 RECAPTURE NEEDED / पुनः फोटो आवश्यक — UNCLEAR IMAGE"
+                eng_msg = "Retinal photo was unclear or out of focus. A re-capture with proper dark-room dilation is required."
+                hin_msg = "फोटो धुंधली होने के कारण जांच पूरी नहीं हो सकी। कृपया कमरे में अंधेरा करके पुनः साफ फोटो खिंचवाएं।"
+
+            with card_type(card_title):
+                st.write(f"**English:** {eng_msg}")
+                st.write(f"**हिंदी:** {hin_msg}")
+
+            # -------------------------------------------------------------
+            # Tele-Ophthalmology Workstation & 1-Click Sign-Off (Doctor Perspective)
+            # -------------------------------------------------------------
+            st.divider()
+            st.subheader("Step 4: 👨‍⚕️ Tele-Ophthalmology Review & 1-Click Sign-Off")
+            st.caption("Specialist fast-triage console for remote district ophthalmologist sign-off.")
+
+            doc_col1, doc_col2 = st.columns(2)
+            with doc_col1:
+                doc_decision = st.selectbox(
+                    "Physician Decision / Verification",
+                    [
+                        f"Confirm AI Grade ({'Grade ' + str(dr_val) if dr_val is not None else 'Ungradable - Recapture'})",
+                        "Override: Grade 0 (No DR)",
+                        "Override: Grade 1 (Mild NPDR)",
+                        "Override: Grade 2 (Moderate NPDR)",
+                        "Override: Grade 3 (Severe NPDR)",
+                        "Override: Grade 4 (Proliferative DR - Urgent PRP/Anti-VEGF)",
+                    ]
+                )
+                clinical_orders = st.multiselect(
+                    "Clinical Management Orders",
+                    [
+                        "Strict Glycemic Control (HbA1c target < 7.0%)",
+                        "Blood Pressure & Lipid Optimization",
+                        "Optical Coherence Tomography (OCT) for Macular Edema",
+                        "Urgent Intravitreal Anti-VEGF Therapy",
+                        "Pan-Retinal Photocoagulation (PRP Laser)",
+                        "Slit-Lamp Biomicroscopy",
+                        "Annual Rescreening (12 Months)",
+                    ],
+                    default=["Strict Glycemic Control (HbA1c target < 7.0%)", "Annual Rescreening (12 Months)"] if (dr_val == 0 or dr_val is None) else ["Strict Glycemic Control (HbA1c target < 7.0%)", "Optical Coherence Tomography (OCT) for Macular Edema"]
+                )
+
+            with doc_col2:
+                doctor_name = st.text_input("Reviewing Specialist Name & Credentials", "Dr. S. Ramanathan, MS (Ophthalmology), Vitreo-Retinal Consultant")
+                doctor_notes = st.text_area("Physician Clinical Notes", f"Tele-triaged at District Hub. Stage 1 Risk: {assessment.risk_level.value}. Image quality verified. Orders assigned.")
+
+            # -------------------------------------------------------------
+            # Download Hospital-Grade PDF Report (Professional / MedTech Perspective)
+            # -------------------------------------------------------------
+            st.divider()
+            st.subheader("Step 5: 📄 Download Hospital Diagnostic PDF Report (ABDM Compliant)")
+            
+            # Prepare temporary image paths for PDF embedding
+            os.makedirs("results/pdf_cache", exist_ok=True)
+            orig_cache_path = os.path.abspath("results/pdf_cache/orig_temp.jpg")
+            annot_cache_path = os.path.abspath("results/pdf_cache/annot_temp.jpg")
+
+            try:
+                # Save RGB as JPEG
+                Image.fromarray(img_np).save(orig_cache_path)
+                if seg_res and seg_res.annotated_overlay is not None:
+                    Image.fromarray(seg_res.annotated_overlay).save(annot_cache_path)
+                elif record.gradcam_result and record.gradcam_result.heatmap_array is not None:
+                    Image.fromarray(record.gradcam_result.heatmap_array).save(annot_cache_path)
+                else:
+                    annot_cache_path = None
+            except Exception:
+                orig_cache_path = None
+                annot_cache_path = None
+
+            patient_dict = {
+                "patient_id": patient_profile.patient_id,
+                "age": patient_profile.age,
+                "gender": patient_profile.gender,
+                "bmi": patient_profile.bmi,
+                "diabetes_status": assessment.diabetes_status.value,
+                "risk_score": assessment.risk_score,
+            }
+            biomarker_dict = {
+                "microaneurysm_count": len(seg_res.microaneurysm_candidates) if seg_res else 0,
+                "vessel_density_pct": seg_res.vessel_density_pct if seg_res else 0.0,
+                "csme_risk": seg_res.csme_risk if seg_res else "LOW",
+                "min_fovea_distance_px": seg_res.min_fovea_distance_px if seg_res else 0.0,
+            }
+
+            pdf_data = generate_clinical_screening_pdf(
+                patient_data=patient_dict,
+                screening_record=record,
+                biomarkers=biomarker_dict,
+                fundus_image_path=orig_cache_path,
+                annotated_image_path=annot_cache_path,
+                doctor_notes=doctor_notes,
+                doctor_signature_name=doctor_name,
+                doctor_action=", ".join(clinical_orders) if clinical_orders else "Routine Care",
+            )
+
+            st.download_button(
+                label="📥 Download Official Clinical Screening PDF Dossier (Printable A4)",
+                data=pdf_data,
+                file_name=f"DR_Screening_Report_{patient_profile.patient_id}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
             )
 
 # =========================================================================

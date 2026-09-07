@@ -22,6 +22,9 @@ class RetinalStructuresResult:
     microaneurysm_candidates: List[Tuple[int, int, int]] = field(default_factory=list) # (x, y, radius)
     exudate_mask: Optional[np.ndarray] = None    # 2D binary uint8 mask of bright lesions
     annotated_overlay: Optional[np.ndarray] = None # RGB image with clinical annotations
+    vessel_density_pct: float = 0.0              # % of retinal area occupied by vessels
+    min_fovea_distance_px: float = 999.0         # distance from closest lesion to fovea center
+    csme_risk: str = "LOW"                       # Clinically Significant Macular Edema risk
 
 
 class RetinalStructureSegmenter:
@@ -75,6 +78,37 @@ class RetinalStructureSegmenter:
             img_rgb, od_center, od_radius, fovea_center, vessel_mask, exudate_mask, ma_candidates
         )
 
+        # 6. Quantitative Biomarkers & CSME / Macular Edema Risk
+        retinal_pixels = max(int(np.count_nonzero(retinal_mask)), 1)
+        vessel_pixels = int(np.count_nonzero(vessel_mask))
+        vessel_density = float((vessel_pixels / retinal_pixels) * 100.0)
+
+        # Compute minimum lesion distance to fovea center
+        fx, fy = fovea_center
+        min_dist = 999.0
+        for cx, cy, _ in ma_candidates:
+            d = float(np.sqrt((cx - fx) ** 2 + (cy - fy) ** 2))
+            if d < min_dist:
+                min_dist = d
+
+        # Check exudates if any
+        if exudate_mask is not None and HAS_OPENCV:
+            ex_pts = np.argwhere(exudate_mask == 255)
+            if len(ex_pts) > 0:
+                # ex_pts is (y, x)
+                dists = np.sqrt((ex_pts[:, 1] - fx) ** 2 + (ex_pts[:, 0] - fy) ** 2)
+                min_ex_dist = float(np.min(dists))
+                if min_ex_dist < min_dist:
+                    min_dist = min_ex_dist
+
+        # CSME Risk: Macular encroachment within 1.5x OD radius (~500-1500 microns)
+        if min_dist < od_radius * 1.5 and len(ma_candidates) > 0:
+            csme_risk = "HIGH (Macular Zone Encroached)"
+        elif min_dist < od_radius * 2.5 and len(ma_candidates) > 0:
+            csme_risk = "MODERATE (Paramacular Lesions)"
+        else:
+            csme_risk = "LOW (Extramacular)"
+
         return RetinalStructuresResult(
             optic_disc_center=od_center,
             optic_disc_radius=od_radius,
@@ -83,6 +117,9 @@ class RetinalStructureSegmenter:
             microaneurysm_candidates=ma_candidates,
             exudate_mask=exudate_mask,
             annotated_overlay=annotated_overlay,
+            vessel_density_pct=round(vessel_density, 1),
+            min_fovea_distance_px=round(min_dist, 1) if min_dist < 999.0 else 0.0,
+            csme_risk=csme_risk,
         )
 
     def _localize_od_and_fovea(
