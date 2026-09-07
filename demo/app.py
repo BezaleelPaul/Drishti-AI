@@ -73,8 +73,19 @@ with st.sidebar:
         help="Enforces hard cap of 2 recaptures per patient session. Reaching cap escalates to human review.",
     )
 
+    camera_hardware = st.selectbox(
+        "📷 Rural Camera Hardware Model",
+        [
+            "Forus 3nethra Classic (Indian PHC Non-Mydriatic)",
+            "Remidio Fundus on Phone (Handheld Smartphone)",
+            "Volk iNview (20D Portable Condensing Lens)",
+            "Standard Desktop Fundus Camera (Clinical Tabletop)",
+        ],
+        help="Tunes optical quality thresholds specifically to the sensor & illumination profile of the camera."
+    )
+
     threshold_profile = st.selectbox(
-        "Quality Gate Operating Point",
+        "Quality Gate Operating Strictness",
         ["Balanced (Standard PHC Setting)", "Permissive (Specialist Clinic Over-Read)", "Conservative (Autonomous Screening)"],
         help="Adjusts Model 1 strictness. Permissive mode allows borderline captures with visible pathology to be graded under clinical supervision."
     )
@@ -86,8 +97,14 @@ with st.sidebar:
 
 # Cache engines
 @st.cache_resource
-def get_screening_engine(profile_mode: str):
-    if "Permissive" in profile_mode:
+def get_screening_engine(cam_type: str, profile_mode: str):
+    if "Forus" in cam_type:
+        th = QualityThresholds.for_forus_3nethra()
+    elif "Remidio" in cam_type:
+        th = QualityThresholds.for_remidio_fop()
+    elif "Volk" in cam_type:
+        th = QualityThresholds.for_volk_inview()
+    elif "Permissive" in profile_mode:
         th = QualityThresholds(
             blur_good_threshold=70.0,
             blur_bad_threshold=30.0,
@@ -96,12 +113,7 @@ def get_screening_engine(profile_mode: str):
             min_brightness_good=35.0,
         )
     elif "Conservative" in profile_mode:
-        th = QualityThresholds(
-            blur_good_threshold=100.0,
-            blur_bad_threshold=40.0,
-            min_contrast_good=20.0,
-            min_contrast_bad=9.0,
-        )
+        th = QualityThresholds.strict()
     else:
         th = QualityThresholds()
     
@@ -112,7 +124,7 @@ def get_screening_engine(profile_mode: str):
     segmenter = RetinalStructureSegmenter()
     return risk_model, router, enhancer, segmenter
 
-risk_model, router, enhancer, segmenter = get_screening_engine(threshold_profile)
+risk_model, router, enhancer, segmenter = get_screening_engine(camera_hardware, threshold_profile)
 sample_dir = os.path.join(PROJECT_ROOT, "test_samples")
 
 # =========================================================================
@@ -260,11 +272,19 @@ with tab_clinical:
                 else:
                     st.error(f"**Quality Status:** BAD — Fails Reliability Gate")
 
-                if record.rejection_reasons:
-                    st.write(f"**Photographic Defects:** {', '.join(record.rejection_reasons)}")
                 suspected_cause = getattr(record, "suspected_clinical_cause", None)
                 if suspected_cause:
                     st.info(f"**Suspected Clinical Cause:** {suspected_cause}")
+
+                if record.quality_grade != QualityGrade.GOOD:
+                    with st.expander("💡 ASHA / Field Operator Real-Time Camera Alignment Guide"):
+                        st.markdown(
+                            "**Immediate Corrective Actions for Handheld Fundus Camera:**\n"
+                            "1. **Blur / Defocus:** Adjust diopter dial on camera (+/- 2D) or stabilize forehead against patient brow.\n"
+                            "2. **Small Pupil / Inadequate Light:** Ambient camp light is too bright. Have patient wait in a dark/shaded tent for 3 minutes to achieve natural physiological dilation.\n"
+                            "3. **Crescent Shadow / Low Contrast:** Lens is misaligned. Move camera 3–5 mm closer to patient eye and center the illumination beam onto the pupil aperture.\n"
+                            "4. **Persistent Defect:** If image remains blurry after 2 attempts, suspect cataract media opacity; escalate to clinician."
+                        )
 
                 st.divider()
 
@@ -372,6 +392,22 @@ with tab_clinical:
             with card_type(card_title):
                 st.write(f"**English:** {eng_msg}")
                 st.write(f"**हिंदी:** {hin_msg}")
+
+            col_aud, col_sms = st.columns(2)
+            with col_aud:
+                with st.expander("🔊 Audio Voice Guidance (रोगी के लिए बोलकर सुनाएं)"):
+                    st.markdown(f"🗣️ **Hindi Voice Prompt for Illiterate Villagers:**\n\n> *\"{hin_msg}\"*")
+                    st.caption("ASHA worker can read this aloud or press play on Android tablet text-to-speech.")
+            with col_sms:
+                sms_payload = (
+                    f"DRISHTI-AI CAMP REFERRAL:\nPatient: {patient_profile.patient_id} ({patient_profile.age}y)\n"
+                    f"Status: {card_title.split('/')[0].strip()}\n"
+                    f"Notice: {eng_msg[:90]}...\n"
+                    f"जिला अस्पताल नेत्र विभाग में संपर्क करें।"
+                )
+                with st.expander("📱 1-Click SMS / WhatsApp Referral Slip"):
+                    st.code(sms_payload, language="text")
+                    st.caption("Copy-paste into SMS or WhatsApp for the patient or their family member.")
 
             # -------------------------------------------------------------
             # Tele-Ophthalmology Workstation & 1-Click Sign-Off (Doctor Perspective)

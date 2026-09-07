@@ -67,6 +67,47 @@ class QualityThresholds:
             min_red_to_blue_ratio=1.15,
         )
 
+    @classmethod
+    def for_remidio_fop(cls) -> QualityThresholds:
+        """Remidio Fundus-on-Phone: Handheld smartphone camera with smaller sensor and slight edge glare."""
+        return cls(
+            blur_good_threshold=65.0,
+            blur_bad_threshold=28.0,
+            min_brightness_good=32.0,
+            min_brightness_bad=18.0,
+            max_brightness_good=225.0,
+            min_contrast_good=13.0,
+            min_contrast_bad=5.5,
+            min_fov_ratio_good=0.30,
+        )
+
+    @classmethod
+    def for_forus_3nethra(cls) -> QualityThresholds:
+        """Forus 3nethra Classic: Non-mydriatic portable camera built for Indian rural PHCs."""
+        return cls(
+            blur_good_threshold=75.0,
+            blur_bad_threshold=32.0,
+            min_brightness_good=35.0,
+            min_brightness_bad=19.0,
+            max_brightness_good=215.0,
+            min_contrast_good=14.0,
+            min_contrast_bad=6.0,
+            min_fov_ratio_good=0.32,
+        )
+
+    @classmethod
+    def for_volk_inview(cls) -> QualityThresholds:
+        """Volk iNview: Smartphone-mounted 20D indirect condensing lens with circular aperture."""
+        return cls(
+            blur_good_threshold=60.0,
+            blur_bad_threshold=25.0,
+            min_brightness_good=30.0,
+            min_brightness_bad=15.0,
+            min_contrast_good=12.0,
+            min_contrast_bad=5.0,
+            min_fov_ratio_good=0.22,
+        )
+
 
 class ImageQualityChecker:
     """
