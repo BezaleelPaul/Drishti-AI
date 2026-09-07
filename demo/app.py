@@ -33,12 +33,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# Load custom UI/UX stylesheet (Sinduri's design styling hook)
-css_file = os.path.join(os.path.dirname(__file__), "custom_style.css")
-if os.path.exists(css_file):
-    with open(css_file, "r", encoding="utf-8") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
 st.title("👁️ Explainable AI for Diabetic Retinopathy Screening in Rural India")
 st.caption(
     "Smart India Hackathon 2026 (SIH26038 • MathWorks) — Complete Clinical Pipeline, Retinal Segmentation & Simulink Telemedicine Simulation"
@@ -175,7 +169,7 @@ with tab_clinical:
     st.subheader("Stage 1: Upstream Patient Clinical Intake (Zero-Hardware Screen)")
     st.caption("Community health worker triage (ASHA/PHC nurse) in 90 seconds before camera engagement.")
 
-    with st.expander("📋 Enter Patient Clinical Parameters", expanded=True):
+    with st.expander("📋 Patient Clinical Intake Parameters (Click to View / Edit)", expanded=False):
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
             patient_id = st.text_input("Patient ID", "ARV-2026-0842")
@@ -288,30 +282,20 @@ with tab_clinical:
                 output_dir=os.path.join(PROJECT_ROOT, "results"),
             )
 
-            col_view_l, col_view_r = st.columns(2)
-            
-            with col_view_l:
-                st.image(image_to_process, caption="Captured Retinal Photograph (Original Pixels)", use_container_width=True)
-                st.caption("🔒 **Section 20 Compliance:** Unaltered original pixel data preserved for clinical audit.")
+            # -------------------------------------------------------------
+            # 1. Executive Screening Verdict (Quality Gate & Severity Grade)
+            # -------------------------------------------------------------
+            st.divider()
+            verdict_l, verdict_r = st.columns(2)
 
-                # MathWorks Req 1: Adaptive CLAHE Enhancement Display for Borderline / Visual Review
-                if enable_clahe_enhancer and (record.quality_grade in (QualityGrade.BORDERLINE, QualityGrade.BAD) or True):
-                    with st.expander("✨ MathWorks Req 1: Adaptive CLAHE & Illumination Normalization View", expanded=False):
-                        enhanced_np = enhancer.enhance_borderline_image(img_np)
-                        st.image(enhanced_np, caption="Adaptive CLAHE + Background Illumination Normalization + Bilateral Denoising", use_container_width=True)
-                        st.caption("Applied specifically for operator visual assistance per MathWorks Requirement #1.")
-
-            with col_view_r:
-                # -------------------------------------------------------------
-                # 1. Quality Gate
-                # -------------------------------------------------------------
+            with verdict_l:
                 st.markdown("#### 1️⃣ Model 1: Quality Gate (MathWorks Req 1)")
                 if record.quality_grade == QualityGrade.GOOD:
-                    st.success(f"**Quality Status:** GOOD (Reliable Original Image Certified)")
+                    st.success("**Quality Status:** GOOD (Reliable Original Certified)")
                 elif record.quality_grade == QualityGrade.BORDERLINE:
                     st.warning(f"**Quality Status:** BORDERLINE (Reassessment: {record.reassessment_outcome.value})")
                 else:
-                    st.error(f"**Quality Status:** BAD — Fails Reliability Gate")
+                    st.error("**Quality Status:** BAD — Fails Reliability Gate")
 
                 suspected_cause = getattr(record, "suspected_clinical_cause", None)
                 if suspected_cause:
@@ -327,11 +311,7 @@ with tab_clinical:
                             "4. **Persistent Defect:** If image remains blurry after 2 attempts, suspect cataract media opacity; escalate to clinician."
                         )
 
-                st.divider()
-
-                # -------------------------------------------------------------
-                # 2. DR Severity Classification
-                # -------------------------------------------------------------
+            with verdict_r:
                 st.markdown("#### 2️⃣ Model 2: DR Severity Classification (MathWorks Req 3)")
                 if record.dr_prediction is not None:
                     grade = record.dr_prediction.predicted_grade
@@ -359,48 +339,57 @@ with tab_clinical:
                         "from receiving a disease grade to eliminate forced predictions on poor data."
                     )
 
+            # -------------------------------------------------------------
+            # 2. Visual Inspection Layer (3 Clean Columns across full width)
+            # -------------------------------------------------------------
+            st.divider()
+            st.markdown("### 🔬 Multimodal Retinal Visual Inspection")
+            v_col1, v_col2, v_col3 = st.columns(3)
+
+            seg_res = None
+            if enable_segmentation and record.quality_grade != QualityGrade.BAD:
+                seg_res = segmenter.segment_structures(img_np)
+
+            with v_col1:
+                st.image(image_to_process, caption="Captured Retinal Photograph (Original Pixels)", use_container_width=True)
+                st.caption("🔒 **Section 20 Compliance:** Unaltered original pixel data preserved for clinical audit.")
+                if enable_clahe_enhancer:
+                    with st.expander("✨ View Adaptive CLAHE (Req 1)"):
+                        enhanced_np = enhancer.enhance_borderline_image(img_np)
+                        st.image(enhanced_np, caption="Adaptive CLAHE + Denoising", use_container_width=True)
+
+            with v_col2:
+                if seg_res and seg_res.annotated_overlay is not None:
+                    st.image(seg_res.annotated_overlay, caption="Anatomical Landmarks (Req 2): OD (Yellow), Fovea (Blue), Vessels (Cyan)", use_container_width=True)
+                    st.caption(f"OD at ({seg_res.optic_disc_center[0]}, {seg_res.optic_disc_center[1]}), Fovea at ({seg_res.fovea_center[0]}, {seg_res.fovea_center[1]})")
+                else:
+                    st.info("Structure segmentation suppressed for ungradable/bad capture.")
+
+            with v_col3:
+                if record.gradcam_result and record.gradcam_result.heatmap_generated:
+                    st.image(record.gradcam_result.heatmap_array, caption="Grad-CAM Activation Heatmap (Req 4)", use_container_width=True)
+                    st.caption("Computed in 0.10s. Visual activation focus map.")
+                else:
+                    st.info("Grad-CAM suppressed on ungradable capture.")
+
+            # -------------------------------------------------------------
+            # 3. Quantitative Retinal Biomarkers & CSME Risk (Full Width)
+            # -------------------------------------------------------------
+            if seg_res and record.quality_grade != QualityGrade.BAD:
                 st.divider()
+                st.markdown("### 📊 Quantitative Retinal Biomarkers & CSME Risk")
+                b_col1, b_col2, b_col3, b_col4 = st.columns(4)
+                b_col1.metric("Microaneurysms", f"{len(seg_res.microaneurysm_candidates)}")
+                b_col2.metric("Vessel Density", f"{seg_res.vessel_density_pct}%")
+                b_col3.metric("Fovea Proximity", f"{seg_res.min_fovea_distance_px:.0f} px")
+                b_col4.metric("CSME Risk", seg_res.csme_risk.split()[0])
 
-                # -------------------------------------------------------------
-                # 3. Retinal Structure Segmentation & Explainability
-                # -------------------------------------------------------------
-                st.markdown("#### 3️⃣ Structure Segmentation & Explainability (Req 2 & 4)")
-                
-                # MathWorks Req 2: Structure segmentation
-                seg_res = None
-                if enable_segmentation and record.quality_grade != QualityGrade.BAD:
-                    seg_res = segmenter.segment_structures(img_np)
-                    col_s1, col_s2 = st.columns(2)
-                    with col_s1:
-                        st.image(seg_res.annotated_overlay, caption="Annotated Landmarks: Optic Disc (Yellow), Fovea (Blue), Vessels (Cyan), MAs (Red)", use_container_width=True)
-                    with col_s2:
-                        if record.gradcam_result and record.gradcam_result.heatmap_generated:
-                            st.image(record.gradcam_result.heatmap_array, caption="Grad-CAM Visual Activation Heatmap", use_container_width=True)
-
-                    st.caption(
-                        f"🔬 **Clinical Audit in <30 Seconds:** Optic Disc at ({seg_res.optic_disc_center[0]}, {seg_res.optic_disc_center[1]}), "
-                        f"Fovea at ({seg_res.fovea_center[0]}, {seg_res.fovea_center[1]}), {len(seg_res.microaneurysm_candidates)} microaneurysm candidates detected."
-                    )
-
-                    # -------------------------------------------------------------
-                    # 4. Quantitative Retinal Biomarkers & CSME Risk
-                    # -------------------------------------------------------------
-                    st.markdown("#### 4️⃣ Quantitative Biomarkers & Macular Risk (CSME)")
-                    b_col1, b_col2, b_col3, b_col4 = st.columns(4)
-                    b_col1.metric("Microaneurysms", f"{len(seg_res.microaneurysm_candidates)}")
-                    b_col2.metric("Vessel Density", f"{seg_res.vessel_density_pct}%")
-                    b_col3.metric("Fovea Proximity", f"{seg_res.min_fovea_distance_px:.0f} px")
-                    b_col4.metric("CSME Risk", seg_res.csme_risk.split()[0])
-
-                    if "HIGH" in seg_res.csme_risk:
-                        st.error(f"⚠️ **Macular Edema Alert:** {seg_res.csme_risk}. Microaneurysms detected in immediate foveal avascular border.")
-                    elif "MODERATE" in seg_res.csme_risk:
-                        st.warning(f"🟡 **Paramacular Note:** {seg_res.csme_risk}.")
-                    else:
-                        st.success("🟢 **Macular Center Clear:** No focal lesions detected within central 500-micron foveal zone.")
-
-                elif record.gradcam_result and record.gradcam_result.heatmap_generated:
-                    st.image(record.gradcam_result.heatmap_array, caption="Grad-CAM Visual Activation Heatmap", use_container_width=True)
+                if "HIGH" in seg_res.csme_risk:
+                    st.error(f"⚠️ **Macular Edema Alert:** {seg_res.csme_risk}. Microaneurysms detected in immediate foveal avascular border.")
+                elif "MODERATE" in seg_res.csme_risk:
+                    st.warning(f"🟡 **Paramacular Note:** {seg_res.csme_risk}.")
+                else:
+                    st.success("🟢 **Macular Center Clear:** No focal lesions detected within central 500-micron foveal zone.")
 
             # -------------------------------------------------------------
             # Bilingual Rural Patient Action Card (User Perspective)
