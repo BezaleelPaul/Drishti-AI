@@ -1,0 +1,9 @@
+{
+  "total_samples": 150,
+  "forced_pred_rate_baseline": 100.0,
+  "forced_pred_rate_proposed": 0.0,
+  "sensitivity_referable_dr": 11.11111111111111,
+  "specificity_referable_dr": 92.7710843373494,
+  "recapture_rate": 20.666666666666668,
+  "human_review_rate": 77.33333333333333
+}
