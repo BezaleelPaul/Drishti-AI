@@ -171,20 +171,15 @@ class RetinalStructureSegmenter:
         g_u8 = np.clip(green, 0, 255).astype(np.uint8)
         enhanced_g = clahe.apply(g_u8)
 
-        # Morphological opening (background extraction)
-        kernel_bg = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
-        bg = cv2.morphologyEx(enhanced_g, cv2.MORPH_OPEN, kernel_bg)
+        # Morphological black-hat transform: extracts structures darker than background (blood vessels)
+        kernel_bh = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+        blackhat = cv2.morphologyEx(enhanced_g, cv2.MORPH_BLACKHAT, kernel_bh)
 
-        # Vessel contrast enhancement: diff = background - enhanced
-        diff = cv2.subtract(bg, enhanced_g)
-
-        # Adaptive thresholding
-        vessels = cv2.adaptiveThreshold(
-            diff, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -2
-        )
+        # Adaptive thresholding on black-hat response
+        _, vessels = cv2.threshold(blackhat, 9, 255, cv2.THRESH_BINARY)
         vessels[retinal_mask == 0] = 0
 
-        # Remove small isolated speckles (area < 25)
+        # Remove small isolated speckles (area < 20)
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(vessels)
         cleaned_vessels = np.zeros_like(vessels)
         for i in range(1, num_labels):
