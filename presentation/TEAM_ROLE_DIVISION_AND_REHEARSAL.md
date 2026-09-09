@@ -11,6 +11,8 @@
 | **Madhu** | **Clinical Intelligence & Biological Triage Lead** | Stage 1 Clinical Risk Engine, ICMR Asian-Indian cutoffs, Biological defect attribution (cataract vs. mydriasis), Retinal Anatomical Segmentation (`src/clinical_risk/`, `src/segmentation/`). |
 | **Akshay** | **Deep Learning & MathWorks Modeling Lead** | EfficientNetB0 5-class severity grading, Grad-CAM explainability (<30s constraint), MATLAB Simulink 100,000-patient discrete-event simulation (`src/classification/`, `matlab/simulink_telemedicine_model.m`). |
 | **Adithya** | **Validation, Edge Cases & Telemedicine Ops Lead** | 150-sample A/B experiment evaluation, Adversarial & non-fundus edge cases, 98.6% bandwidth optimization, Rural PHC field operations (`tests/`, `evaluate_ab_test.py`, `docs/AB_EXPERIMENT_RESULTS.md`). |
+| **Sinduri** | **Lead UI/UX Designer (ASHA Mobile & Field UX)** | Low-cognitive-load ASHA mobile client interface, bilingual audio prompts, real-time quality triage feedback UI, patient referral slip layouts (`sinduri_uiux_kit/`, `flutter_app/`). |
+| **Megha** | **Lead UI/UX Designer (Doctor Console & Data Viz)** | Central Tele-Ophthalmology Dashboard, specialist over-read workbench, Grad-CAM++ lesion heatmaps, quantitative CSME biomarker overlays, ABDM FHIR report layouts (`demo/app.py`). |
 
 ---
 

@@ -302,6 +302,8 @@ Action:           Recapture image. Do not display a DR grade for an image that f
 | **Madhu** | Clinical Lead & Biomedical Engineer | Upstream Clinical Risk Engine, Retinal Structure Segmentation, Clinical Validation | ICMR 2024 guidelines calibration, OD/Fovea Euclidean CSME risk distance, clinical report validation |
 | **Akshay** | Deep Learning & Operations Lead | EfficientNetB0 DR Classifier, Grad-CAM++ Engine, MATLAB/Simulink Queuing Model | APTOS 2019 model training (QWK metrics), <1.2s CPU Grad-CAM++, 100k-patient Simulink simulation |
 | **Adithya** | Safety & Verification Lead | Test Frameworks, A/B Benchmark Experiments, Edge-Case Hardening, Telemedicine Metrics | 150-sample benchmark dataset, 0% forced-prediction validation on ungradables, safety guardrail metrics |
+| **Sinduri** | Lead UI/UX Designer | ASHA Mobile Client UX, Field Worker Workflow, Design System & Figma Kits | Low-cognitive-load ASHA mobile screens, camera recapture prompts, bilingual referral slips, `sinduri_uiux_kit/` |
+| **Megha** | Lead UI/UX Designer | Doctor Diagnostic Console, Tele-Ophthalmology Dashboard, Clinical Data Visualization | Specialist over-read workbench, Grad-CAM++ lesion heatmaps, quantitative CSME biomarker overlays, ABDM FHIR report layouts |
 
 ---
 

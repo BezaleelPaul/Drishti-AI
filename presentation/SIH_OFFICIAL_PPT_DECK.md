@@ -13,6 +13,8 @@
   - **Madhu:** Clinical Risk Engine, Biological Defect Attribution & Retinal Structure Segmentation
   - **Akshay:** Deep Learning Classifier (EfficientNetB0), Grad-CAM Explainability & MATLAB Simulink Model
   - **Adithya:** Telemedicine Operations, A/B Testing Validation & Edge-Case Guardrails
+  - **Sinduri:** Lead UI/UX Designer — ASHA Mobile Workflow, Field Design System & Figma Kits
+  - **Megha:** Lead UI/UX Designer — Doctor Diagnostic Console, Clinical Data Visualization & ABDM Layouts
 
 ---
 
