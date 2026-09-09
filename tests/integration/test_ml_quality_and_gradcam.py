@@ -7,6 +7,7 @@ from src.classification.classifier import DRClassifier
 from src.classification.gradcam import GradCAMExplainer
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import QualityGrade
+from tests.unit.test_quality import create_synthetic_fundus_image
 
 
 class TestMLQualityAndGradCAM(unittest.TestCase):
@@ -21,13 +22,8 @@ class TestMLQualityAndGradCAM(unittest.TestCase):
         self.classifier = DRClassifier()
         self.explainer = GradCAMExplainer(classifier_backend=self.classifier, use_gradcam_plus_plus=True)
 
-        # Synthetic circular fundus test image
-        self.test_img = np.zeros((256, 256, 3), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
-        mask = (x - 128) ** 2 + (y - 128) ** 2 <= 100 ** 2
-        self.test_img[mask, 0] = 200
-        self.test_img[mask, 1] = 100
-        self.test_img[mask, 2] = 40
+        # Realistic synthetic circular fundus test image with retinal texture and vessels
+        self.test_img = create_synthetic_fundus_image(size=(256, 256), blur_level=0.0)
 
     def test_ml_quality_scoring(self):
         res = self.checker.assess_image(self.test_img)
