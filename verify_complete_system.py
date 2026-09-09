@@ -64,7 +64,9 @@ def run_comprehensive_verification():
     assert q_good.grade == QualityGrade.GOOD
     assert q_bad.grade == QualityGrade.BAD
     assert len(q_bad.reasons) > 0
-    results["Model 1 Quality Gate"] = f"PASS ({t_quality*1000:.1f} ms) - Good certified, Bad rejected"
+    assert q_good.metrics.raw_scores.get("ml_quality_score") is not None
+    ml_q = q_good.metrics.raw_scores["ml_quality_score"]
+    results["Model 1 Quality Gate"] = f"PASS ({t_quality*1000:.1f} ms) - Good certified (ML Quality: {ml_q*100:.1f}%), Bad rejected"
 
     # Test 3: MathWorks Req 1 Adaptive CLAHE
     t0 = time.time()
@@ -92,14 +94,14 @@ def run_comprehensive_verification():
     assert dr_pred.predicted_grade.value in [0, 1, 2, 3, 4]
     results["Req 3 DR Classification"] = f"PASS ({t_dr*1000:.1f} ms) - Grade {dr_pred.predicted_grade.value}: {dr_pred.predicted_grade.label} (Conf: {dr_pred.confidence*100:.1f}%)"
 
-    # Test 6: MathWorks Req 4 Explainability (<30s Grad-CAM)
+    # Test 6: MathWorks Req 4 Explainability (<30s Grad-CAM++)
     t0 = time.time()
-    explainer = GradCAMExplainer()
-    gradcam_res = explainer.generate_heatmap(good_img, dr_pred.predicted_grade)
+    explainer = GradCAMExplainer(classifier_backend=classifier)
+    gradcam_res = explainer.generate_heatmap(good_img, dr_pred.predicted_grade, classifier=classifier)
     t_cam = time.time() - t0
     assert gradcam_res.heatmap_generated is True
     assert t_cam < 30.0 # MathWorks strict requirement
-    results["Req 4 Grad-CAM Explainability"] = f"PASS ({t_cam:.2f} s < 30s limit) - Heatmap overlay generated"
+    results["Req 4 Grad-CAM Explainability"] = f"PASS ({t_cam:.2f} s < 30s limit) - Layer: {gradcam_res.target_layer}"
 
     # Test 7: MathWorks Req 5 Simulink 100k Telemedicine Simulation
     t0 = time.time()

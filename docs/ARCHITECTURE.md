@@ -74,9 +74,11 @@ This architecture implements a **two-model, human-in-the-loop screening pipeline
 ## 3. Two-Model Separation
 
 - **Model 1 (Quality Gate):** Answers *"Can we trust this image?"*
-  - Lightweight CNN / photographic feature extractor (blur, illumination, contrast, FOV).
-  - 3 classes: Good, Borderline, Bad.
+  - Native deep ensemble (`fundus_image_toolbox`) + dynamic contour circular ROI + multi-scale feature fusion ($S_{\text{blur}}, S_{\text{illum}}, S_{\text{contrast}}, S_{\text{fov}}$).
+  - Continuous ML Quality Score $[0.0, 1.0]$ with 3-tier clinical calibration: Good ($\ge 0.70$), Borderline ($0.38 - 0.70$), Bad ($< 0.38$).
+  - Graceful multi-scale CPU fallback for 100% offline edge deployment.
 - **Model 2 (DR Classifier):** Answers *"What DR severity does this trustworthy image show?"*
-  - Transfer-learning CNN (EfficientNet-B0/B3) trained on APTOS 2019.
+  - Fine-tuned **EfficientNetB0** (`final_model.keras`, 33.4 MB) trained on APTOS 2019 Blindness Detection.
   - 5 classes: No DR (0), Mild NPDR (1), Moderate NPDR (2), Severe NPDR (3), Proliferative DR (4).
   - Referable DR: Grade ≥ 2.
+  - **Explainability:** Exact gradient backpropagation via **Grad-CAM++** using higher-order partial derivatives ($\partial^2 y^c / \partial (A^k)^2$ and $\partial^3 y^c / \partial (A^k)^3$) to isolate scattered retinal micro-lesions.

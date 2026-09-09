@@ -42,13 +42,17 @@ class DRClassifier:
         self._keras_model = None
         self._torch_model = None
 
-        # Auto-detect pretrained model in external/DR-EfficientNetB0 if not explicitly passed
-        default_keras_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "external", "DR-EfficientNetB0", "final_model.keras"
-        )
-        if not self.keras_model_path and os.path.exists(default_keras_path):
-            self.keras_model_path = default_keras_path
+        # Auto-detect pretrained model in root or external/DR-EfficientNetB0
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        candidate_paths = [
+            os.path.join(repo_root, "final_model.keras"),
+            os.path.join(repo_root, "external", "DR-EfficientNetB0", "final_model.keras"),
+        ]
+        if not self.keras_model_path:
+            for cp in candidate_paths:
+                if os.path.exists(cp):
+                    self.keras_model_path = cp
+                    break
 
         self._initialize_model()
 
@@ -60,8 +64,8 @@ class DRClassifier:
                 self._keras_model = keras.saving.load_model(self.keras_model_path)
                 self.model_backend = "keras"
                 return
-            except Exception as e:
-                # Keras not installed or version mismatch; will fallback gracefully
+            except Exception:
+                # Fallback gracefully
                 pass
 
         # 2. Try loading PyTorch model
@@ -77,6 +81,22 @@ class DRClassifier:
 
         # 3. Deterministic simulation mode for testing / pipeline verification
         self.model_backend = "simulated"
+
+    def get_keras_model(self):
+        return self._keras_model
+
+    def get_torch_model(self):
+        return self._torch_model
+
+    def get_active_model(self):
+        if self.model_backend == "keras":
+            return self._keras_model
+        elif self.model_backend == "pytorch":
+            return self._torch_model
+        return None
+
+    def get_backend(self) -> str:
+        return self.model_backend
 
     def predict(self, image_input: Union[str, np.ndarray, Image.Image]) -> DRClassificationResult:
         """

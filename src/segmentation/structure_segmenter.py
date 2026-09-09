@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 import numpy as np
 from PIL import Image
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_TOOLBOX_PATH = os.path.join(_PROJECT_ROOT, "external", "fundus_image_toolbox")
+if os.path.exists(_TOOLBOX_PATH) and _TOOLBOX_PATH not in sys.path:
+    sys.path.insert(0, _TOOLBOX_PATH)
 
 try:
     import cv2

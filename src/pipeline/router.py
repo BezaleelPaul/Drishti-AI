@@ -36,7 +36,7 @@ class ScreeningPipelineRouter:
     ):
         self.quality_checker = quality_checker or ImageQualityChecker()
         self.dr_classifier = dr_classifier or DRClassifier()
-        self.gradcam_explainer = gradcam_explainer or GradCAMExplainer()
+        self.gradcam_explainer = gradcam_explainer or GradCAMExplainer(classifier_backend=self.dr_classifier)
         self.confidence_evaluator = confidence_evaluator or ConfidenceEvaluator()
 
     def process_image(
@@ -94,6 +94,7 @@ class ScreeningPipelineRouter:
                         f"Recapture cap reached ({recapture_attempt_count}/{self.MAX_RECAPTURE_CAP}). "
                         f"Escalate to supervising clinician for on-site physical evaluation."
                     ),
+                    quality_metrics=quality_res.metrics,
                 )
 
             # Standard Bad: prompt for immediate recapture
@@ -114,6 +115,7 @@ class ScreeningPipelineRouter:
                     "Recapture image. Do not display a DR grade for an image "
                     "that fails the reliability gate."
                 ),
+                quality_metrics=quality_res.metrics,
             )
 
         # -------------------------------------------------------------
@@ -150,6 +152,7 @@ class ScreeningPipelineRouter:
                         "Reassessment failed. Request fresh capture or flag for field operator "
                         "inspection. Image does NOT proceed to DR Classification."
                     ),
+                    quality_metrics=quality_res.metrics,
                 )
 
         # -------------------------------------------------------------
@@ -182,6 +185,7 @@ class ScreeningPipelineRouter:
             image_input=image_input,
             target_grade=dr_result.predicted_grade,
             save_path=overlay_save_path,
+            classifier=self.dr_classifier,
         )
 
         # -------------------------------------------------------------
@@ -219,4 +223,5 @@ class ScreeningPipelineRouter:
             human_review_type=review_type,
             human_review_reason=review_reason,
             action=action_text,
+            quality_metrics=quality_res.metrics,
         )

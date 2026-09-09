@@ -48,4 +48,19 @@ $RECYCLE.BIN/
 *.pth
 *.pt
 *.h5
-!external/DR-EfficientNetB0/final_model.keras
+
+# Local Package Archives (prevent GitHub >100MB rejection)
+*.zip
+
+# Databases & Cache
+*.db
+.pytest_cache/
+results/pdf_cache/
+results/api_screenings/
+
+# Flutter build artifacts
+flutter_app/.dart_tool/
+flutter_app/build/
+!flutter_app/build/web/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies

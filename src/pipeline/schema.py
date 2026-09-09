@@ -143,6 +143,7 @@ class ScreeningRecord:
     human_review_type: HumanReviewType = HumanReviewType.NONE
     human_review_reason: Optional[str] = None
     action: str = ""
+    quality_metrics: Optional[QualityMetrics] = None
 
     def format_report_text(self) -> str:
         """Formats the official screening report per Section 25."""
