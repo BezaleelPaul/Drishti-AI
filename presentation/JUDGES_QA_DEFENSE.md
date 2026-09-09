@@ -60,3 +60,19 @@
 > 1. Our binary referable threshold is set conservatively at Grade 2 (Moderate NPDR), where treatment/monitoring is required.
 > 2. Any prediction with softmax confidence under 60% or a narrow difference (<0.15) between Grade 1 and Grade 2 is automatically flagged as 'CLINICAL_LEVEL: Low Confidence' and routed for human specialist over-read.
 > 3. Patients who pass through our Stage 1 upstream diabetes risk engine with high HbA1c/symptoms are scheduled for periodic annual re-screening regardless of a single Grade 0 reading."*
+
+---
+
+### Q7: "Google (Gulshan et al., 2016) and IDx-DR already built 5-class DR classifiers. Isn't this already solved? What is your team's actual innovation?"
+**Respondent:** Madhu (Clinical / Biomedical Lead) & Bezaleel (Architecture Lead)
+**Winning Answer:**
+> *"We completely acknowledge and credit that foundation — Google Health (Gulshan et al., JAMA 2016) and IDx-DR proved the theoretical capability of deep learning on curated, high-resolution hospital tabletop cameras (Zeiss/Topcon) backed by cloud server clusters.
+> 
+> But here is why those systems fail in rural Indian primary health camps:
+> 1. **The Ungradable Image Blindspot:** Centralized models assume high-grade optical captures. In real rural camps with low-cost handheld cameras (Remidio, Forus 3Nethra, Volk), 25–35% of images have corneal glare, motion blur, or pupil shadow. A standard classifier forced to grade them outputs dangerously confident false diagnoses on ungradable pixels. Our **Model 1 Quality Gate** stops ungradable images *before* classification and gives instant audio/visual recapture guidance to ASHA workers.
+> 2. **Edge Operationalization (Zero Cloud):** Google ARDA and cloud architectures require high-speed internet. Drishti-AI runs 100% offline on a ₹15,000 dual-core laptop CPU in <180 ms and <620 MB RAM.
+> 3. **Quantitative Retinal Biomarkers:** We don't just output a black-box severity score; our anatomical segmentation engine calculates physical Euclidean distances from exudates to the fovea center to grade Clinically Significant Macular Edema (CSME) risk.
+> 4. **District-Scale Queuing Optimization:** As demonstrated in our MATLAB/Simulink model, we resolve the bottleneck of ophthalmologist scarcity by filtering 98.6% of healthy tele-traffic at the village edge.
+> 
+> We are not claiming to reinvent basic mathematical classification; we are solving the engineering, safety, and democratization gap that makes AI clinically usable and safe for rural India."*
+

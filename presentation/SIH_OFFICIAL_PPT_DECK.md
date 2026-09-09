@@ -21,15 +21,16 @@
   - Over **77 million diabetic adults** in India; ~18% develop Diabetic Retinopathy (DR).
   - DR causes preventable blindness if undetected; early triage saves 90% of sight.
   - **Extreme Ophthalmologist Deficit:** Only 1 ophthalmologist per 100,000 rural citizens.
-- **The Core Flaw in Existing AI Systems:**
-  - **Black-box predictions:** Clinicians do not trust raw numbers without visual evidence.
-  - **Forced Predictions on Garbage Images:** Existing models blindly assign DR grades to blurry, underexpanded, or non-fundus photos (leading to 100% false positive/negative risk).
-  - **No District-Scale Telemedicine Modeling:** Lack of bandwidth & queuing simulation for PHCs.
+- **Why Existing Centralized Models (e.g., Google Health ARDA) Fail in Rural India:**
+  - **Hospital-Lab Bias:** Proven on curated hospital tabletop cameras with cloud GPUs; fails in field camps with cheap handheld cameras (Remidio, Forus 3Nethra) operated by ASHA workers.
+  - **The Ungradable Image Blindspot:** Standard classifiers blindly assign DR grades to blurry or ungradable photos (leading to fatal false-negative risk).
+  - **Cloud Dependency & Bandwidth Chokepoints:** Requires 5-15MB image uploads over unstable rural 2G/3G networks.
+- **Our Real Innovation:** We do not claim to reinvent basic classification — we bridge the last mile by **making proven AI clinically deployable and accessible for everyone in rural India**.
 
 ---
 
 ### Slide 3: Proposed Solution — Dual-Stage Clinically-Gated Architecture
-- **Inspiration:** Google & Aravind Eye Hospital clinical screening methodology extended to rural primary health centres (PHCs).
+- **Philosophy:** Operationalizing deep learning at the rural edge with 100% offline execution (<180 ms on a ₹15k laptop).
 - **Stage 1 (Upstream Community Health Worker Gate):**
   - Clinical risk factors (Age, ICMR Asian-Indian BMI cutoffs, Family History, Symptoms).
   - Fasting Plasma Glucose / HbA1c verification gate: directs at-risk patients to laboratory tests before unnecessary eye imaging.

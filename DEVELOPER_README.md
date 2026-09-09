@@ -3,6 +3,9 @@
 ### Smart India Hackathon 2026 • Problem Statement SIH26038 (MathWorks)
 **Complete Clinical Screening Platform (Python AI Pipeline • FastAPI Backend • Flutter Mobile App • Streamlit Console)**
 
+> **Clinical Architecture Premise:**  
+> Standard 5-class DR classification was proven by Google Health (Gulshan et al., 2016) and IDx-DR on curated hospital-grade tabletop cameras. **Drishti-AI operationalizes and democratizes this capability for rural Indian PHCs**: introducing Model 1 Quality Gating (preventing false diagnoses on ungradable handheld captures), sub-180ms CPU-only offline execution, quantitative CSME biomarker extraction, and district-scale telemedicine triage.
+
 ---
 
 ## 🚀 1-Click Quickstart (No Manual Setup Needed)
