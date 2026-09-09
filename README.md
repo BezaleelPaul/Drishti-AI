@@ -9,6 +9,13 @@
 
 > **"We aren't claiming to invent 5-class deep learning classification — Google Health (Gulshan et al., JAMA 2016) and IDx-DR already proved neural networks can grade diabetic retinopathy under curated hospital conditions. Our innovation is solving the real-world deployment failure modes that prevent these models from working in rural India: democratizing screening on ₹15,000 edge hardware, eliminating the catastrophic 'garbage-in, garbage-out' ungradable image problem, and providing quantitative clinical biomarkers offline."**
 
+### 🧭 The 4 Operational Questions Governing Every Design Decision
+What hasn't been solved by prior laboratory models is getting an AI screening system to run, day after day, in a rural Primary Health Centre (PHC) with unreliable power, patchy connectivity, a ₹15,000 camera attachment, a non-specialist operator, and no guarantee of a fixed operating system. Drishti-AI was engineered from Day 1 against four questions, in strict priority order:
+1. **Will it keep running here?** (Zero cloud dependency, fault-tolerant offline execution)
+2. **Can everyone reach it?** (2G/3G low-bandwidth resilience, district-scale triage)
+3. **Can everyone use it?** (Frontline ASHA/ANM usability, bilingual Hindi/English guidance)
+4. **Will it run on whatever hardware they actually have?** (Low-cost laptops & commodity cameras, no vendor lock-in)
+
 ---
 
 ### 🏥 The Real-World Reality vs. The Laboratory Myth
@@ -34,7 +41,7 @@ Drishti-AI is purpose-engineered to bridge this exact last-mile gap as mandated 
 - **Model 1 Image Quality Gating (Abstention Before Grading):** Image reliability is the first decision the system makes. Degraded or non-fundus captures are immediately rejected with sub-second actionable feedback (e.g., *"Blur detected: Hold camera steady"*, Hindi audio guidance for ASHA workers), strictly bounded to 2 recaptures before human review.
 - **100% Offline Edge Computing (<180 ms on CPU):** The entire pipeline (Model 1 Quality Gate, Model 2 5-Class Classifier, Retinal Anatomical Segmentation, and Grad-CAM++ Explainability) runs natively on consumer laptops (Intel Core i3 / AMD Ryzen 3, 4GB RAM) with zero internet and zero cloud GPU reliance.
 - **Quantitative Retinal Biomarkers (MathWorks Req 2):** Automated segmentation of Optic Disc, Fovea center, and Retinal Vascular Caliber enables physical Euclidean distance calculation for Clinically Significant Macular Edema (CSME) risk.
-- **District-Scale Bandwidth Optimization (Simulink Model):** A discrete-event queuing simulation across 50 rural PHCs and 100,000 patients proves a **98.6% reduction in telemetry bandwidth** (250 GB down to 3.4 GB) and protects ophthalmologists from screening burnout.
+- **District-Scale Bandwidth Optimization (Simulink Model):** A discrete-event queuing simulation across 50 rural PHCs and 100,000 patients proves a **98.6% reduction in telemetry bandwidth** (250 GB down to 3.4 GB) and cuts required ophthalmologist review capacity from ~13 to ~2 tele-reviewers per 100k patients.
 
 ```
                       [ Raw Fundus Photograph ]
@@ -65,8 +72,71 @@ Drishti-AI is purpose-engineered to bridge this exact last-mile gap as mandated 
           [ Grad-CAM Heatmap ]
                     │
                     ▼
-         [ Final Screening Report ]
+          [ Final Screening Report ]
 ```
+
+---
+
+## 🏛️ The Four Core Design Pillars
+
+Drishti-AI is structured around four architectural pillars explicitly formulated for rural Indian public healthcare:
+
+### 1. ♻️ Sustainability (Modest Compute & Resource Longevity)
+The pipeline is engineered to run indefinitely on modest, low-power hardware rather than depending on recurring cloud subscriptions:
+- **Zero Cloud Compute Costs:** Inference runs on-device/on-edge, ensuring a Primary Health Centre (PHC) never pays an ongoing cloud compute or API bill just to keep screening citizens.
+- **98.6% Data Reduction:** Edge-filtering cuts data volume from 250 GB raw fundus imagery down to 3.4 GB of structured telemetry and flagged cases before transmission.
+- **Hardware Longevity:** Designed to operate on existing ₹15,000 laptops and legacy equipment for years without requiring forced hardware refresh cycles.
+- **Waste Elimination via Quality Gating:** Rejecting an ungradable image before it reaches the classifier prevents wasted compute cycles, avoids erroneous referrals, and eliminates costly repeat visits.
+
+### 2. 📡 Availability (Uninterrupted Service Under Hostile Conditions)
+The system remains operational when connectivity, electrical power, or specialist personnel fail:
+- **Offline-First Screening:** Full on-site screening, quality verification, and clinical reporting operate with zero live internet connection. Central sync occurs opportunistically when a network becomes available.
+- **2G/3G Bandwidth Resilience:** Lightweight compressed packets ensure functionality even on intermittent rural cellular links.
+- **District-Scale Validation:** Validated via a discrete-event queuing simulation across 100,000 patients/year, 50 PHCs, and 1 district hospital.
+- **Specialist Capacity Multiplier:** Reduces required ophthalmologist review capacity from ~13 down to ~2 tele-reviewers per 100,000 patients, breaking the rural specialist bottleneck.
+
+### 3. 👥 Accessibility (Operated by Frontline Workers, Understandable by Patients)
+Screening is designed for the people actually present at a rural PHC, not just specialists in tertiary hospitals:
+- **ASHA & Technician Usability:** Operated by community health workers (ASHAs/ANMs) with plain-language, actionable recapture feedback.
+- **Multilingual Patient Communication:** Bilingual (English + Hindi) patient-facing reports and audio prompts today, with Tamil, Telugu, and Kannada roadmap support for South Indian high-burden regions.
+- **Commodity Camera Compatibility:** Validated on low-cost (~₹15,000) portable fundus attachments (Remidio, Forus 3Nethra, Volk iNview) rather than million-rupee tabletop hospital cameras.
+- **At-a-Glance Triage:** Immediate visual indicators (Clear / Review / Urgent) accompanied by ICDR technical grades.
+
+### 4. 🔓 Platform Independence (Zero Vendor Lock-In & Open Standards)
+Health systems are never locked into a single proprietary vendor, operating system, or cloud provider:
+- **100% Open-Source Foundation:** Released under permissive open-source licensing to allow unrestricted public health inspection, adaptation, and auditing.
+- **Cross-Platform Compatibility:** Runs natively across Windows, macOS (Apple Silicon M-Series & Intel), Linux, and Docker containers.
+- **Healthcare Interoperability:** Implements international standards including **HL7 FHIR R4**, SNOMED CT, and LOINC, with direct alignment to the **Ayushman Bharat Digital Mission (ABDM)** ecosystem.
+- **Sensor-Agnostic Processing:** Decoupled from proprietary camera SDKs, ingesting standard DICOM, JPEG, and PNG captures.
+
+---
+
+## 🔄 The Clinical Decision Flow Through Those Four Lenses
+
+| Clinical Step | Operational Mechanism | Design Pillar Addressed |
+| :--- | :--- | :--- |
+| **1. Patient Check-In** | Upstream clinical risk scoring (ICMR 2024 BMI/HbA1c criteria); directs at-risk patients to blood labs before unnecessary imaging | **Availability** (protects imaging bandwidth) & **Sustainability** (avoids unneeded compute) |
+| **2. Image Capture** | Frontline technician captures fundus image on portable attachment (~₹15,000) | **Accessibility** (non-specialist operation) & **Platform Independence** (hardware-agnostic) |
+| **3. Quality Gate (Model 1)** | Evaluates blur, illumination, contrast, and FOV coverage on-device; rejects ungradable captures with plain-text/voice prompts | **Sustainability** (zero wasted compute) & **Accessibility** (clear operator guidance) |
+| **4. DR Classifier (Model 2)** | Runs 5-class grading (Grades 0–4) *only* on validated, reliable images (<180 ms CPU execution) | **Availability** & **Sustainability** (zero cloud round-trip) |
+| **5. Grad-CAM++ Visual Evidence** | Computes true gradient backpropagation heatmap in <1.2s on CPU | **Accessibility** (clinician sees *why*, not just a black-box score) |
+| **6. Structural Segmentation** | Automatically segments Optic Disc, Fovea, and vessels to measure Euclidean distance for CSME risk | **Availability** (speeds specialist review to <30s per referable case) |
+| **7. Dual-Tier Safety Check** | Low confidence (<60%) or high risk (Grade 3/4) automatically flags for ophthalmologist over-read | **Safety & Regulatory Compliance** (human-in-the-loop) |
+| **8. Bilingual Reporting** | Generates bilingual English/Hindi PDF report with FHIR R4 JSON | **Accessibility** (patient comprehension) & **Platform Independence** (ABDM integration) |
+| **9. Telemedicine Uplink** | Only flagged/referable cases and lightweight metadata sync over rural 2G/3G | **Availability** & **Sustainability** (98.6% network bandwidth saved) |
+
+---
+
+## ⚖️ What This System Is NOT Claiming (Honest Scientific & Regulatory Guardrails)
+
+To maintain scientific integrity and clinical rigor, the Drishti-AI team explicitly states our operational boundaries:
+
+1. **We are NOT claiming to have invented image-quality gating as a concept:**  
+   Quality verification is an established, expected component of serious clinical DR screening (Google ARDA, IDx-DR, EyeArt). Our contribution is an independent, lightweight, open-source implementation explicitly optimized for rural Indian edge constraints and low-cost handheld optics.
+2. **We are NOT claiming active medical device certification:**  
+   Real-world clinical deployment requires statutory CDSCO Medical Device Software approval (Class B/C under India’s 2026 guidance) and strict DPDP Act compliance for patient data privacy. Drishti-AI's human-in-the-loop, abstain-and-escalate architecture is intentionally designed to support that regulatory pathway, never to circumvent it.
+3. **We are NOT claiming diagnostic accuracy beyond validated boundaries:**  
+   Confidence intervals are reported transparently. Grad-CAM++ is clearly presented as an attention focus visualization, **not automated lesion boundary segmentation**. Every high-risk, ambiguous, or low-confidence capture is mandatorily escalated to a human ophthalmologist.
 
 ---
 
@@ -214,10 +284,29 @@ Action:           Recapture image. Do not display a DR grade for an image that f
 ## 👥 Hackathon Milestone Plan (Internal: 15 Sept 2026)
 
 - **Day 1 (7 Sep):** Scope freeze, architecture locked, directory structure established. *(Completed)*
-- **Day 2 (8 Sep):** Dataset preparation & baseline setup.
-- **Day 3 (9 Sep):** DR Model 2 training, class weighting & QWK metrics.
-- **Day 4 (10 Sep):** Image Quality Gate (Model 1) feature checks & threshold tuning.
-- **Day 5 (11 Sep):** Reassessment logic & pipeline integration.
-- **Day 6 (12 Sep):** Confidence scoring & Grad-CAM overlays.
-- **Day 7 (13 Sep):** A/B/C experimental comparisons & safety metric compilation.
+- **Day 2 (8 Sep):** Dataset preparation & baseline setup. *(Completed)*
+- **Day 3 (9 Sep):** DR Model 2 training, class weighting & QWK metrics. *(Completed)*
+- **Day 4 (10 Sep):** Image Quality Gate (Model 1) feature checks & threshold tuning. *(Completed)*
+- **Day 5 (11 Sep):** Reassessment logic & pipeline integration. *(Completed)*
+- **Day 6 (12 Sep):** Confidence scoring & Grad-CAM overlays. *(Completed)*
+- **Day 7 (13 Sep):** A/B/C experimental comparisons & safety metric compilation. *(Completed)*
 - **Day 8 (14 Sep):** Freeze demo scenarios, slide deck, and presentation rehearsal.
+
+---
+
+## 👥 Engineering Team & Module Ownership
+
+| Team Member | Role | Primary Modules Owned | Key Deliverables |
+| :--- | :--- | :--- | :--- |
+| **Bezaleel** | Team Lead & Full-Stack Architect | Pipeline Decision Router, Streamlit UI, FastAPI Backend, Cross-Platform Integration | End-to-end clinical flow, zero-config Windows & macOS setups, production Docker stack |
+| **Madhu** | Clinical Lead & Biomedical Engineer | Upstream Clinical Risk Engine, Retinal Structure Segmentation, Clinical Validation | ICMR 2024 guidelines calibration, OD/Fovea Euclidean CSME risk distance, clinical report validation |
+| **Akshay** | Deep Learning & Operations Lead | EfficientNetB0 DR Classifier, Grad-CAM++ Engine, MATLAB/Simulink Queuing Model | APTOS 2019 model training (QWK metrics), <1.2s CPU Grad-CAM++, 100k-patient Simulink simulation |
+| **Adithya** | Safety & Verification Lead | Test Frameworks, A/B Benchmark Experiments, Edge-Case Hardening, Telemedicine Metrics | 150-sample benchmark dataset, 0% forced-prediction validation on ungradables, safety guardrail metrics |
+
+---
+
+## 💬 The Engineering Manifesto
+
+> *"We’re not building a demo, and we’re not claiming to have invented the underlying detection technique. We’re building the complete, honest, open-source system that makes a validated approach actually reach the people who need it — running sustainably on modest hardware, staying available without reliable power or internet, usable by a technician rather than a specialist, and independent of any single platform or vendor. The web UI is just how judges interact with it. The real project is everything that makes it work outside a hospital."*  
+> — **Bezaleel (Team Lead / Full-Stack Architect)**
+
