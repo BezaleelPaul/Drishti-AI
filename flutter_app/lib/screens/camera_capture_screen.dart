@@ -27,8 +27,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   int _recaptureCount = 0;
 
   // Selected sample image
-  String _currentSampleAsset = 'assets/images/1_blurry_eye_retake.jpg';
-  String _currentSampleName = '1_blurry_eye_retake.jpg';
+  String _currentSampleAsset = 'assets/images/2_clear_eye_normal.jpg';
+  String _currentSampleName = '2_clear_eye_normal.jpg';
   Uint8List? _imageBytes;
 
   bool _isCheckingQuality = false;
@@ -513,40 +513,52 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-            ] else if (_qualityResult != null && !isBlurry) ...[
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF10B981)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 28),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '✅ Image Certified for Clinical Grading',
-                            style: TextStyle(
-                              color: Color(0xFF047857),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          Text(
-                            'Laplacian sharpness score: ${_qualityResult!.qualityScore.toStringAsFixed(2)} | FOV & illumination passed.',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF065F46)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _proceedToAnalysis,
+                icon: const Icon(Icons.science_outlined),
+                label: const Text('Proceed with Screening Anyway (Clinical Override)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF1E3A8A),
+                  side: const BorderSide(color: Color(0xFF1E3A8A)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
+            ] else ...[
+              if (_qualityResult != null && !isBlurry)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF10B981)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 28),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '✅ Image Certified for Clinical Grading',
+                              style: TextStyle(
+                                color: Color(0xFF047857),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              'Laplacian sharpness score: ${_qualityResult!.qualityScore.toStringAsFixed(2)} | FOV & illumination passed.',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF065F46)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 16),
 
               // Proceed to Analysis Button

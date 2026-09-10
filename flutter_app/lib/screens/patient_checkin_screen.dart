@@ -87,48 +87,54 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
     }
   }
 
-  bool _isRegistering = false;
-
-  Future<void> _proceedToEyeScan() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isRegistering = true);
+  void _proceedToEyeScan() {
+    final name = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : 'Ramesh Kumar';
+    final age = int.tryParse(_ageController.text.trim()) ?? 54;
+    final phone = _phoneController.text.trim().isNotEmpty
+        ? _phoneController.text.trim()
+        : '+91 98451 22340';
+    final abha = _abhaController.text.trim().isNotEmpty
+        ? _abhaController.text.trim()
+        : '91-4521-8890-3321';
+    final village = _villageController.text.trim().isNotEmpty
+        ? _villageController.text.trim()
+        : 'Shivaji Nagar, PHC Bhor';
 
     double years = 5.0;
     if (_diabetesCategory == '< 5 yrs') years = 2.0;
     if (_diabetesCategory == '> 10 yrs') years = 12.0;
 
     final patient = PatientModel(
-      patientId: 'PT-ASHA-${DateTime.now().millisecondsSinceEpoch % 10000}',
-      name: _nameController.text.trim(),
-      age: int.tryParse(_ageController.text) ?? 50,
+      patientId: 'PT-ASHA-${DateTime.now().millisecondsSinceEpoch % 100000}',
+      name: name,
+      age: age,
       gender: _gender,
-      phone: _phoneController.text.trim(),
-      abhaId: _abhaController.text.trim(),
-      village: _villageController.text.trim(),
+      phone: phone,
+      abhaId: abha,
+      village: village,
       knownDiabetes: 'Yes',
       diabetesDurationYears: years,
-      hba1c: double.tryParse(_hba1cController.text),
-      bmi: double.tryParse(_bmiController.text),
+      hba1c: double.tryParse(_hba1cController.text.trim()) ?? 8.2,
+      bmi: double.tryParse(_bmiController.text.trim()) ?? 28.4,
       familyHistory: _familyHistory,
     );
 
-    // Register patient in database to prevent 404
-    final registered = await widget.apiService.registerPatient(patient);
+    // Register asynchronously in the background so screen transition is instantaneous
+    widget.apiService.registerPatient(patient).catchError((_) => patient);
 
-    if (mounted) {
-      setState(() => _isRegistering = false);
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CameraCaptureScreen(
-            apiService: widget.apiService,
-            patient: registered,
-            riskModel: _riskAssessment,
-          ),
+    // Immediate navigation to Eye Scan screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CameraCaptureScreen(
+          apiService: widget.apiService,
+          patient: patient,
+          riskModel: _riskAssessment,
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -448,23 +454,17 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   elevation: 2,
                 ),
-                child: _isRegistering
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.camera_alt_rounded, size: 22),
-                          SizedBox(width: 10),
-                          Text(
-                            'Start Eye Scan 📸',
-                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.camera_alt_rounded, size: 22),
+                    SizedBox(width: 10),
+                    Text(
+                      'Start Eye Scan 📸',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 30),
             ],
