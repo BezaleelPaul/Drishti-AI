@@ -12,8 +12,9 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.database import init_db
@@ -79,11 +80,19 @@ app.include_router(review_router)
 app.include_router(sync_router)
 
 
+@app.get("/app", include_in_schema=False)
+def app_redirect():
+    return RedirectResponse(url="/app/")
+
+
 @app.get("/")
-def root():
+def root(request: Request):
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return RedirectResponse(url="/app/")
     return {
         "platform": "Netra-AI Rural Health Screening Engine",
-        "web_application": "/app",
+        "web_application": "/app/",
         "api_documentation": "/docs",
         "api_version": "2.0.0",
         "status": "Operational",
