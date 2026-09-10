@@ -31,7 +31,7 @@ from src.reporting import (
 )
 
 st.set_page_config(
-    page_title="Netra-AI: Rural DR Screening & District Telemedicine",
+    page_title="Drishti-AI (Netra-AI): Rural DR Screening & District Telemedicine",
     page_icon="👁️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -180,7 +180,7 @@ st.markdown(
         <div style="background: rgba(255, 255, 255, 0.12); padding: 8px 12px; border-radius: 10px; font-size: 24px; backdrop-filter: blur(4px);">👁️</div>
         <div>
             <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: #FFFFFF; display: flex; align-items: center; gap: 8px;">
-                NETRA-AI <span style="font-size: 11px; font-weight: 700; background: #0D9488; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">SIH2026 • MathWorks</span>
+                DRISHTI-AI (दृष्टि AI) • NETRA-AI <span style="font-size: 11px; font-weight: 700; background: #0D9488; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">SIH2026 • MathWorks</span>
             </div>
             <div style="font-size: 13px; color: #94A3B8;">Rural Diabetic Retinopathy Screening & District Telemedicine Queuing Engine</div>
         </div>
@@ -232,7 +232,7 @@ with st.expander(
         recapture_attempt_count = st.number_input(
             "Patient Recapture Attempts (Max 2)",
             min_value=0,
-            max_value=3,
+            max_value=2,
             value=0,
             help="Enforces hard cap of 2 recaptures per patient session. Reaching cap escalates to human review.",
         )
@@ -267,59 +267,40 @@ tab_clinical, tab_bilateral, tab_simulink, tab_specs = st.tabs(
 # Cache engines
 @st.cache_resource
 def get_screening_engine(cam_type: str, profile_mode: str):
+    from dataclasses import replace as _dc_replace
+
+    # Base thresholds follow the camera hardware — always applied.
     if "Forus" in cam_type:
-        if hasattr(QualityThresholds, "for_forus_3nethra"):
-            th = QualityThresholds.for_forus_3nethra()
-        else:
-            th = QualityThresholds(
-                blur_good_threshold=75.0,
-                blur_bad_threshold=32.0,
-                min_brightness_good=35.0,
-                min_brightness_bad=19.0,
-                max_brightness_good=215.0,
-                min_contrast_good=14.0,
-                min_contrast_bad=6.0,
-                min_fov_ratio_good=0.32,
-            )
+        th = QualityThresholds.for_forus_3nethra()
     elif "Remidio" in cam_type:
-        if hasattr(QualityThresholds, "for_remidio_fop"):
-            th = QualityThresholds.for_remidio_fop()
-        else:
-            th = QualityThresholds(
-                blur_good_threshold=65.0,
-                blur_bad_threshold=28.0,
-                min_brightness_good=32.0,
-                min_brightness_bad=18.0,
-                max_brightness_good=225.0,
-                min_contrast_good=13.0,
-                min_contrast_bad=5.5,
-                min_fov_ratio_good=0.30,
-            )
+        th = QualityThresholds.for_remidio_fop()
     elif "Volk" in cam_type:
-        if hasattr(QualityThresholds, "for_volk_inview"):
-            th = QualityThresholds.for_volk_inview()
-        else:
-            th = QualityThresholds(
-                blur_good_threshold=60.0,
-                blur_bad_threshold=25.0,
-                min_brightness_good=30.0,
-                min_brightness_bad=15.0,
-                min_contrast_good=12.0,
-                min_contrast_bad=5.0,
-                min_fov_ratio_good=0.22,
-            )
-    elif "Permissive" in profile_mode:
-        th = QualityThresholds(
-            blur_good_threshold=70.0,
-            blur_bad_threshold=30.0,
-            min_contrast_good=14.0,
-            min_contrast_bad=6.0,
-            min_brightness_good=35.0,
-        )
-    elif "Conservative" in profile_mode:
-        th = getattr(QualityThresholds, "strict", QualityThresholds)()
+        th = QualityThresholds.for_volk_inview()
     else:
         th = QualityThresholds()
+
+    # Strictness modifier layers on top of the camera base — always applied.
+    if "Permissive" in profile_mode:
+        th = _dc_replace(
+            th,
+            blur_good_threshold=th.blur_good_threshold * 0.9,
+            blur_bad_threshold=th.blur_bad_threshold * 0.9,
+            min_contrast_good=max(4.0, th.min_contrast_good - 2.0),
+            min_ml_quality_good=max(0.30, th.min_ml_quality_good - 0.05),
+            min_ml_quality_bad=max(0.20, th.min_ml_quality_bad - 0.05),
+        )
+    elif "Conservative" in profile_mode:
+        th = _dc_replace(
+            th,
+            blur_good_threshold=th.blur_good_threshold * 1.35,
+            blur_bad_threshold=th.blur_bad_threshold * 1.25,
+            min_brightness_good=th.min_brightness_good + 8.0,
+            min_contrast_good=th.min_contrast_good + 5.0,
+            min_contrast_bad=th.min_contrast_bad + 2.0,
+            min_fov_ratio_good=min(0.60, th.min_fov_ratio_good + 0.08),
+            min_ml_quality_good=min(0.95, th.min_ml_quality_good + 0.08),
+            min_ml_quality_bad=min(0.90, th.min_ml_quality_bad + 0.08),
+        )
 
     checker = ImageQualityChecker(thresholds=th)
     router = ScreeningPipelineRouter(quality_checker=checker)
@@ -487,7 +468,11 @@ with tab_clinical:
                 "adversarial_non_fundus_blue_profile.jpg",
             )
         if os.path.exists(p):
-            image_to_process = Image.open(p).convert("RGB")
+            try:
+                image_to_process = Image.open(p).convert("RGB")
+            except Exception as e:
+                st.error(f"Curated sample failed to decode ({os.path.basename(p)}): {e}")
+                image_to_process = None
     elif (
         "uploaded_img" in st.session_state and st.session_state.uploaded_img is not None
     ):
@@ -501,21 +486,47 @@ with tab_clinical:
             "real_clinical_fundus_patient1.jpg",
         )
         if os.path.exists(fallback_p):
-            image_to_process = Image.open(fallback_p).convert("RGB")
+            try:
+                image_to_process = Image.open(fallback_p).convert("RGB")
+            except Exception as e:
+                st.error(f"Fallback sample failed to decode: {e}")
+                image_to_process = None
 
     img_np = np.array(image_to_process) if image_to_process is not None else None
 
-    # Run Router & Segmenter
+    # Run Router & Segmenter — memoized per (image, gate config, recaptures).
+    # Without this, every widget interaction re-runs the full TF pipeline.
+    import hashlib as _hashlib
+    _img_hash = (
+        _hashlib.sha256(np.ascontiguousarray(img_np).tobytes()).hexdigest()
+        if img_np is not None else None
+    )
+    _inf_key = (_img_hash, camera_hardware, threshold_profile,
+                int(recapture_attempt_count), bool(enable_segmentation))
     record = None
     seg_res = None
-    if img_np is not None:
-        record = router.process_image(
-            image_input=img_np,
-            recapture_attempt_count=int(recapture_attempt_count),
-            output_dir=os.path.join(PROJECT_ROOT, "results"),
-        )
-        if enable_segmentation and record.quality_grade != QualityGrade.BAD:
-            seg_res = segmenter.segment_structures(img_np)
+    if img_np is not None and st.session_state.get("_inf_key") == _inf_key:
+        record = st.session_state.get("_record")
+        seg_res = st.session_state.get("_seg_res")
+    elif img_np is not None:
+        try:
+            record = router.process_image(
+                image_input=img_np,
+                recapture_attempt_count=int(recapture_attempt_count),
+                output_dir=os.path.join(PROJECT_ROOT, "results"),
+            )
+        except Exception as e:
+            st.error(f"Screening pipeline failed on this capture: {e}")
+            record = None
+        if record is not None and enable_segmentation and record.quality_grade != QualityGrade.BAD:
+            try:
+                seg_res = segmenter.segment_structures(img_np)
+            except Exception as e:
+                st.warning(f"Structure segmentation unavailable for this capture: {e}")
+                seg_res = None
+        st.session_state._inf_key = _inf_key
+        st.session_state._record = record
+        st.session_state._seg_res = seg_res
 
     # =========================================================================
     # DYNAMIC SCREEN 1: UPSTREAM PATIENT CLINICAL INTAKE
@@ -678,9 +689,13 @@ with tab_clinical:
                     "Upload Retinal Photograph", type=["jpg", "jpeg", "png"]
                 )
                 if uploaded_file:
-                    st.session_state.uploaded_img = Image.open(uploaded_file).convert(
-                        "RGB"
-                    )
+                    try:
+                        st.session_state.uploaded_img = Image.open(uploaded_file).convert(
+                            "RGB"
+                        )
+                    except Exception as e:
+                        st.error(f"Uploaded file is not a decodable image: {e}")
+                        st.session_state.uploaded_img = None
                     st.rerun()
 
         # Viewport + Quality Gate Assessment
@@ -830,12 +845,15 @@ with tab_clinical:
                 )
                 if enable_clahe_enhancer and img_np is not None:
                     with st.expander("✨ View Adaptive CLAHE (Req 1)"):
-                        enhanced_np = enhancer.enhance_borderline_image(img_np)
-                        st.image(
-                            enhanced_np,
-                            caption="Adaptive CLAHE + Denoising",
-                            use_container_width=True,
-                        )
+                        try:
+                            enhanced_np = enhancer.enhance_borderline_image(img_np)
+                            st.image(
+                                enhanced_np,
+                                caption="Adaptive CLAHE + Denoising",
+                                use_container_width=True,
+                            )
+                        except Exception:
+                            st.warning("Enhancement unavailable for this capture.")
 
         with v_col2:
             if seg_res and seg_res.annotated_overlay is not None:
@@ -874,7 +892,8 @@ with tab_clinical:
             b_col1, b_col2, b_col3, b_col4 = st.columns(4)
             b_col1.metric("Microaneurysms", f"{len(seg_res.microaneurysm_candidates)}")
             b_col2.metric("Vessel Density", f"{seg_res.vessel_density_pct}%")
-            b_col3.metric("Fovea Proximity", f"{seg_res.min_fovea_distance_px:.0f} px")
+            _fovea = seg_res.min_fovea_distance_px
+            b_col3.metric("Fovea Proximity", f"{_fovea:.0f} px" if _fovea is not None else "N/A")
             b_col4.metric("CSME Risk", seg_res.csme_risk.split()[0])
 
         # Bilingual Rural Patient Action Card
@@ -917,8 +936,14 @@ with tab_clinical:
                 type="primary",
                 use_container_width=True,
             ):
-                st.session_state.wizard_step = 4
-                st.rerun()
+                if dr_val is None:
+                    st.warning(
+                        "No DR grade was produced for this capture (image ungradable). "
+                        "Recapture first — referral documents cannot be generated without a grade."
+                    )
+                else:
+                    st.session_state.wizard_step = 4
+                    st.rerun()
 
     # =========================================================================
     # DYNAMIC SCREEN 4: REFERRAL & ABDM DISPATCH HUB
@@ -929,188 +954,260 @@ with tab_clinical:
             "1-Click SMS dispatch, printable A4 clinical dossier, and ABDM HL7 FHIR export."
         )
 
-        dr_val = (
-            record.dr_prediction.predicted_grade.value
-            if (record and record.dr_prediction)
-            else None
-        )
-
-        # Tele-Review Station
-        st.markdown("#### 👨‍⚕️ Tele-Ophthalmologist Clinical Orders & Verification")
-        doc_col1, doc_col2 = st.columns(2)
-        with doc_col1:
-            doc_decision = st.selectbox(
-                "Physician Decision / Verification",
-                [
-                    f"Confirm AI Grade ({'Grade ' + str(dr_val) if dr_val is not None else 'Ungradable - Recapture'})",
-                    "Override: Grade 0 (No DR)",
-                    "Override: Grade 1 (Mild NPDR)",
-                    "Override: Grade 2 (Moderate NPDR)",
-                    "Override: Grade 3 (Severe NPDR)",
-                    "Override: Grade 4 (Proliferative DR - Urgent PRP/Anti-VEGF)",
-                ],
+        # Re-gate: top-bar config (camera/threshold/recaptures) recomputes
+        # `record` on every rerun, so a stored step-4 can go stale (e.g. GOOD
+        # -> BAD after tightening). Never render the dispatch hub ungradable.
+        if record is None or record.dr_prediction is None or record.quality_grade == QualityGrade.BAD:
+            st.error(
+                "Current capture is ungradable with the active settings "
+                "(quality gate did not certify it). Referral documents are disabled — "
+                "go back and recapture."
             )
-            clinical_orders = st.multiselect(
-                "Clinical Management Orders",
-                [
-                    "Strict Glycemic Control (HbA1c target < 7.0%)",
-                    "Blood Pressure & Lipid Optimization",
-                    "Optical Coherence Tomography (OCT) for Macular Edema",
-                    "Urgent Intravitreal Anti-VEGF Therapy",
-                    "Pan-Retinal Photocoagulation (PRP Laser)",
-                    "Slit-Lamp Biomicroscopy",
-                    "Annual Rescreening (12 Months)",
-                ],
-                default=[
-                    "Strict Glycemic Control (HbA1c target < 7.0%)",
-                    "Annual Rescreening (12 Months)",
-                ]
-                if (dr_val == 0 or dr_val is None)
-                else [
-                    "Strict Glycemic Control (HbA1c target < 7.0%)",
-                    "Optical Coherence Tomography (OCT) for Macular Edema",
-                ],
+            if st.button("← Back to Retinal Capture", use_container_width=True):
+                st.session_state.wizard_step = 2
+                st.rerun()
+        else:
+
+            dr_val = (
+                record.dr_prediction.predicted_grade.value
+                if (record and record.dr_prediction)
+                else None
             )
 
-        with doc_col2:
-            doctor_name = st.text_input(
-                "Reviewing Specialist Name & Credentials",
-                "Dr. S. Ramanathan, MS (Ophthalmology), Vitreo-Retinal Consultant",
-            )
-            doctor_notes = st.text_area(
-                "Physician Clinical Notes",
-                f"Tele-triaged at District Hub. Stage 1 Risk: {assessment.risk_level.value}. Image quality verified. Orders assigned.",
-            )
-
-        # Interactive SMS Dispatch
-        st.divider()
-        st.markdown("#### 📱 Patient SMS Referral Slip (Ayushman Bharat Gateway)")
-        sms_col_inp, sms_col_btn = st.columns([2, 1])
-        with sms_col_inp:
-            patient_phone = st.text_input("Patient Mobile Number", "+91 98451 22340")
-        with sms_col_btn:
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            if st.button(
-                "📲 Send Live SMS Referral Slip",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.toast(
-                    f"✅ SMS Referral Slip successfully sent to {patient_phone} via National Health Gateway!",
-                    icon="📲",
+            # Tele-Review Station
+            st.markdown("#### 👨‍⚕️ Tele-Ophthalmologist Clinical Orders & Verification")
+            doc_col1, doc_col2 = st.columns(2)
+            with doc_col1:
+                doc_decision = st.selectbox(
+                    "Physician Decision / Verification",
+                    [
+                        f"Confirm AI Grade ({'Grade ' + str(dr_val) if dr_val is not None else 'Ungradable - Recapture'})",
+                        "Override: Grade 0 (No DR)",
+                        "Override: Grade 1 (Mild NPDR)",
+                        "Override: Grade 2 (Moderate NPDR)",
+                        "Override: Grade 3 (Severe NPDR)",
+                        "Override: Grade 4 (Proliferative DR - Urgent PRP/Anti-VEGF)",
+                    ],
+                )
+                clinical_orders = st.multiselect(
+                    "Clinical Management Orders",
+                    [
+                        "Strict Glycemic Control (HbA1c target < 7.0%)",
+                        "Blood Pressure & Lipid Optimization",
+                        "Optical Coherence Tomography (OCT) for Macular Edema",
+                        "Urgent Intravitreal Anti-VEGF Therapy",
+                        "Pan-Retinal Photocoagulation (PRP Laser)",
+                        "Slit-Lamp Biomicroscopy",
+                        "Annual Rescreening (12 Months)",
+                    ],
+                    default=[
+                        "Strict Glycemic Control (HbA1c target < 7.0%)",
+                        "Annual Rescreening (12 Months)",
+                    ]
+                    if (dr_val == 0 or dr_val is None)
+                    else [
+                        "Strict Glycemic Control (HbA1c target < 7.0%)",
+                        "Optical Coherence Tomography (OCT) for Macular Edema",
+                    ],
                 )
 
-        sms_payload = (
-            f"DRISHTI-AI CAMP REFERRAL:\nPatient: {patient_profile.patient_id} ({patient_profile.age}y)\n"
-            f"Status: {'HIGH URGENCY' if (dr_val and dr_val >= 2) else 'ROUTINE CARE'}\n"
-            f"Orders: {', '.join(clinical_orders[:2]) if clinical_orders else 'Follow PHC lifestyle guidance'}\n"
-            f"जिला अस्पताल नेत्र विभाग में संपर्क करें।"
-        )
-        st.code(sms_payload, language="text")
-
-        # Official Downloads
-        st.divider()
-        st.markdown("#### 📄 Clinical Documentation & EMR Records")
-
-        # Prepare PDF cache paths
-        os.makedirs("results/pdf_cache", exist_ok=True)
-        orig_cache_path = os.path.abspath("results/pdf_cache/orig_temp.jpg")
-        annot_cache_path = os.path.abspath("results/pdf_cache/annot_temp.jpg")
-
-        try:
-            if img_np is not None:
-                Image.fromarray(img_np).save(orig_cache_path)
-            if seg_res and seg_res.annotated_overlay is not None:
-                Image.fromarray(seg_res.annotated_overlay).save(annot_cache_path)
-            elif (
-                record
-                and record.gradcam_result
-                and record.gradcam_result.heatmap_array is not None
-            ):
-                Image.fromarray(record.gradcam_result.heatmap_array).save(
-                    annot_cache_path
+            with doc_col2:
+                doctor_name = st.text_input(
+                    "Reviewing Specialist Name & Credentials",
+                    "Dr. S. Ramanathan, MS (Ophthalmology), Vitreo-Retinal Consultant",
                 )
+                doctor_notes = st.text_area(
+                    "Physician Clinical Notes",
+                    f"Tele-triaged at District Hub. Stage 1 Risk: {assessment.risk_level.value}. Image quality verified. Orders assigned.",
+                )
+
+            # Interactive SMS Dispatch
+            st.divider()
+            st.markdown("#### 📱 Patient SMS Referral Slip (Ayushman Bharat Gateway)")
+            sms_col_inp, sms_col_btn = st.columns([2, 1])
+            with sms_col_inp:
+                patient_phone = st.text_input("Patient Mobile Number", "+91 98451 22340")
+            with sms_col_btn:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                if st.button(
+                    "📲 Send Live SMS Referral Slip",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.toast(
+                        f"📋 SMS Referral Slip preview ready for {patient_phone} (demo — not actually sent; integrate National Health Gateway to send.)",
+                        icon="📲",
+                    )
+
+            if dr_val is None:
+                sms_status = "RE-CAPTURE REQUIRED — unclear image, no grade assigned"
+            elif dr_val >= 2:
+                sms_status = "HIGH URGENCY"
             else:
+                sms_status = "ROUTINE CARE"
+            sms_payload = (
+                f"DRISHTI-AI CAMP REFERRAL:\nPatient: {patient_profile.patient_id} ({patient_profile.age}y)\n"
+                f"Status: {sms_status}\n"
+                f"Orders: {', '.join(clinical_orders[:2]) if clinical_orders else 'Follow PHC lifestyle guidance'}\n"
+                f"जिला अस्पताल नेत्र विभाग में संपर्क करें।"
+            )
+            st.code(sms_payload, language="text")
+
+            # Official Downloads
+            st.divider()
+            st.markdown("#### 📄 Clinical Documentation & EMR Records")
+
+            # Prepare PDF cache paths (repo-anchored; one stable file per session)
+            pdf_cache_dir = os.path.join(PROJECT_ROOT, "results", "pdf_cache")
+            os.makedirs(pdf_cache_dir, exist_ok=True)
+            if "_pdf_sess" not in st.session_state:
+                import uuid as _uuid
+                st.session_state._pdf_sess = _uuid.uuid4().hex[:8]
+            _sess = st.session_state._pdf_sess
+            orig_cache_path = os.path.join(pdf_cache_dir, f"orig_{_sess}.jpg")
+            annot_cache_path = os.path.join(pdf_cache_dir, f"annot_{_sess}.jpg")
+
+            try:
+                if img_np is not None:
+                    Image.fromarray(img_np).save(orig_cache_path)
+                if seg_res and seg_res.annotated_overlay is not None:
+                    Image.fromarray(seg_res.annotated_overlay).save(annot_cache_path)
+                elif (
+                    record
+                    and record.gradcam_result
+                    and record.gradcam_result.heatmap_array is not None
+                ):
+                    Image.fromarray(record.gradcam_result.heatmap_array).save(
+                        annot_cache_path
+                    )
+                else:
+                    annot_cache_path = None
+            except Exception:
+                orig_cache_path = None
                 annot_cache_path = None
-        except Exception:
-            orig_cache_path = None
-            annot_cache_path = None
 
-        patient_dict = {
-            "patient_id": patient_profile.patient_id,
-            "age": patient_profile.age,
-            "gender": patient_profile.gender,
-            "bmi": patient_profile.bmi,
-            "diabetes_status": assessment.diabetes_status.value,
-            "risk_score": assessment.risk_score,
-        }
-        biomarker_dict = {
-            "microaneurysm_count": len(seg_res.microaneurysm_candidates)
-            if seg_res
-            else 0,
-            "vessel_density_pct": seg_res.vessel_density_pct if seg_res else 0.0,
-            "csme_risk": seg_res.csme_risk if seg_res else "LOW",
-            "min_fovea_distance_px": seg_res.min_fovea_distance_px if seg_res else 0.0,
-        }
+            patient_dict = {
+                "patient_id": patient_profile.patient_id,
+                "age": patient_profile.age,
+                "gender": patient_profile.gender,
+                "bmi": patient_profile.bmi,
+                "diabetes_status": assessment.diabetes_status.value,
+                "risk_score": assessment.risk_score,
+            }
+            biomarker_dict = {
+                "microaneurysm_count": len(seg_res.microaneurysm_candidates)
+                if seg_res
+                else None,
+                "vessel_density_pct": seg_res.vessel_density_pct if seg_res else None,
+                "csme_risk": seg_res.csme_risk if seg_res else "UNGRADABLE",
+                "min_fovea_distance_px": seg_res.min_fovea_distance_px if seg_res else None,
+            }
 
-        pdf_data = generate_clinical_screening_pdf(
-            patient_data=patient_dict,
-            screening_record=record,
-            biomarkers=biomarker_dict,
-            fundus_image_path=orig_cache_path,
-            annotated_image_path=annot_cache_path,
-            doctor_notes=doctor_notes,
-            doctor_signature_name=doctor_name,
-            doctor_action=", ".join(clinical_orders)
-            if clinical_orders
-            else "Routine Care",
-        )
+            _orders_key = tuple(sorted(clinical_orders)) if clinical_orders else ()
+            _pdf_key = (st.session_state.get("_inf_key"), doctor_name,
+                        doctor_notes, _orders_key)
+            if st.session_state.get("_pdf_key") == _pdf_key and "_pdf_data" in st.session_state:
+                pdf_data = st.session_state._pdf_data
+                fhir_data_str = st.session_state._fhir_data_str
+            else:
+                pdf_data = generate_clinical_screening_pdf(
+                    patient_data=patient_dict,
+                    screening_record=record,
+                    biomarkers=biomarker_dict,
+                    fundus_image_path=orig_cache_path,
+                    annotated_image_path=annot_cache_path,
+                    doctor_notes=doctor_notes,
+                    doctor_signature_name=doctor_name,
+                    doctor_action=", ".join(clinical_orders)
+                    if clinical_orders
+                    else "Routine Care",
+                )
 
-        fhir_json = export_abdm_fhir_diagnostic_report(
-            patient_data=patient_dict,
-            screening_record=record,
-            biomarkers=biomarker_dict,
-            doctor_name=doctor_name,
-            doctor_action=", ".join(clinical_orders)
-            if clinical_orders
-            else "Routine Care",
-        )
-        fhir_data_str = json.dumps(fhir_json, indent=2)
+                fhir_json = export_abdm_fhir_diagnostic_report(
+                    patient_data=patient_dict,
+                    screening_record=record,
+                    biomarkers=biomarker_dict,
+                    doctor_name=doctor_name,
+                    doctor_action=", ".join(clinical_orders)
+                    if clinical_orders
+                    else "Routine Care",
+                )
+                fhir_data_str = json.dumps(fhir_json, indent=2)
+                st.session_state._pdf_key = _pdf_key
+                st.session_state._pdf_data = pdf_data
+                st.session_state._fhir_data_str = fhir_data_str
 
-        dl_col1, dl_col2 = st.columns(2)
-        with dl_col1:
-            st.download_button(
-                label="📥 Download Official Hospital Screening PDF (Printable A4)",
-                data=pdf_data,
-                file_name=f"DR_Screening_Report_{patient_profile.patient_id}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
-        with dl_col2:
-            st.download_button(
-                label="🌐 Download ABDM / FHIR R4 JSON-LD Record",
-                data=fhir_data_str,
-                file_name=f"ABDM_FHIR_DiagnosticReport_{patient_profile.patient_id}.json",
-                mime="application/json",
-                use_container_width=True,
-            )
+            dl_col1, dl_col2 = st.columns(2)
+            # Sanitize free-text patient ID for download filenames (mirror FHIR rules).
+            safe_pid = "".join(
+                c if (c.isalnum() or c in ("-", ".")) else "-"
+                for c in str(patient_profile.patient_id)
+            ).strip("-.") or "patient"
+            with dl_col1:
+                st.download_button(
+                    label="📥 Download Official Hospital Screening PDF (Printable A4)",
+                    data=pdf_data,
+                    file_name=f"DR_Screening_Report_{safe_pid}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+            with dl_col2:
+                st.download_button(
+                    label="🌐 Download ABDM / FHIR R4 JSON-LD Record",
+                    data=fhir_data_str,
+                    file_name=f"ABDM_FHIR_DiagnosticReport_{safe_pid}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
 
-        with st.expander("🔍 View Raw ABDM / FHIR R4 DiagnosticReport JSON"):
-            st.json(fhir_json)
+            with st.expander("🔍 View Raw ABDM / FHIR R4 DiagnosticReport JSON"):
+                st.json(fhir_json)
 
-        # Navigation Bar
-        st.divider()
-        s4_b1, s4_b2, s4_b3 = st.columns([1, 1, 1.2])
-        with s4_b1:
-            if st.button("← Back to AI Triage Results", use_container_width=True):
-                st.session_state.wizard_step = 3
-                st.rerun()
-        with s4_b3:
-            if st.button(
-                "➕ Screen Next Patient", type="primary", use_container_width=True
-            ):
-                st.session_state.wizard_step = 1
-                st.rerun()
+            # Navigation Bar
+            st.divider()
+            s4_b1, s4_b2, s4_b3 = st.columns([1, 1, 1.2])
+            with s4_b1:
+                if st.button("← Back to AI Triage Results", use_container_width=True):
+                    st.session_state.wizard_step = 3
+                    st.rerun()
+            with s4_b3:
+                if st.button(
+                    "➕ Screen Next Patient", type="primary", use_container_width=True
+                ):
+                    st.session_state.wizard_step = 1
+                    st.rerun()
+
+@st.cache_data(show_spinner="Grading eye captures with DR model…")
+def _bilateral_eye_model_grade(img_path: str, cam_type: str = "", profile_mode: str = ""):
+    """Runs the real quality gate + DR classifier on one eye image.
+
+    `cam_type`/`profile_mode` are part of the cache key so grades re-run when
+    the gate configuration changes (the global `router` is rebuilt per config).
+
+    Returns (grade:int|None, status:str). grade is None when the capture is
+    ungradable (decode failure, BAD quality, or classifier error).
+    """
+    try:
+        pil = Image.open(img_path).convert("RGB")
+    except Exception as e:
+        return None, f"UNGRADABLE (decode failed: {e})"
+    try:
+        q = router.quality_checker.assess_image(pil)
+    except Exception as e:
+        return None, f"UNGRADABLE (quality check failed: {e})"
+    if q.grade == QualityGrade.BAD:
+        reasons = "; ".join(r.value for r in q.reasons) if q.reasons else "quality gate"
+        return None, f"UNGRADABLE (Quality Rejected: {reasons})"
+    borderline_note = " [borderline quality — confirm on recapture]" if q.grade == QualityGrade.BORDERLINE else ""
+    try:
+        pred = router.dr_classifier.predict(pil)
+    except Exception as e:
+        return None, f"UNGRADABLE (classifier failed: {e})"
+    g = pred.predicted_grade.value
+    label = pred.predicted_grade.label
+    suffix = " (Referable)" if g >= 2 else " (Non-referable)"
+    return g, f"Grade {g} — {label}{suffix}{borderline_note}"
+
 
 # =========================================================================
 # TAB 2: BILATERAL STAGING & LONGITUDINAL PROGRESSION TRACKER
@@ -1123,6 +1220,13 @@ with tab_bilateral:
     )
 
     st.markdown("### Part 1: Bilateral Eye Staging (Oculus Dexter & Oculus Sinister)")
+    st.caption(
+        "Dropdowns select sample captures only. Every grade below is a live "
+        "Model 1 quality gate + Model 2 classifier prediction on that capture — "
+        "never a preset label."
+    )
+
+
     bi_col1, bi_col2 = st.columns(2)
 
     with bi_col1:
@@ -1137,29 +1241,38 @@ with tab_bilateral:
             ],
             key="od_select",
         )
+        od_img_path = None
         if "Grade 2" in od_sample:
-            od_grade = 2
-            od_status = "Grade 2 — Moderate NPDR (Referable)"
-            od_mas = 12
-            od_fovea_prox = 310
+            od_img_path = os.path.join(PROJECT_ROOT, "test_samples", "04_section24_demo_scenarios", "scenario_1_good.jpg")
         elif "Grade 1" in od_sample:
-            od_grade = 1
-            od_status = "Grade 1 — Mild NPDR"
-            od_mas = 4
-            od_fovea_prox = 580
+            od_img_path = os.path.join(PROJECT_ROOT, "test_samples", "04_section24_demo_scenarios", "scenario_3_borderline.jpg")
         elif "Grade 0" in od_sample:
-            od_grade = 0
-            od_status = "Grade 0 — No DR"
-            od_mas = 0
-            od_fovea_prox = 999
+            od_img_path = os.path.join(PROJECT_ROOT, "test_samples", "01_real_clinical_fundus", "real_clinical_fundus_patient1.jpg")
         else:
-            od_grade = None
-            od_status = "UNGRADABLE (Quality Rejected)"
-            od_mas = 0
-            od_fovea_prox = 0
+            od_img_path = os.path.join(PROJECT_ROOT, "test_samples", "04_section24_demo_scenarios", "scenario_2_bad.jpg")
+        if od_img_path and os.path.exists(od_img_path):
+            od_grade, od_status = _bilateral_eye_model_grade(od_img_path, camera_hardware, threshold_profile)
+        else:
+            od_grade, od_status = None, "UNGRADABLE (sample missing)"
 
+        od_failed = False
+        if od_img_path and os.path.exists(od_img_path) and od_grade is not None:
+            try:
+                od_pil = Image.open(od_img_path).convert("RGB")
+                od_struct = segmenter.segment_structures(np.array(od_pil))
+                od_mas = len(od_struct.microaneurysm_candidates)
+                od_fovea_prox = int(od_struct.min_fovea_distance_px) if od_struct.min_fovea_distance_px is not None else "N/A"
+                od_vessel_pct = round(od_struct.vessel_density_pct, 1)
+            except Exception:
+                od_failed = True
+                od_mas, od_fovea_prox, od_vessel_pct = "N/A", "N/A", "N/A"
+        else:
+            od_mas, od_fovea_prox, od_vessel_pct = "N/A", "N/A", "N/A"
+
+        if od_failed:
+            st.error("**OD Analysis failed:** segmentation error — biomarkers unavailable, not estimated.")
         st.info(
-            f"**OD Diagnosis:** {od_status}\n- Microaneurysms: {od_mas}\n- Fovea Proximity: {od_fovea_prox} px"
+            f"**OD Diagnosis:** {od_status}\n- Segmented Microaneurysms: {od_mas}\n- Fovea Proximity: {od_fovea_prox} px\n- Retinal Vessel Density: {od_vessel_pct}%"
         )
 
     with bi_col2:
@@ -1174,33 +1287,51 @@ with tab_bilateral:
             ],
             key="os_select",
         )
+        os_img_path = None
         if "Grade 3" in os_sample:
-            os_grade = 3
-            os_status = "Grade 3 — Severe NPDR (Urgent Referable)"
-            os_mas = 24
-            os_fovea_prox = 180
-        elif "Grade 2" in os_sample:
-            os_grade = 2
-            os_status = "Grade 2 — Moderate NPDR (Referable)"
-            os_mas = 11
-            os_fovea_prox = 340
-        elif "Grade 1" in os_sample:
-            os_grade = 1
-            os_status = "Grade 1 — Mild NPDR"
-            os_mas = 3
-            os_fovea_prox = 620
+            os_img_path = os.path.join(PROJECT_ROOT, "test_samples", "04_section24_demo_scenarios", "scenario_4_uncertain.jpg")
+        elif "Grade 2" in os_sample or "Scenario 1" in os_sample:
+            os_img_path = os.path.join(PROJECT_ROOT, "test_samples", "04_section24_demo_scenarios", "scenario_1_good.jpg")
+        elif "Grade 1" in os_sample or "Scenario 3" in os_sample:
+            os_img_path = os.path.join(PROJECT_ROOT, "test_samples", "04_section24_demo_scenarios", "scenario_3_borderline.jpg")
         else:
-            os_grade = 0
-            os_status = "Grade 0 — No DR"
-            os_mas = 0
-            os_fovea_prox = 999
+            os_img_path = os.path.join(PROJECT_ROOT, "test_samples", "01_real_clinical_fundus", "real_clinical_fundus_patient1.jpg")
+        if os_img_path and os.path.exists(os_img_path):
+            os_grade, os_status = _bilateral_eye_model_grade(os_img_path, camera_hardware, threshold_profile)
+        else:
+            os_grade, os_status = None, "UNGRADABLE (sample missing)"
 
+        os_failed = False
+        if os_img_path and os.path.exists(os_img_path) and os_grade is not None:
+            try:
+                os_pil = Image.open(os_img_path).convert("RGB")
+                os_struct = segmenter.segment_structures(np.array(os_pil))
+                os_mas = len(os_struct.microaneurysm_candidates)
+                os_fovea_prox = int(os_struct.min_fovea_distance_px) if os_struct.min_fovea_distance_px is not None else "N/A"
+                os_vessel_pct = round(os_struct.vessel_density_pct, 1)
+            except Exception:
+                os_failed = True
+                os_mas, os_fovea_prox, os_vessel_pct = "N/A", "N/A", "N/A"
+        else:
+            os_mas, os_fovea_prox, os_vessel_pct = "N/A", "N/A", "N/A"
+
+        if os_failed:
+            st.error("**OS Analysis failed:** segmentation error — biomarkers unavailable, not estimated.")
         st.info(
-            f"**OS Diagnosis:** {os_status}\n- Microaneurysms: {os_mas}\n- Fovea Proximity: {os_fovea_prox} px"
+            f"**OS Diagnosis:** {os_status}\n- Segmented Microaneurysms: {os_mas}\n- Fovea Proximity: {os_fovea_prox} px\n- Retinal Vessel Density: {os_vessel_pct}%"
         )
 
     # Composite Patient Staging
     valid_grades = [g for g in [od_grade, os_grade] if g is not None]
+    ungraded_eyes = [n for n, g in (("OD", od_grade), ("OS", os_grade)) if g is None]
+    if ungraded_eyes:
+        st.divider()
+        st.markdown("#### 🏥 Overall Composite Patient Diagnosis (Worst-Eye Rule)")
+        st.warning(
+            f"⚠️ **INCOMPLETE STAGING — {' & '.join(ungraded_eyes)} ungradable, recapture required.**\n\n"
+            "- A worst-eye verdict cannot be issued until both eyes are graded. "
+            "Do not treat the graded eye's result as a whole-patient clearance."
+        )
     if valid_grades:
         overall_grade = max(valid_grades)
         is_referable = overall_grade >= 2
@@ -1214,10 +1345,18 @@ with tab_bilateral:
                 f"- Tele-referral: Action required within 14 days at District Hospital Eye Unit."
             )
         else:
-            st.success(
-                f"🟢 **Patient DR Staging: Grade {overall_grade} (NON-REFERABLE)**\n\n"
-                f"- Clinical Protocol: Both eyes below treatment threshold. Routine 12-month rescreening."
-            )
+            if ungraded_eyes:
+                st.info(
+                    f"ℹ️ **Graded eye: Grade {overall_grade} (below referral threshold) — "
+                    f"but whole-patient staging is INCOMPLETE until "
+                    f"{' & '.join(ungraded_eyes)} is recaptured and graded. "
+                    "No routine-clearance decision yet.**"
+                )
+            else:
+                st.success(
+                    f"🟢 **Patient DR Staging: Grade {overall_grade} (NON-REFERABLE)**\n\n"
+                    f"- Clinical Protocol: Both eyes below treatment threshold. Routine 12-month rescreening."
+                )
 
         if (
             od_grade is not None
@@ -1233,7 +1372,9 @@ with tab_bilateral:
     st.divider()
     st.markdown("### Part 2: Longitudinal Surveillance & Progression Tracker")
     st.caption(
-        "Tracking a patient's multi-year screening history across rural health check-up camps."
+        "Tracking a patient's multi-year screening history across rural health check-up camps. "
+        "⚠️ Illustrative vignette below — synthetic cohort data for UI demonstration, "
+        "not this patient's record; therapy wording is illustrative, not a recommendation."
     )
 
     # Historical cohort data
@@ -1313,8 +1454,15 @@ with tab_simulink:
             num_tele_ophthalmologists=sim_doctors,
             assisted_review_time_sec=float(sim_assisted_time),
         )
-        sim_engine = TelemedicineSimulinkEngine(sim_params)
-        report = sim_engine.run_simulation()
+        _sim_key = (sim_patients, sim_phcs, float(sim_bandwidth),
+                    sim_doctors, float(sim_assisted_time))
+        if st.session_state.get("_sim_key") == _sim_key and "_sim_report" in st.session_state:
+            report = st.session_state._sim_report
+        else:
+            sim_engine = TelemedicineSimulinkEngine(sim_params)
+            report = sim_engine.run_simulation()
+            st.session_state._sim_key = _sim_key
+            st.session_state._sim_report = report
 
     with col_sim_res:
         st.markdown("#### 📊 Simulation Results: Edge AI vs. Centralized Cloud")
@@ -1353,11 +1501,18 @@ with tab_simulink:
             }
         )
 
-        st.success(
-            f"✅ **System Stability Verified:** Queue is {'STABLE' if report.queue_stable else 'OVERLOADED'}. "
-            f"Daily tele-consultation capacity ({report.doctor_daily_review_capacity_assisted} cases/day) exceeds "
-            f"flagged intake ({report.daily_flagged_for_review} cases/day)."
-        )
+        if report.queue_stable:
+            st.success(
+                f"✅ **System Stability Verified:** Queue is STABLE. "
+                f"Daily tele-consultation capacity ({report.doctor_daily_review_capacity_assisted} cases/day) exceeds "
+                f"flagged intake ({report.daily_flagged_for_review} cases/day)."
+            )
+        else:
+            st.error(
+                f"⛔ **System OVERLOADED:** flagged intake ({report.daily_flagged_for_review} cases/day) exceeds "
+                f"daily tele-consultation capacity ({report.doctor_daily_review_capacity_assisted} cases/day). "
+                "Add reviewers, extend hours, or narrow the screening target before go-live."
+            )
 
         with st.expander("📄 View MATLAB / Simulink Code & Instructions"):
             st.markdown(

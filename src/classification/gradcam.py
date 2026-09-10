@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Optional, Tuple, Union
 import numpy as np
@@ -37,6 +38,22 @@ class GradCAMExplainer:
         "or segmentation and must be interpreted by a qualified clinician."
     )
 
+    FALLBACK_LAYER_NAME = "multiscale_vascular_saliency (fallback)"
+
+    FALLBACK_NOTE = (
+        " NOTE: No deep-learning weights were available, so this map is a multi-scale "
+        "vascular saliency fallback — not gradient backpropagation — and must not be "
+        "interpreted as model attention."
+    )
+
+    # Single background threshold shared by saliency masking and overlay blending.
+    # Read live from src.image_io at call time (never snapshot) so the one shared
+    # definition in image_io.py stays authoritative.
+    @staticmethod
+    def _bg_threshold() -> float:
+        from src.image_io import RETINAL_BG_THRESHOLD
+        return RETINAL_BG_THRESHOLD
+
     def __init__(self, classifier_backend: Optional[Any] = None, use_gradcam_plus_plus: bool = True):
         self.classifier_backend = classifier_backend
         self.use_gradcam_plus_plus = use_gradcam_plus_plus
@@ -59,10 +76,9 @@ class GradCAMExplainer:
         # 1. Attempt Real Gradient Backpropagation through DL Model
         attention_map = None
         layer_name = "final_convolutional_block"
+        is_fallback = True
 
         if active_classifier is not None:
-            backend = getattr(active_classifier, "model_backend", None) or getattr(active_classifier, "backend", None)
-            
             # 1a. Keras / TensorFlow Gradient Tape Backpropagation
             keras_model = getattr(active_classifier, "_keras_model", None)
             if keras_model is not None:
@@ -70,6 +86,7 @@ class GradCAMExplainer:
                     attention_map, layer_name = self._compute_keras_gradcam(
                         keras_model, orig_np, target_grade.value, use_pp=self.use_gradcam_plus_plus
                     )
+                    is_fallback = False
                 except Exception:
                     attention_map = None
 
@@ -81,13 +98,21 @@ class GradCAMExplainer:
                     attention_map, layer_name = self._compute_pytorch_gradcam(
                         torch_model, orig_np, target_grade.value, device=device, use_pp=self.use_gradcam_plus_plus
                     )
+                    is_fallback = False
                 except Exception:
                     attention_map = None
 
         # 2. Fallback to Multi-Scale Morphological & Vascular Saliency if no DL weights loaded
+        disclaimer = self.EXPLAINABILITY_DISCLAIMER
         if attention_map is None:
             attention_map = self._compute_synthetic_attention_map(orig_np, target_grade)
-            layer_name = "multiscale_vascular_saliency"
+            layer_name = self.FALLBACK_LAYER_NAME
+            is_fallback = True
+            disclaimer = self.EXPLAINABILITY_DISCLAIMER + self.FALLBACK_NOTE
+            logging.getLogger("NetraAI.GradCAM").warning(
+                "No DL weights available; using multi-scale vascular saliency fallback. "
+                "Output is NOT gradient backpropagation."
+            )
 
         # 3. Create Overlaid Visual Heatmap onto Original Retinal Frame
         overlay = self._overlay_heatmap_on_image(orig_np, attention_map)
@@ -101,16 +126,24 @@ class GradCAMExplainer:
             heatmap_array=overlay,
             overlay_path=save_path,
             target_layer=layer_name,
-            disclaimer=self.EXPLAINABILITY_DISCLAIMER,
+            disclaimer=disclaimer,
         )
 
     def _compute_keras_gradcam(
         self, keras_model: Any, img_rgb: np.ndarray, class_idx: int, use_pp: bool = True
-    ) -> Tuple[np.ndarray, str]:
+    ) -> Tuple[Optional[np.ndarray], str]:
         """
         Computes exact Grad-CAM / Grad-CAM++ gradients from Keras convolutional layers.
         """
-        import tensorflow as tf
+        try:
+            import tensorflow as tf
+        except ImportError:
+            import logging
+            logging.getLogger("NetraAI.GradCAM").warning(
+                "TensorFlow is required for Keras Grad-CAM++ gradient calculation. "
+                "Falling back to multi-scale anatomical vascular saliency."
+            )
+            return None, "multiscale_vascular_saliency (fallback)"
 
         h_orig, w_orig = img_rgb.shape[:2]
         # Preprocess input image to model dimensions (224x224)
@@ -205,11 +238,12 @@ class GradCAMExplainer:
         ])
         tensor = transform(img_rgb).unsqueeze(0).to(device)
 
-        # Find target conv module
+        # Find target conv module (Conv2d only: BatchNorm2d has no spatial
+        # semantics suitable as a CAM target and must not be selected)
         target_module = None
         target_name = "conv_head"
         for name, module in reversed(list(torch_model.named_modules())):
-            if isinstance(module, (torch.nn.Conv2d, torch.nn.BatchNorm2d)):
+            if isinstance(module, torch.nn.Conv2d):
                 target_module = module
                 target_name = name
                 break
@@ -230,10 +264,10 @@ class GradCAMExplainer:
         h_bwd = target_module.register_full_backward_hook(bwd_hook)
 
         torch_model.eval()
+        torch_model.zero_grad(set_to_none=True)
         logits = torch_model(tensor)
         score = logits[0, class_idx]
-        torch_model.zero_grad()
-        score.backward(retain_graph=True)
+        score.backward(retain_graph=False)
 
         h_fwd.remove()
         h_bwd.remove()
@@ -276,9 +310,12 @@ class GradCAMExplainer:
         h, w, _ = img_np.shape
         green = img_np[:, :, 1].astype(np.float32)
 
-        # Retinal boundary mask
-        gray = np.mean(img_np, axis=2)
-        retinal_mask = gray > 20.0
+        # Retinal boundary mask (unified threshold with overlay blending).
+        # Shared luma conversion (NOT mean(axis=2)) so the mask agrees with
+        # the checker/segmenter/router denominators on dim border pixels.
+        from src.image_io import rgb_to_gray as _to_gray
+        gray = _to_gray(img_np)
+        retinal_mask = gray > self._bg_threshold()
 
         if HAS_OPENCV:
             blurred = cv2.GaussianBlur(green, (21, 21), 0)
@@ -311,7 +348,11 @@ class GradCAMExplainer:
         Overlays jet/plasma heatmap onto original retinal image without distorting base pixels.
         Masks out non-retinal outer boundary.
         """
+        alpha = float(np.clip(float(alpha), 0.0, 1.0))
         h, w, _ = orig_rgb.shape
+        attention_map = np.nan_to_num(
+            np.asarray(attention_map, dtype=np.float32), nan=0.0, posinf=1.0, neginf=0.0
+        )
         att_u8 = np.uint8(255 * np.clip(attention_map, 0.0, 1.0))
 
         if HAS_OPENCV:
@@ -324,20 +365,31 @@ class GradCAMExplainer:
             heatmap_rgb[:, :, 1] = np.uint8(255 * np.clip(1.5 - np.abs(norm * 4 - 2), 0, 1))
             heatmap_rgb[:, :, 2] = np.uint8(255 * np.clip(1.5 - np.abs(norm * 4 - 1), 0, 1))
 
-        # Blend original with heatmap
-        overlaid = np.uint8(orig_rgb * (1.0 - alpha) + heatmap_rgb * alpha)
+        # Blend original with heatmap (uint8 math: avoids a float64 HxWx3 transient,
+        # ~400MB at 4K).
+        if HAS_OPENCV:
+            overlaid = cv2.addWeighted(orig_rgb, 1.0 - alpha, heatmap_rgb, alpha, 0)
+        else:
+            overlaid = np.uint8(
+                orig_rgb.astype(np.float32) * (1.0 - alpha) + heatmap_rgb.astype(np.float32) * alpha
+            )
 
-        # Keep non-retinal outer boundary black
-        gray = np.mean(orig_rgb, axis=2)
-        overlaid[gray <= 10] = orig_rgb[gray <= 10]
+        # Keep non-retinal outer boundary black (same threshold AND same
+        # luma conversion as the saliency mask above).
+        from src.image_io import rgb_to_gray as _to_gray
+        gray = _to_gray(orig_rgb)
+        overlaid[gray <= self._bg_threshold()] = orig_rgb[gray <= self._bg_threshold()]
 
         return overlaid
 
     def _load_image(self, image_input: Union[str, np.ndarray, Image.Image]) -> Image.Image:
+        from src.image_io import to_rgb_uint8
         if isinstance(image_input, str):
-            return Image.open(image_input).convert("RGB")
+            # Shared funnel: dimension cap applies to file paths too.
+            return Image.fromarray(to_rgb_uint8(np.array(Image.open(image_input).convert("RGB"))))
         elif isinstance(image_input, np.ndarray):
-            return Image.fromarray(image_input.astype(np.uint8)).convert("RGB")
+            # Single shared loader, mirroring classifier._load_as_pil.
+            return Image.fromarray(to_rgb_uint8(image_input)).convert("RGB")
         elif isinstance(image_input, Image.Image):
             return image_input.convert("RGB")
         else:

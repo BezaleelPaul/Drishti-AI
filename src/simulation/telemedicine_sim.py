@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Dict, Any
 import numpy as np
@@ -69,6 +70,38 @@ class TelemedicineSimulinkEngine:
 
     def run_simulation(self) -> DistrictSimulationReport:
         p = self.params
+        if p.working_days_per_year <= 0:
+            raise ValueError(f"working_days_per_year must be > 0, got {p.working_days_per_year}")
+        if p.annual_target_patients <= 0:
+            raise ValueError(f"annual_target_patients must be > 0, got {p.annual_target_patients}")
+        if p.assisted_review_time_sec <= 0:
+            raise ValueError(f"assisted_review_time_sec must be > 0, got {p.assisted_review_time_sec}")
+        if p.unassisted_review_time_sec <= 0:
+            raise ValueError(f"unassisted_review_time_sec must be > 0, got {p.unassisted_review_time_sec}")
+        if p.doctor_work_hours_per_day <= 0:
+            raise ValueError(f"doctor_work_hours_per_day must be > 0, got {p.doctor_work_hours_per_day}")
+        if p.num_tele_ophthalmologists <= 0:
+            raise ValueError(f"num_tele_ophthalmologists must be > 0, got {p.num_tele_ophthalmologists}")
+        if p.rural_bandwidth_kbps <= 0:
+            raise ValueError(f"rural_bandwidth_kbps must be > 0, got {p.rural_bandwidth_kbps}")
+        if not 0.0 <= p.quality_rejection_rate < 1.0:
+            raise ValueError(f"quality_rejection_rate must be in [0, 1), got {p.quality_rejection_rate}")
+        # Triage fraction and payload/latency inputs must be physical too:
+        # an out-of-range flagged rate otherwise fabricates negative uploads
+        # or understaffed capacity plans.
+        if not 0.0 <= p.referable_or_flagged_rate < 1.0:
+            raise ValueError(f"referable_or_flagged_rate must be in [0, 1), got {p.referable_or_flagged_rate}")
+        if p.raw_image_size_mb <= 0:
+            raise ValueError(f"raw_image_size_mb must be > 0, got {p.raw_image_size_mb}")
+        if p.compressed_dossier_kb <= 0:
+            raise ValueError(f"compressed_dossier_kb must be > 0, got {p.compressed_dossier_kb}")
+        if p.edge_quality_check_sec < 0 or p.edge_dr_inference_sec < 0:
+            raise ValueError(
+                "edge latencies must be >= 0, got "
+                f"({p.edge_quality_check_sec}, {p.edge_dr_inference_sec})"
+            )
+        if p.num_phcs <= 0 or p.num_mobile_vans < 0:
+            raise ValueError(f"num_phcs must be > 0 and vans >= 0, got ({p.num_phcs}, {p.num_mobile_vans})")
         daily_patients = int(np.ceil(p.annual_target_patients / p.working_days_per_year))
         
         # 1. Bandwidth Analysis (Edge Screening vs Centralized Cloud)
@@ -89,8 +122,12 @@ class TelemedicineSimulinkEngine:
         cloud_upload_latency_sec = (p.raw_image_size_mb * 1024.0) / transfer_speed_kb_s # ~96 seconds per image!
         edge_upload_latency_sec = p.compressed_dossier_kb / transfer_speed_kb_s          # ~5.2 seconds
 
-        # Total on-site patient wait time
-        avg_turnaround_edge = (p.edge_quality_check_sec + p.edge_dr_inference_sec + 0.8) # <2 seconds!
+        # Total on-site patient wait time.
+        # quality_rejection_rate: fraction blocked/recaptured locally on-site.
+        # Recaptures consume extra edge passes but never reach the specialist
+        # queue, so model them as expected overhead on edge turnaround.
+        recaptured_daily = int(round(daily_patients * p.quality_rejection_rate))
+        avg_turnaround_edge = (p.edge_quality_check_sec + p.edge_dr_inference_sec + 0.8) * (1.0 + p.quality_rejection_rate) # <2 seconds!
         avg_turnaround_cloud = (cloud_upload_latency_sec + 15.0) / 60.0                 # ~1.8 minutes per patient
 
         # 3. Specialist Ophthalmologist Capacity & Resource Allocation
@@ -102,25 +139,52 @@ class TelemedicineSimulinkEngine:
         # Capacity without our system (manual reading of all raw photos)
         cap_unassisted = int(daily_seconds_available / p.unassisted_review_time_sec)
 
-        # Doctors required to handle the 100,000 patient load:
+        # Doctors required to handle the district patient load:
         # With our system: Doctors only read the 16% flagged cases
         annual_flagged = p.annual_target_patients * p.referable_or_flagged_rate
         annual_doctor_seconds_needed_our = annual_flagged * p.assisted_review_time_sec
         seconds_per_doctor_year = p.working_days_per_year * (p.doctor_work_hours_per_day * 3600.0)
-        doctors_needed_our = round(annual_doctor_seconds_needed_our / seconds_per_doctor_year, 1)
+        # Invariant: validators above enforce working_days>0 and hours>0, so this
+        # is always positive; assert (not branch) to document the assumption.
+        assert seconds_per_doctor_year > 0
+        doctors_needed_our = float(math.ceil(annual_doctor_seconds_needed_our / seconds_per_doctor_year))
+        # Fractional FTE for sub-1.0 regimes (pilot insight only): headcount
+        # above stays ceiled for staffing, so full-scale figures never change.
+        fte_our = annual_doctor_seconds_needed_our / seconds_per_doctor_year
 
-        # Without our system: Doctors must manually grade all 100,000 patients
+        # Without our system: Doctors must manually grade all patients.
+        # Fractional FTE is kept for small pilots (a 100-patient pilot needs
+        # ~0.004 FTE, not a crash); display layers round up to whole doctors.
         annual_doctor_seconds_needed_trad = p.annual_target_patients * p.unassisted_review_time_sec
-        doctors_needed_trad = round(annual_doctor_seconds_needed_trad / seconds_per_doctor_year, 1)
+        doctors_needed_trad = max(
+            0.1, round(annual_doctor_seconds_needed_trad / seconds_per_doctor_year, 1)
+        )
 
-        specialist_saved_pct = ((doctors_needed_trad - doctors_needed_our) / doctors_needed_trad) * 100.0
+        if doctors_needed_trad < 1.0:
+            # Pilot scale: percent-saved against a fractional FTE is meaningless.
+            specialist_saved_pct = 0.0
+        else:
+            specialist_saved_pct = ((doctors_needed_trad - doctors_needed_our) / doctors_needed_trad) * 100.0
         queue_stable = cap_assisted >= flagged_daily
 
+        if doctors_needed_trad < 1.0:
+            # Pilot scale (<1 FTE): a percent "saved" against a fraction is
+            # meaningless and inverts (ceil(our)=1 vs trad=0.1 -> -900%).
+            staffing_insight = (
+                f"Pilot scale: specialist load is {doctors_needed_trad:.1f} FTE "
+                f"(~{max(fte_our, 0.01):.2f} FTE tele-review time, no dedicated hire)."
+            )
+        else:
+            staffing_insight = (
+                f"District ophthalmologist requirement reduced from {doctors_needed_trad:.0f} "
+                f"specialists to only {doctors_needed_our:.0f} tele-reviewer."
+            )
         insights = [
             f"Edge AI triage eliminates {bandwidth_saved:.1f}% of rural cellular data transmission.",
             f"On-site turnaround time reduced from {avg_turnaround_cloud:.1f} mins to {avg_turnaround_edge:.1f} seconds per patient.",
-            f"District ophthalmologist requirement reduced from {doctors_needed_trad:.0f} specialists to only {doctors_needed_our:.0f} tele-reviewer.",
-            f"Handles district scale: 100,000 patients/year across {p.num_phcs} PHCs and {p.num_mobile_vans} mobile vision vans.",
+            staffing_insight,
+            f"Handles district scale: {p.annual_target_patients:,} patients/year across {p.num_phcs} PHCs and {p.num_mobile_vans} mobile vision vans.",
+            f"Quality gate recaptures ~{recaptured_daily} patients/day on-site ({p.quality_rejection_rate:.0%} rejection rate) without specialist load.",
         ]
 
         return DistrictSimulationReport(
@@ -131,7 +195,7 @@ class TelemedicineSimulinkEngine:
             bandwidth_saved_pct=round(bandwidth_saved, 1),
             doctor_daily_review_capacity_assisted=cap_assisted,
             doctor_daily_review_capacity_unassisted=cap_unassisted,
-            doctors_needed_with_our_system=max(doctors_needed_our, 1.0),
+            doctors_needed_with_our_system=doctors_needed_our,
             doctors_needed_without_our_system=doctors_needed_trad,
             specialist_time_saved_pct=round(specialist_saved_pct, 1),
             avg_turnaround_time_edge_sec=round(avg_turnaround_edge, 2),

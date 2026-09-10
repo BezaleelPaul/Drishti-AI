@@ -1,11 +1,29 @@
 version: "3.8"
 
 services:
-  drishti-ai:
+  # FastAPI REST Backend Bridge & Flutter Web Application
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: drishti_screening_platform
+    container_name: drishti_api_backend
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./results:/app/results
+    restart: unless-stopped
+
+  # Streamlit Central Telemedicine & Doctor Review Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: drishti_screening_dashboard
+    command: ["streamlit", "run", "demo/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
     ports:
       - "8501:8501"
     environment:
@@ -14,5 +32,8 @@ services:
       - STREAMLIT_SERVER_ENABLE_CORS=false
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
     volumes:
+      - ./data:/app/data
       - ./results:/app/results
+    depends_on:
+      - backend
     restart: unless-stopped

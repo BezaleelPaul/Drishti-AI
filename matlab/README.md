@@ -38,7 +38,7 @@ This folder contains the official MATLAB script and Simulink workflow model for 
 
 | Operational Parameter | Centralized Cloud (Upload All) | Our Edge AI Triage Pipeline | Impact / Savings |
 |---|:---:|:---:|:---:|
-| **Annual Cellular Data Footprint** | **1,125.0 GB** | **15.3 GB** | **98.6% Bandwidth Saved** |
-| **Patient On-Site Turnaround Time** | **~1.85 minutes** | **~1.0 second** | **Immediate camp triage** |
-| **Ophthalmologist Headcount Needed** | **14 full-time specialists** | **1 tele-ophthalmologist** | **14× Specialist Capacity** |
+| **Annual Cellular Data Footprint** | **439.9 GB** | **3.8 GB** | **99.1% Bandwidth Saved** |
+| **Patient On-Site Turnaround Time** | **~1.85 minutes** | **~1.2 seconds** | **Immediate camp triage** |
+| **Ophthalmologist Headcount Needed** | **4 full-time specialists** | **1 tele-ophthalmologist** | **~3.7× Specialist Capacity** |
 | **Queue Stability at 100k/year** | Unstable (Network choked) | **100% Stable ($<30$s review)** | District-scale feasible |

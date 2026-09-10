@@ -7,7 +7,7 @@ from src.classification.classifier import DRClassifier
 from src.classification.gradcam import GradCAMExplainer
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import QualityGrade
-from tests.unit.test_quality import create_synthetic_fundus_image
+from src.synthetic_fixtures import create_synthetic_fundus_image
 
 
 class TestMLQualityAndGradCAM(unittest.TestCase):
@@ -22,8 +22,9 @@ class TestMLQualityAndGradCAM(unittest.TestCase):
         self.classifier = DRClassifier()
         self.explainer = GradCAMExplainer(classifier_backend=self.classifier, use_gradcam_plus_plus=True)
 
-        # Realistic synthetic circular fundus test image with retinal texture and vessels
-        self.test_img = create_synthetic_fundus_image(size=(256, 256), blur_level=0.0)
+        # Synthetic circular fundus test image with vessel-like detail
+        # so contrast and sharpness metrics pass the reliability gate.
+        self.test_img = create_synthetic_fundus_image()
 
     def test_ml_quality_scoring(self):
         res = self.checker.assess_image(self.test_img)
@@ -49,7 +50,8 @@ class TestMLQualityAndGradCAM(unittest.TestCase):
         )
         self.assertTrue(gradcam_res.heatmap_generated)
         self.assertIsNotNone(gradcam_res.target_layer)
-        self.assertEqual(gradcam_res.heatmap_array.shape, (256, 256, 3))
+        self.assertEqual(gradcam_res.heatmap_array.shape[:2], self.test_img.shape[:2])
+        self.assertEqual(gradcam_res.heatmap_array.shape[2], 3)
 
     def test_router_integration_with_ml_components(self):
         router = ScreeningPipelineRouter(
@@ -60,9 +62,10 @@ class TestMLQualityAndGradCAM(unittest.TestCase):
         record = router.process_image(self.test_img)
         self.assertIsNotNone(record.quality_metrics)
         self.assertIn("ml_quality_score", record.quality_metrics.raw_scores)
-        if record.dr_prediction is not None:
-            self.assertIsNotNone(record.gradcam_result)
-            self.assertTrue(record.gradcam_result.heatmap_generated)
+        # This fixture grades GOOD, so Model 2 + Grad-CAM must have run.
+        self.assertIsNotNone(record.dr_prediction)
+        self.assertIsNotNone(record.gradcam_result)
+        self.assertTrue(record.gradcam_result.heatmap_generated)
 
 
 if __name__ == "__main__":

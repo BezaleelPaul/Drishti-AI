@@ -26,11 +26,15 @@ compressed_dossier_kb = 250;         % 250 KB compressed metadata + Grad-CAM ove
 % Edge AI Processing Times (On-Device Model 1 & Model 2)
 t_edge_quality_check = 0.045;        % 45 ms
 t_edge_dr_classifier = 0.140;        % 140 ms
-t_edge_total_turnaround = t_edge_quality_check + t_edge_dr_classifier + 0.8; % ~1.0 sec
+t_edge_base_turnaround = t_edge_quality_check + t_edge_dr_classifier + 0.8; % ~1.0 sec base
 
 % Clinical Routing Probabilities
 p_quality_bad_recapture = 0.18;      % Blocked & recaptured on-site
 p_referable_or_flagged  = 0.16;      % 16% cases escalated to tele-ophthalmologist
+
+% Effective on-site turnaround incl. recapture overhead (matches Python engine:
+% telemedicine_sim.py multiplies edge turnaround by (1 + recapture_rate)) -> ~1.2 s
+t_edge_total_turnaround = t_edge_base_turnaround * (1 + p_quality_bad_recapture);
 
 % Specialist Ophthalmologist Review Timing
 t_assisted_review_sec = 28;          % <30 seconds with annotated Grad-CAM summary
@@ -52,7 +56,9 @@ cloud_upload_latency_sec = (raw_image_size_mb * 1024) / bandwidth_kb_s; % ~96 se
 cloud_total_turnaround_min = (cloud_upload_latency_sec + 15) / 60;      % ~1.85 mins
 
 % Doctor Headcount Required
-annual_flagged = annual_target_patients * p_referable_or_flagged;
+% Single-path: annual flagged derives from the same ceiled daily figure used
+% in the bandwidth math above (62*260 = 16120), not a separate exact product.
+annual_flagged = daily_flagged_patients * working_days;
 seconds_per_doctor_annual = working_days * doctor_daily_sec;
 
 doctors_needed_with_ai = max(round((annual_flagged * t_assisted_review_sec) / seconds_per_doctor_annual, 1), 1.0);
@@ -76,7 +82,7 @@ fprintf('  - Our Edge AI Quality-Gated System:  %.2f seconds / patient\n', t_edg
 fprintf('\n[OPHTHALMOLOGIST HEADCOUNT REQUIRED]:\n');
 fprintf('  - Traditional Manual Tele-Grading:   %.0f full-time ophthalmologists\n', doctors_needed_traditional);
 fprintf('  - With Our AI-Assisted <30s System:  %.0f tele-ophthalmologist (%.1fx efficiency)\n', ...
-        doctors_needed_with_our_system, specialist_capacity_multiplier);
+        doctors_needed_with_ai, specialist_capacity_multiplier);
 fprintf('------------------------------------------------------------------------\n\n');
 
 %% 4. Generate Comparative Engineering Visualizations

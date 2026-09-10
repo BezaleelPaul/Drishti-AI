@@ -70,10 +70,10 @@ Raw Image → [Model 1: Quality Gate] → Good/Borderline/Bad
 - Combined annotated overlay for <30s ophthalmologist review
 
 **6. Telemedicine Simulation (`src/simulation/telemedicine_sim.py`)**
-- Discrete-event queuing model: 100,000 patients/year, 50 PHCs, 1 District Hospital
-- **98.6% bandwidth reduction** (250 GB raw → 3.4 GB edge-filtered)
-- On-site turnaround: ~2 seconds per patient (vs ~1.8 minutes cloud-only)
-- Reduces specialist requirement from ~13 ophthalmologists to ~2 tele-reviewers
+- Discrete-event queuing model: 100,000 patients/year, 20 PHCs + 5 mobile vans, 1 District Hospital
+- **99.1% bandwidth reduction** (439.9 GB raw → 3.8 GB edge-filtered)
+- On-site turnaround: ~1.2 seconds per patient (vs ~1.9 minutes cloud-only)
+- Reduces specialist requirement from ~4 doctors to ~1 tele-reviewer
 
 **7. Clinical Reporting (`src/reporting/`)**
 - Hospital-grade PDF screening dossier with bilingual patient guidance (English + Hindi)
@@ -120,7 +120,7 @@ Raw Image → [Model 1: Quality Gate] → Good/Borderline/Bad
 
 **2. It's not just a model — it's a complete clinical pipeline.** From upstream diabetes risk assessment → image quality gating → DR classification → explainability → confidence calibration → human review routing → PDF reports → FHIR interoperability → district-scale simulation. This is a production-grade architecture, not a notebook.
 
-**3. The rural deployment story is real.** Offline-ready (no cloud dependency), hardware-agnostic (works with Rs 15,000 handheld fundus cameras), 98.6% bandwidth reduction (makes 2G/3G connections viable), bilingual patient guidance (English + Hindi), ABDM/Ayushman Bharat compliant FHIR export.
+**3. The rural deployment story is real.** Offline-ready (no cloud dependency), hardware-agnostic (works with Rs 15,000 handheld fundus cameras), 99.1% bandwidth reduction (makes 2G/3G connections viable), bilingual patient guidance (English + Hindi), ABDM/Ayushman Bharat compliant FHIR export.
 
 **4. It's clinically honest.** We don't claim 99% accuracy. We show confidence scores honestly, flag low-confidence predictions, abstain on bad images, and route ambiguous cases to human specialists. This is how real medical AI should work.
 
@@ -151,7 +151,7 @@ Raw Image → [Model 1: Quality Gate] → Good/Borderline/Bad
 2. **The core failure mode** (1 minute) — How standard AIs give confident grades on garbage images
 3. **Our solution architecture** (2 minutes) — Live demo: bad image rejected, good image graded with Grad-CAM
 4. **The evidence** (1 minute) — A/B/C experiment results, 0% forced prediction rate
-5. **The scale** (1 minute) — Simulink simulation: 100k patients, 50 PHCs, 98.6% bandwidth saved
+5. **The scale** (1 minute) — Simulink simulation: 100k patients, 20 PHCs + 5 vans, 99.1% bandwidth saved
 6. **The impact** (1 minute) — Offline-ready, hardware-agnostic, ABDM compliant
 
 **What makes it memorable:** The moment judges see a blurry image get rejected by Model 1 while a standard AI would have confidently graded it — that's the "aha" moment. That's what separates us.
@@ -169,7 +169,7 @@ Raw Image → [Model 1: Quality Gate] → Good/Borderline/Bad
 **Akshay:**
 - Complete DR classifier training on APTOS 2019, report QWK and per-class sensitivity
 - Verify Grad-CAM runs in <30 seconds on CPU
-- Prepare MATLAB Simulink model screenshots and the 98.6% bandwidth result
+- Prepare MATLAB Simulink model screenshots and the 99.1% bandwidth result
 - Be ready to explain why EfficientNetB0 over ResNet50/ViT
 
 **Adithya:**

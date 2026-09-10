@@ -34,6 +34,15 @@ echo -e "[*] Checking Python installation..."
 if command -v python3 &>/dev/null; then
     PY_VERSION=$(python3 --version 2>&1)
     echo -e "    ${GREEN}✓ Found $PY_VERSION${RESET}"
+    PY_MAJOR=$(python3 -c 'import sys; print(sys.version_info[0])')
+    PY_MINOR=$(python3 -c 'import sys; print(sys.version_info[1])')
+    if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
+        echo -e "${RED}[ERROR] Python >= 3.10 is required (TensorFlow/torch wheels unavailable below).${RESET}"
+        exit 1
+    fi
+    if [ "$PY_MINOR" -gt 11 ]; then
+        echo -e "${YELLOW}[!] Python 3.$PY_MINOR detected: TF 2.15/torch 2.1 wheels may be missing; 3.11 recommended.${RESET}"
+    fi
 else
     echo -e "${RED}[ERROR] Python 3 was not found on your Mac.${RESET}"
     echo -e "Please install Python using Homebrew: ${BOLD}brew install python@3.11${RESET}"
@@ -78,7 +87,11 @@ echo ""
 echo -e "${BOLD}${BLUE}====================================================================${RESET}"
 echo -e "${BOLD}${BLUE}       Running End-to-End Verification of All 10 Subsystems         ${RESET}"
 echo -e "${BOLD}${BLUE}====================================================================${RESET}"
-python verify_complete_system.py
+if [ "${SKIP_VERIFY:-0}" = "1" ]; then
+    echo -e "${YELLOW}[*] SKIP_VERIFY=1 — skipping end-to-end verification.${RESET}"
+else
+    python verify_complete_system.py
+fi
 
 echo ""
 echo -e "${BOLD}${GREEN}====================================================================${RESET}"
@@ -86,6 +99,8 @@ echo -e "${BOLD}${GREEN}       🎉 INSTALLATION & VERIFICATION COMPLETED SUCCES
 echo -e "${BOLD}${GREEN}====================================================================${RESET}"
 echo ""
 echo -e "${BOLD}How to launch Drishti-AI:${RESET}"
+echo -e "${YELLOW}NOTE: 'source venv/bin/activate' above applied only inside this script."
+echo -e "Run ${BOLD}source venv/bin/activate${RESET}${YELLOW} in each new terminal before python/streamlit/uvicorn commands.${RESET}"
 echo -e "  1. Quick Launch Menu:  ${BOLD}./run_mac.sh${RESET}"
 echo -e "  2. Central Dashboard:  ${BOLD}source venv/bin/activate && streamlit run demo/app.py${RESET}"
 echo -e "  3. FastAPI REST API:   ${BOLD}source venv/bin/activate && uvicorn api.main:app --reload${RESET}"

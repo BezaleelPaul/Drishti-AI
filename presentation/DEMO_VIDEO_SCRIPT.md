@@ -47,11 +47,11 @@
 - **Visual on Screen:** Click Tab 2 (*"Simulink 100k Patient Simulation"*).
   1. Display the district architecture parameters: 100,000 patients/year, 50 rural PHCs, 1 District Hospital.
   2. Show the simulation output graphs:
-     - Bandwidth comparison: Raw DICOM (250 GB) vs. Edge AI Filtered (3.4 GB) $\rightarrow$ **98.6% Bandwidth Saving**.
+     - Bandwidth comparison: Raw DICOM (439.9 GB) vs. Edge AI Filtered (3.8 GB) $\rightarrow$ **99.1% Bandwidth Saving**.
      - Queuing latency: Under 18 seconds per patient at the PHC.
-     - Doctor workload: 100,000 cases reduced to ~15,200 referral cases.
+     - Doctor workload: 100,000 cases reduced to ~16,100 referral cases (~62/day).
 - **Voiceover:**
-  > *"For MathWorks Requirement 5, we simulated 100,000 patients across 50 rural PHCs using discrete-event queuing theory in MATLAB and Simulink. Edge AI filtering cuts network bandwidth by 98.6%, allowing remote PHCs on 2G/3G connections to function smoothly and reducing ophthalmologist burden to manageable levels."*
+  > *"For MathWorks Requirement 5, we simulated 100,000 patients across 20 rural PHCs + 5 mobile vans using discrete-event queuing theory in MATLAB and Simulink. Edge AI filtering cuts network bandwidth by 99.1%, allowing remote PHCs on 2G/3G connections to function smoothly and reducing ophthalmologist burden to manageable levels."*
 
 ---
 

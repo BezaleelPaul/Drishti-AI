@@ -5,7 +5,8 @@ import 'camera_capture_screen.dart';
 
 class PatientCheckinScreen extends StatefulWidget {
   final ApiService apiService;
-  final void Function(PatientModel patient, DiabetesRiskModel? risk)? onProceedToScan;
+  final void Function(PatientModel patient, DiabetesRiskModel? risk)?
+  onProceedToScan;
 
   final bool embedded;
 
@@ -26,7 +27,9 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
   final _ageController = TextEditingController(text: '54');
   final _phoneController = TextEditingController(text: '+91 98451 22340');
   final _abhaController = TextEditingController(text: '91-4521-8890-3321');
-  final _villageController = TextEditingController(text: 'Shivaji Nagar, PHC Bhor');
+  final _villageController = TextEditingController(
+    text: 'Shivaji Nagar, PHC Bhor',
+  );
   final _bmiController = TextEditingController(text: '28.4');
   final _hba1cController = TextEditingController(text: '8.2');
 
@@ -130,12 +133,16 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
     );
 
     // Register asynchronously in the background so screen transition is instantaneous
-    widget.apiService.registerPatient(patient).catchError((_) => patient);
+    widget.apiService
+        .registerPatient(patient)
+        .catchError((_) => patient.patientId);
 
     // Provide immediate visual feedback to the healthcare worker
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('📸 Opening Eye Scan & Model 1 Quality Gate for ${patient.name}...'),
+        content: Text(
+          '📸 Opening Eye Scan & Model 1 Quality Gate for ${patient.name}...',
+        ),
         duration: const Duration(milliseconds: 1000),
         backgroundColor: const Color(0xFF1E3A8A),
       ),
@@ -179,13 +186,18 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                     icon: const Icon(Icons.arrow_forward_rounded, size: 20),
                     label: const Text(
                       '⚡ Proceed to Eye Scan (Step 2) 📸',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0D9488),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       elevation: 2,
                     ),
                   ),
@@ -193,306 +205,119 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                 // Header Card
                 Card(
                   elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   color: Colors.white,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const CircleAvatar(
-                            backgroundColor: Color(0xFFDBEAFE),
-                            child: Icon(Icons.person_add, color: Color(0xFF1E3A8A)),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Step 1: Patient Check-In',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F172A),
-                                ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const CircleAvatar(
+                              backgroundColor: Color(0xFFDBEAFE),
+                              child: Icon(
+                                Icons.person_add,
+                                color: Color(0xFF1E3A8A),
                               ),
-                              Text(
-                                'Ayushman Bharat Digital Mission (ABDM)',
-                                style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Quick Demo Presets Banner
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.bolt, color: Color(0xFF1E3A8A), size: 20),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Fast Presets:',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          ActionChip(
-                            avatar: const Icon(Icons.person, size: 16, color: Colors.white),
-                            label: const Text('Ramesh (High Risk)', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                            backgroundColor: const Color(0xFFDC2626),
-                            onPressed: () => _loadPreset('ramesh'),
-                          ),
-                          ActionChip(
-                            avatar: const Icon(Icons.person_outline, size: 16, color: Colors.white),
-                            label: const Text('Sunita (Low Risk)', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                            backgroundColor: const Color(0xFF059669),
-                            onPressed: () => _loadPreset('sunita'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Form Fields Card
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Patient Full Name',
-                          prefixIcon: Icon(Icons.badge_outlined),
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) => v!.isEmpty ? 'Name is required' : null,
-                      ),
-                      const SizedBox(height: 14),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _ageController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Age',
-                                prefixIcon: Icon(Icons.cake_outlined),
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (_) => _evaluateRisk(),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              key: ValueKey(_gender),
-                              initialValue: _gender,
-                              decoration: const InputDecoration(
-                                labelText: 'Gender',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 'Male', child: Text('Male')),
-                                DropdownMenuItem(value: 'Female', child: Text('Female')),
-                                DropdownMenuItem(value: 'Other', child: Text('Other')),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Step 1: Patient Check-In',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                Text(
+                                  'Ayushman Bharat Digital Mission (ABDM)',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
                               ],
-                              onChanged: (v) {
-                                setState(() => _gender = v!);
-                                _evaluateRisk();
-                              },
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      TextFormField(
-                        controller: _abhaController,
-                        decoration: const InputDecoration(
-                          labelText: 'Ayushman Card (ABHA ID)',
-                          prefixIcon: Icon(Icons.credit_card),
-                          hintText: '91-XXXX-XXXX-XXXX',
-                          border: OutlineInputBorder(),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          labelText: 'Patient Mobile (for SMS Slip)',
-                          prefixIcon: Icon(Icons.phone_android),
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      TextFormField(
-                        controller: _villageController,
-                        decoration: const InputDecoration(
-                          labelText: 'Village / Primary Health Centre',
-                          prefixIcon: Icon(Icons.location_on_outlined),
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Diabetes History Card
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Diabetes History & Glycemic Profile',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      const Text('Known Duration of Diabetes:'),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: ['< 5 yrs', '5-10 yrs', '> 10 yrs'].map((cat) {
-                          final isSelected = _diabetesCategory == cat;
-                          return Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: ChoiceChip(
-                                label: Text(cat),
-                                selected: isSelected,
-                                selectedColor: const Color(0xFF1E3A8A),
-                                labelStyle: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                onSelected: (_) {
-                                  setState(() => _diabetesCategory = cat);
-                                  _evaluateRisk();
-                                },
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 14),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _bmiController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'BMI (kg/m²)',
-                                hintText: '28.4',
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (_) => _evaluateRisk(),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _hba1cController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'HbA1c (%)',
-                                hintText: '8.2',
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (_) => _evaluateRisk(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Upstream Clinical Risk Badge
-              if (_riskAssessment != null)
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: _riskAssessment!.riskLevel == 'HIGH'
-                        ? const Color(0xFFFEE2E2)
-                        : const Color(0xFFECFDF5),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: _riskAssessment!.riskLevel == 'HIGH'
-                          ? const Color(0xFFDC2626)
-                          : const Color(0xFF10B981),
+                      ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Quick Demo Presets Banner
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        _riskAssessment!.riskLevel == 'HIGH'
-                            ? Icons.warning_amber_rounded
-                            : Icons.check_circle_outline,
-                        color: _riskAssessment!.riskLevel == 'HIGH'
-                            ? const Color(0xFFDC2626)
-                            : const Color(0xFF10B981),
-                        size: 32,
+                      const Icon(
+                        Icons.bolt,
+                        color: Color(0xFF1E3A8A),
+                        size: 20,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Fast Presets:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
-                            Text(
-                              'ICMR Risk: ${_riskAssessment!.riskLevel} (${_riskAssessment!.riskScore.toStringAsFixed(0)}/100)',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: _riskAssessment!.riskLevel == 'HIGH'
-                                    ? const Color(0xFFDC2626)
-                                    : const Color(0xFF047857),
+                            ActionChip(
+                              avatar: const Icon(
+                                Icons.person,
+                                size: 16,
+                                color: Colors.white,
                               ),
+                              label: const Text(
+                                'Ramesh (High Risk)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              backgroundColor: const Color(0xFFDC2626),
+                              onPressed: () => _loadPreset('ramesh'),
                             ),
-                            Text(
-                              _riskAssessment!.patientFriendlyGuidance,
-                              style: const TextStyle(fontSize: 12, color: Colors.black87),
+                            ActionChip(
+                              avatar: const Icon(
+                                Icons.person_outline,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'Sunita (Low Risk)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              backgroundColor: const Color(0xFF059669),
+                              onPressed: () => _loadPreset('sunita'),
                             ),
                           ],
                         ),
@@ -500,30 +325,286 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                     ],
                   ),
                 ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-              // Start Eye Scan Action Button
-              ElevatedButton(
-                onPressed: _proceedToEyeScan,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E3A8A),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  elevation: 2,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.camera_alt_rounded, size: 22),
-                    SizedBox(width: 10),
-                    Text(
-                      'Start Eye Scan 📸',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                // Form Fields Card
+                Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Patient Full Name',
+                            prefixIcon: Icon(Icons.badge_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) =>
+                              v!.isEmpty ? 'Name is required' : null,
+                        ),
+                        const SizedBox(height: 14),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _ageController,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'Age',
+                                  prefixIcon: Icon(Icons.cake_outlined),
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (_) => _evaluateRisk(),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                key: ValueKey(_gender),
+                                initialValue: _gender,
+                                decoration: const InputDecoration(
+                                  labelText: 'Gender',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'Male',
+                                    child: Text('Male'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Female',
+                                    child: Text('Female'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Other',
+                                    child: Text('Other'),
+                                  ),
+                                ],
+                                onChanged: (v) {
+                                  setState(() => _gender = v!);
+                                  _evaluateRisk();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        TextFormField(
+                          controller: _abhaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Ayushman Card (ABHA ID)',
+                            prefixIcon: Icon(Icons.credit_card),
+                            hintText: '91-XXXX-XXXX-XXXX',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        TextFormField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Patient Mobile (for SMS Slip)',
+                            prefixIcon: Icon(Icons.phone_android),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        TextFormField(
+                          controller: _villageController,
+                          decoration: const InputDecoration(
+                            labelText: 'Village / Primary Health Centre',
+                            prefixIcon: Icon(Icons.location_on_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 16),
+
+                // Diabetes History Card
+                Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Diabetes History & Glycemic Profile',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        const Text('Known Duration of Diabetes:'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: ['< 5 yrs', '5-10 yrs', '> 10 yrs'].map((
+                            cat,
+                          ) {
+                            final isSelected = _diabetesCategory == cat;
+                            return Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4.0,
+                                ),
+                                child: ChoiceChip(
+                                  label: Text(cat),
+                                  selected: isSelected,
+                                  selectedColor: const Color(0xFF1E3A8A),
+                                  labelStyle: TextStyle(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  onSelected: (_) {
+                                    setState(() => _diabetesCategory = cat);
+                                    _evaluateRisk();
+                                  },
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 14),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _bmiController,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'BMI (kg/m²)',
+                                  hintText: '28.4',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (_) => _evaluateRisk(),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _hba1cController,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'HbA1c (%)',
+                                  hintText: '8.2',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (_) => _evaluateRisk(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Upstream Clinical Risk Badge
+                if (_riskAssessment != null)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: _riskAssessment!.riskLevel == 'HIGH'
+                          ? const Color(0xFFFEE2E2)
+                          : const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _riskAssessment!.riskLevel == 'HIGH'
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF10B981),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _riskAssessment!.riskLevel == 'HIGH'
+                              ? Icons.warning_amber_rounded
+                              : Icons.check_circle_outline,
+                          color: _riskAssessment!.riskLevel == 'HIGH'
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF10B981),
+                          size: 32,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'ICMR Risk: ${_riskAssessment!.riskLevel} (${_riskAssessment!.riskScore.toStringAsFixed(0)}/100)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: _riskAssessment!.riskLevel == 'HIGH'
+                                      ? const Color(0xFFDC2626)
+                                      : const Color(0xFF047857),
+                                ),
+                              ),
+                              Text(
+                                _riskAssessment!.patientFriendlyGuidance,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 20),
+
+                // Start Eye Scan Action Button
+                ElevatedButton(
+                  onPressed: _proceedToEyeScan,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 2,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.camera_alt_rounded, size: 22),
+                      SizedBox(width: 10),
+                      Text(
+                        'Start Eye Scan 📸',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 // Inline primary button at bottom of form
                 ElevatedButton.icon(
@@ -537,7 +618,9 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                     backgroundColor: const Color(0xFF1E3A8A),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     elevation: 2,
                   ),
                 ),
@@ -550,10 +633,7 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
     );
 
     if (widget.embedded) {
-      return Container(
-        color: const Color(0xFFF8FAFC),
-        child: formBody,
-      );
+      return Container(color: const Color(0xFFF8FAFC), child: formBody);
     }
 
     return Scaffold(
@@ -583,5 +663,5 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
       ),
       body: formBody,
     );
-}
+  }
 }

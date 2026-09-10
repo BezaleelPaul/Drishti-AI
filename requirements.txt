@@ -1,29 +1,7 @@
 # SIH 2026: AI-Assisted Diabetic Retinopathy Screening
-# Core dependencies for quality gate, classification, explainability, reporting, and pipeline
-
-numpy>=1.24.0
-pandas>=2.0.0
-scikit-learn>=1.3.0
-scipy>=1.10.0
-pillow>=10.0.0
-opencv-python>=4.8.0
-joblib>=1.2.0
-
-# Clinical Reporting & Documentation
-reportlab>=3.6.0
-
-# Deep Learning (Model 1 Quality Ensemble, Model 2 DR Classifier, Native Grad-CAM++)
-torch>=2.1.0
-torchvision>=0.16.0
-
-# Optional for Keras-based DR-EfficientNetB0 inference
-keras>=3.0.0
-
-# FastAPI Backend Bridge for Flutter & Multi-Device Deployment
-fastapi>=0.100.0
-uvicorn>=0.22.0
-python-multipart>=0.0.6
-pydantic>=2.0.0
-
-# AI Development & Validation Dashboard
-streamlit>=1.30.0
+# Full pinned environment (proven working combination, venv, Python 3.11).
+# This file is kept for CI / Makefile / setup scripts; it resolves to the
+# exact same pins as before via requirements-dev.txt.
+# For lean installs see: requirements-runtime.txt + requirements-keras.txt
+# (shipped app, no PyTorch) or + requirements-torch.txt (optional backend).
+-r requirements-dev.txt

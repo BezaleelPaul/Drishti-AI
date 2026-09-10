@@ -47,3 +47,37 @@ jobs:
     - name: Run Comprehensive Verification Suite
       run: |
         python verify_complete_system.py
+
+    - name: Schemas import clean under deprecation-as-error
+      run: |
+        python -W error::DeprecationWarning -c "import api.schemas, api.main"
+
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Java (for Android toolchain probe)
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "17"
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Static analysis
+      run: flutter analyze
+
+    - name: Widget + unit tests
+      run: flutter test

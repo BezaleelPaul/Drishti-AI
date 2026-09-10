@@ -1,59 +1,65 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+import sqlite3
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from api.auth import ApiPrincipal, require_auth
 
-from api.database import get_connection
+
+from api.database import get_db
 from api.schemas import PatientCreate, PatientListResponse, PatientResponse
 
 router = APIRouter(prefix="/patients", tags=["Patients"])
 
 
 @router.post("", response_model=PatientResponse, status_code=201)
-def register_patient(payload: PatientCreate):
-    conn = get_connection()
-    cursor = conn.cursor()
+def register_patient(payload: PatientCreate, _principal: ApiPrincipal = Depends(require_auth)):
+    with get_db() as conn:
+        cursor = conn.cursor()
 
-    patient_id = payload.patient_id or f"PT-2026-{uuid.uuid4().hex[:4].upper()}"
-    now = datetime.utcnow().isoformat() + "Z"
+        patient_id = payload.patient_id or f"PT-2026-{uuid.uuid4().hex[:4].upper()}"
+        now = datetime.now(timezone.utc).isoformat()
 
-    # Check for duplicate
-    cursor.execute("SELECT patient_id FROM patients WHERE patient_id = ?", (patient_id,))
-    if cursor.fetchone():
-        conn.close()
-        raise HTTPException(status_code=400, detail=f"Patient ID {patient_id} already registered.")
+        # Check for duplicate (fast path). The INSERT below is additionally
+        # guarded: two concurrent registrations with the same id must 409,
+        # not 500 on an uncaught IntegrityError.
+        cursor.execute("SELECT patient_id FROM patients WHERE patient_id = ?", (patient_id,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=409, detail=f"Patient ID {patient_id} already registered.")
 
-    cursor.execute("""
-    INSERT INTO patients (
-        patient_id, abha_id, name, age, gender, phone, village, screening_centre,
-        known_diabetes, diabetes_duration_years, hba1c, fasting_glucose, blood_pressure,
-        bmi, family_history, physical_activity, symptoms, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        patient_id,
-        payload.abha_id,
-        payload.name,
-        payload.age,
-        payload.gender,
-        payload.phone,
-        payload.village,
-        payload.screening_centre,
-        payload.known_diabetes,
-        payload.diabetes_duration_years,
-        payload.hba1c,
-        payload.fasting_glucose,
-        payload.blood_pressure,
-        payload.bmi,
-        1 if payload.family_history else 0,
-        payload.physical_activity,
-        json.dumps(payload.symptoms),
-        now,
-    ))
-    conn.commit()
-    conn.close()
+        try:
+            cursor.execute("""
+        INSERT INTO patients (
+            patient_id, abha_id, name, age, gender, phone, village, screening_centre,
+            known_diabetes, diabetes_duration_years, hba1c, fasting_glucose, blood_pressure,
+            bmi, family_history, physical_activity, symptoms, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            patient_id,
+            payload.abha_id,
+            payload.name,
+            payload.age,
+            payload.gender,
+            payload.phone,
+            payload.village,
+            payload.screening_centre,
+            payload.known_diabetes,
+            payload.diabetes_duration_years,
+            payload.hba1c,
+            payload.fasting_glucose,
+            payload.blood_pressure,
+            payload.bmi,
+            1 if payload.family_history else 0,
+            payload.physical_activity,
+            json.dumps(payload.symptoms),
+            now,
+        ))
+        except sqlite3.IntegrityError:
+            raise HTTPException(status_code=409, detail=f"Patient ID {patient_id} already registered.")
+        conn.commit()
 
     return PatientResponse(
         patient_id=patient_id,
@@ -77,22 +83,56 @@ def register_patient(payload: PatientCreate):
     )
 
 
+def _safe_symptoms(value) -> list:
+    """Parse symptoms JSON column; [] on NULL/garbage instead of 500."""
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
 @router.get("", response_model=PatientListResponse)
-def list_patients(search: Optional[str] = Query(None, description="Search by name, ID, or ABHA")):
-    conn = get_connection()
-    cursor = conn.cursor()
+def list_patients(
+    search: Optional[str] = Query(None, max_length=64, description="Search by name, ID, or ABHA"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    _principal: ApiPrincipal = Depends(require_auth),
+):
+    with get_db() as conn:
+        cursor = conn.cursor()
 
-    if search:
-        pattern = f"%{search}%"
-        cursor.execute("""
-        SELECT * FROM patients
-        WHERE name LIKE ? OR patient_id LIKE ? OR abha_id LIKE ? OR phone LIKE ?
-        ORDER BY created_at DESC
-        """, (pattern, pattern, pattern, pattern))
-    else:
-        cursor.execute("SELECT * FROM patients ORDER BY created_at DESC")
+        if search:
+            # Escape LIKE wildcards so '%'/'_' are literal, and cap length.
+            escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            cursor.execute("""
+            SELECT * FROM patients
+            WHERE name LIKE ? ESCAPE '\\' OR patient_id LIKE ? ESCAPE '\\'
+               OR abha_id LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\'
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+            """, (pattern, pattern, pattern, pattern, limit, offset))
+        else:
+            cursor.execute("SELECT * FROM patients ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
 
-    rows = cursor.fetchall()
+        rows = cursor.fetchall()
+        # Total across ALL pages with the same filter (not len(page)), or
+        # client pagination ("showing X of Y") can never advance.
+        if search:
+            cursor.execute("""
+            SELECT COUNT(*) as total FROM patients
+            WHERE name LIKE ? ESCAPE '\\' OR patient_id LIKE ? ESCAPE '\\'
+               OR abha_id LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\'
+            """, (pattern, pattern, pattern, pattern))
+        else:
+            cursor.execute("SELECT COUNT(*) as total FROM patients")
+        total = cursor.fetchone()["total"]
+
     patients = []
     for r in rows:
         patients.append(PatientResponse(
@@ -112,21 +152,19 @@ def list_patients(search: Optional[str] = Query(None, description="Search by nam
             bmi=r["bmi"],
             family_history=bool(r["family_history"]),
             physical_activity=r["physical_activity"],
-            symptoms=json.loads(r["symptoms"] or "[]"),
+            symptoms=_safe_symptoms(r["symptoms"]),
             created_at=r["created_at"],
         ))
-    conn.close()
 
-    return PatientListResponse(total=len(patients), patients=patients)
+    return PatientListResponse(total=total, patients=patients)
 
 
 @router.get("/{patient_id}", response_model=PatientResponse)
-def get_patient(patient_id: str):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,))
-    r = cursor.fetchone()
-    conn.close()
+def get_patient(patient_id: str, _principal: ApiPrincipal = Depends(require_auth)):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,))
+        r = cursor.fetchone()
 
     if not r:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found.")
@@ -148,6 +186,6 @@ def get_patient(patient_id: str):
         bmi=r["bmi"],
         family_history=bool(r["family_history"]),
         physical_activity=r["physical_activity"],
-        symptoms=json.loads(r["symptoms"] or "[]"),
+        symptoms=_safe_symptoms(r["symptoms"]),
         created_at=r["created_at"],
     )

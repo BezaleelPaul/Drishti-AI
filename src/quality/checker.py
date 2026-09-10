@@ -22,7 +22,6 @@ except ImportError:
 # Native toolbox integration
 try:
     from fundus_image_toolbox import (
-        crop as fit_circle_crop,
         load_quality_ensemble,
         ensemble_predict_quality,
     )
@@ -208,9 +207,7 @@ class ImageQualityChecker:
             )
 
         # 3. Compute dynamic ROI & photographic/ML quality metrics
-        metrics = self._calculate_metrics(np_img)
-        ml_score = metrics.raw_scores.get("ml_quality_score", 1.0)
-
+        metrics = self._calculate_metrics(np_img, th)
         # 4. Check for hard Bad criteria
         reasons = []
         is_bad = False
@@ -234,9 +231,12 @@ class ImageQualityChecker:
             reasons.append(QualityReason.INSUFFICIENT_FIELD_OF_VIEW)
             is_bad = True
 
-        # ML Quality Model Hard Cutoff
-        if ml_score < th.min_ml_quality_bad and not is_bad:
-            reasons.append(QualityReason.SEVERE_BLUR)
+        # ML Quality Model Hard Cutoff (labeled as its own cause: a low
+        # ensemble score is NOT evidence of blur/cataract, so it must not
+        # reuse SEVERE_BLUR or attach the media-opacity clinical cause).
+        ml_score_bad = metrics.raw_scores.get("ml_quality_score", 0.0)
+        if ml_score_bad < th.min_ml_quality_bad:
+            reasons.append(QualityReason.LOW_ML_QUALITY)
             is_bad = True
 
         # Determine suspected biological / ocular cause
@@ -258,7 +258,7 @@ class ImageQualityChecker:
                 is_reliable=False,
                 reasons=reasons,
                 metrics=metrics,
-                details=f"Fails reliability gate: {', '.join(r.value for r in reasons)} (ML Quality: {ml_score:.2f})",
+                details=f"Fails reliability gate: {', '.join(r.value for r in reasons)} (ML Quality: {metrics.raw_scores.get('ml_quality_score', 0.0):.2f})",
                 suspected_clinical_cause=suspected_cause_str,
             )
 
@@ -285,8 +285,8 @@ class ImageQualityChecker:
             borderline_notes.append("Marginal field-of-view coverage")
             is_borderline = True
 
-        if ml_score < th.min_ml_quality_good:
-            borderline_notes.append(f"Marginal ML quality index ({ml_score:.2f} < {th.min_ml_quality_good:.2f})")
+        if metrics.raw_scores.get("ml_quality_score", 0.0) < th.min_ml_quality_good:
+            borderline_notes.append(f"Marginal ML quality index ({metrics.raw_scores.get('ml_quality_score', 0.0):.2f} < {th.min_ml_quality_good:.2f})")
             is_borderline = True
 
         if is_borderline:
@@ -296,7 +296,7 @@ class ImageQualityChecker:
                 is_reliable=False,
                 reasons=[QualityReason.BORDERLINE_MARGINAL],
                 metrics=metrics,
-                details=f"Borderline image: {'; '.join(borderline_notes)} (ML Quality: {ml_score:.2f})",
+                details=f"Borderline image: {'; '.join(borderline_notes)} (ML Quality: {metrics.raw_scores.get('ml_quality_score', 0.0):.2f})",
                 suspected_clinical_cause=bord_cause,
             )
 
@@ -306,7 +306,7 @@ class ImageQualityChecker:
             is_reliable=True,
             reasons=[QualityReason.ADEQUATE],
             metrics=metrics,
-            details=f"Image certified as reliable for DR classification (ML Quality: {ml_score:.2f}).",
+            details=f"Image certified as reliable for DR classification (ML Quality: {metrics.raw_scores.get('ml_quality_score', 0.0):.2f}).",
             suspected_clinical_cause=None,
         )
 
@@ -314,21 +314,21 @@ class ImageQualityChecker:
         self, image_input: Union[str, np.ndarray, Image.Image]
     ) -> Tuple[Optional[np.ndarray], Optional[str]]:
         try:
+            from src.image_io import to_rgb_uint8
             if isinstance(image_input, str):
                 if not os.path.exists(image_input):
                     return None, f"File not found: {image_input}"
                 pil_img = Image.open(image_input).convert("RGB")
-                return np.array(pil_img), None
+                # Same shared funnel as ndarray input: dimension cap and
+                # normalization apply identically to file and array paths.
+                return to_rgb_uint8(np.array(pil_img)), None
             elif isinstance(image_input, Image.Image):
-                return np.array(image_input.convert("RGB")), None
+                return to_rgb_uint8(np.array(image_input.convert("RGB"))), None
             elif isinstance(image_input, np.ndarray):
-                if image_input.ndim == 2:
-                    return np.stack([image_input] * 3, axis=-1), None
-                elif image_input.ndim == 3 and image_input.shape[2] == 3:
-                    return image_input, None
-                elif image_input.ndim == 3 and image_input.shape[2] == 4:
-                    return image_input[:, :, :3], None
-                return None, f"Unexpected numpy array shape: {image_input.shape}"
+                # Single shared loader: float 0-1 scales, NaN fails closed,
+                # RGBA drops alpha, ints clip (never wrap). See src/image_io.
+                # to_rgb_uint8 returns an owned writable buffer (copies on alias).
+                return to_rgb_uint8(image_input), None
             else:
                 return None, f"Unsupported image input type: {type(image_input)}"
         except Exception as e:
@@ -345,9 +345,9 @@ class ImageQualityChecker:
         if h < 64 or w < 64:
             return False, f"Image dimensions too small ({w}x{h})"
 
-        r = img_rgb[:, :, 0].astype(float)
-        g = img_rgb[:, :, 1].astype(float)
-        b = img_rgb[:, :, 2].astype(float)
+        r = img_rgb[:, :, 0].astype(np.float32)
+        g = img_rgb[:, :, 1].astype(np.float32)
+        b = img_rgb[:, :, 2].astype(np.float32)
 
         mean_r = np.mean(r)
         mean_b = np.mean(b) + 1e-5
@@ -358,7 +358,7 @@ class ImageQualityChecker:
             return False, "Image has almost zero variance (blank or solid color)"
 
         # Standard fundus has higher red channel intensity than blue channel
-        if ratio < 0.90:
+        if ratio < th.min_red_to_blue_ratio:
             return False, f"Color profile does not match retinal fundus (Red/Blue ratio={ratio:.2f})"
 
         return True, ""
@@ -369,7 +369,8 @@ class ImageQualityChecker:
         or fundus_image_toolbox circle_crop.
         """
         h, w, _ = img_rgb.shape
-        gray = 0.2989 * img_rgb[:, :, 0] + 0.5870 * img_rgb[:, :, 1] + 0.1140 * img_rgb[:, :, 2]
+        from src.image_io import rgb_to_gray as _to_gray
+        gray = _to_gray(img_rgb)
         gray_u8 = np.clip(gray, 0, 255).astype(np.uint8)
 
         if HAS_OPENCV:
@@ -378,28 +379,30 @@ class ImageQualityChecker:
             # Filter small noise holes
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
             binary_closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-            contours, _ = cv2.findContours(binary_closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours_raw = cv2.findContours(binary_closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours = contours_raw[0] if len(contours_raw) == 2 else contours_raw[1]
             if contours:
                 largest = max(contours, key=cv2.contourArea)
-                mask = np.zeros((h, w), dtype=bool)
-                cv2.drawContours(mask.astype(np.uint8), [largest], -1, 1, -1)
-                mask = mask.astype(bool)
+                mask_u8 = np.zeros((h, w), dtype=np.uint8)
+                cv2.drawContours(mask_u8, [largest], -1, 1, -1)
+                mask = mask_u8 > 0
                 fov_ratio = float(np.sum(mask)) / float(h * w)
                 if fov_ratio > 0.10:
                     return mask, fov_ratio
 
         # Fallback simple threshold
-        mask = gray > 15.0
+        from src.image_io import retinal_mask as _retinal_mask
+        mask = _retinal_mask(gray)
         fov_ratio = float(np.sum(mask)) / float(h * w)
         return mask, fov_ratio
 
-    def _calculate_metrics(self, img_rgb: np.ndarray) -> QualityMetrics:
+    def _calculate_metrics(self, img_rgb: np.ndarray, th: QualityThresholds) -> QualityMetrics:
         """
         Computes multi-scale photographic quality metrics and ML-driven quality score.
         """
         h, w, _ = img_rgb.shape
-        gray = 0.2989 * img_rgb[:, :, 0] + 0.5870 * img_rgb[:, :, 1] + 0.1140 * img_rgb[:, :, 2]
-        gray = gray.astype(np.float32)
+        from src.image_io import rgb_to_gray as _to_gray
+        gray = _to_gray(img_rgb)
 
         # 1. Dynamic Retinal ROI Isolation
         mask, fov_ratio = self._extract_dynamic_retinal_mask(img_rgb)
@@ -438,13 +441,16 @@ class ImageQualityChecker:
                 )
                 ml_score = float(np.clip(dl_preds[0], 0.0, 1.0))
                 engine_used = "FIT_DeepEnsemble"
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"DL ensemble failed, using fusion fallback: {e}")
                 ml_score = None
 
         if ml_score is None:
             # Calibrated Multi-Scale Feature Fusion (EyeQ / MCF-Net inspired)
-            # S_blur: sigmoid mapping around typical clinical sharpness
-            s_blur = 1.0 / (1.0 + np.exp(-0.05 * (sharpness_score - 55.0)))
+            # S_blur: sigmoid mapping around typical clinical sharpness (uses blur_good_threshold from thresholds)
+            blur_threshold = th.blur_good_threshold
+            s_blur = 1.0 / (1.0 + np.exp(-0.05 * (sharpness_score - blur_threshold)))
             # S_illum: Gaussian centered at optimal clinical illumination (115)
             s_illum = np.exp(-((mean_brightness - 115.0) ** 2) / (2.0 * (55.0 ** 2)))
             # S_contrast: sigmoid mapping for dynamic range

@@ -10,7 +10,7 @@
 | **Bezaleel** | **Team Lead & Full-Stack Architect** | System Architecture, Quality Gate Orchestration, Bounded Recapture Logic, Streamlit UI Integration (`src/pipeline/router.py`, `demo/app.py`). |
 | **Madhu** | **Clinical Intelligence & Biological Triage Lead** | Stage 1 Clinical Risk Engine, ICMR Asian-Indian cutoffs, Biological defect attribution (cataract vs. mydriasis), Retinal Anatomical Segmentation (`src/clinical_risk/`, `src/segmentation/`). |
 | **Akshay** | **Deep Learning & MathWorks Modeling Lead** | EfficientNetB0 5-class severity grading, Grad-CAM explainability (<30s constraint), MATLAB Simulink 100,000-patient discrete-event simulation (`src/classification/`, `matlab/simulink_telemedicine_model.m`). |
-| **Adithya** | **Validation, Edge Cases & Telemedicine Ops Lead** | 150-sample A/B experiment evaluation, Adversarial & non-fundus edge cases, 98.6% bandwidth optimization, Rural PHC field operations (`tests/`, `evaluate_ab_test.py`, `docs/AB_EXPERIMENT_RESULTS.md`). |
+| **Adithya** | **Validation, Edge Cases & Telemedicine Ops Lead** | 150-sample A/B experiment evaluation, Adversarial & non-fundus edge cases, 99.1% bandwidth optimization, Rural PHC field operations (`tests/`, `evaluate_ab_test.py`, `docs/AB_EXPERIMENT_RESULTS.md`). |
 | **Sinduri** | **Lead UI/UX Designer (ASHA Mobile & Field UX)** | Low-cognitive-load ASHA mobile client interface, bilingual audio prompts, real-time quality triage feedback UI, patient referral slip layouts (`sinduri_uiux_kit/`, `flutter_app/`). |
 | **Megha** | **Lead UI/UX Designer (Doctor Console & Data Viz)** | Central Tele-Ophthalmology Dashboard, specialist over-read workbench, Grad-CAM++ lesion heatmaps, quantitative CSME biomarker overlays, ABDM FHIR report layouts (`demo/app.py`). |
 
@@ -38,7 +38,7 @@
 - *"For reliable images, our Model 2 employs an EfficientNetB0 architecture trained on 5 severity grades: No DR, Mild, Moderate, Severe, and Proliferative DR."*
 - *"Addressing MathWorks Requirement 4, explainability is generated in under 1.2 seconds—well within the 30-second constraint—using Grad-CAM. Clinicians can immediately visualize the exact retinal lesions driving the prediction."*
 - *"Crucially, we do not present raw overconfident numbers. Predictions with confidence under 60% or narrow class margins are automatically flagged with the disclaimer: 'Low confidence; specialist review recommended'."*
-- *"For MathWorks Requirement 5, we built a comprehensive discrete-event queuing simulation in MATLAB and Simulink modeling a full district network of 100,000 patients across 50 rural PHCs and 1 District Hospital. The model proves that edge AI filtering slashes network bandwidth by 98.6% and reduces specialist workload from 100,000 down to 15,200 actionable cases."*
+- *"For MathWorks Requirement 5, we built a comprehensive discrete-event queuing simulation in MATLAB and Simulink modeling a full district network of 100,000 patients across 20 rural PHCs + 5 mobile vans and 1 District Hospital. The model proves that edge AI filtering slashes network bandwidth by 99.1% and reduces specialist workload from 100,000 down to ~16,100 actionable cases per year (~62/day)."*
 
 ---
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # ==============================================================================
 # Drishti-AI: Push to GitHub Helper (macOS / Linux)
 # Target: https://github.com/BezaleelPaul/Drishti-AI.git
@@ -10,8 +11,18 @@ echo "        Target: https://github.com/BezaleelPaul/Drishti-AI.git"
 echo "===================================================================="
 echo ""
 
-echo "[*] Pushing branch master to origin..."
-git push -u origin master
+BRANCH="$(git branch --show-current)"
+if [ -z "$BRANCH" ]; then
+  echo "[!] Not on any branch (detached HEAD?) — refusing to push."
+  exit 1
+fi
+if ! git remote get-url origin >/dev/null 2>&1; then
+  echo "[!] No 'origin' remote configured."
+  exit 1
+fi
+
+echo "[*] Pushing branch $BRANCH to origin..."
+git push -u origin "$BRANCH"
 
 if [ $? -ne 0 ]; then
     echo ""

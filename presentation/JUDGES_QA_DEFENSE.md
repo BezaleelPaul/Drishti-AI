@@ -49,7 +49,7 @@
 > - 100,000 patients/year across 50 Primary Health Centres.
 > - Poisson arrival rates during outpatient camp hours.
 > - By deploying edge AI at the PHCs, 70% of healthy patients (Grade 0) receive clear reports instantly without network transfer.
-> - Only flagged, uncertain, or referable cases are queued for tele-consultation, reducing uplink bandwidth from 250 GB to 3.4 GB (a 98.6% saving) and making the system 100% resilient to 2G/3G rural cellular connections."*
+> - Only flagged, uncertain, or referable cases are queued for tele-consultation, reducing uplink bandwidth from 439.9 GB to 3.8 GB (a 99.1% saving) and making the system 100% resilient to 2G/3G rural cellular connections."*
 
 ---
 
@@ -72,7 +72,7 @@
 > 1. **The Ungradable Image Blindspot:** Centralized models assume high-grade optical captures. In real rural camps with low-cost handheld cameras (Remidio, Forus 3Nethra, Volk), 25–35% of images have corneal glare, motion blur, or pupil shadow. A standard classifier forced to grade them outputs dangerously confident false diagnoses on ungradable pixels. Our **Model 1 Quality Gate** stops ungradable images *before* classification and gives instant audio/visual recapture guidance to ASHA workers.
 > 2. **Edge Operationalization (Zero Cloud):** Google ARDA and cloud architectures require high-speed internet. Drishti-AI runs 100% offline on a ₹15,000 dual-core laptop CPU in <180 ms and <620 MB RAM.
 > 3. **Quantitative Retinal Biomarkers:** We don't just output a black-box severity score; our anatomical segmentation engine calculates physical Euclidean distances from exudates to the fovea center to grade Clinically Significant Macular Edema (CSME) risk.
-> 4. **District-Scale Queuing Optimization:** As demonstrated in our MATLAB/Simulink model, we resolve the bottleneck of ophthalmologist scarcity by filtering 98.6% of healthy tele-traffic at the village edge.
+> 4. **District-Scale Queuing Optimization:** As demonstrated in our MATLAB/Simulink model, we resolve the bottleneck of ophthalmologist scarcity by filtering 99.1% of healthy tele-traffic at the village edge.
 > 
 > We are not claiming to reinvent basic mathematical classification; we are solving the engineering, safety, and democratization gap that makes AI clinically usable and safe for rural India."*
 

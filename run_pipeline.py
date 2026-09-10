@@ -41,10 +41,19 @@ def main():
 
     args = parser.parse_args()
 
+    if args.recaptures < 0:
+        parser.error("--recaptures must be >= 0")
+    if args.image and not os.path.isfile(args.image):
+        parser.error(f"--image not found or not a file: {args.image}")
+    if args.input_dir and not os.path.isdir(args.input_dir):
+        parser.error(f"--input_dir not found or not a directory: {args.input_dir}")
+
     if not args.image and not args.input_dir:
         # Default to running sample images if neither is passed
-        sample_dir = os.path.join("demo", "sample_images")
-        if os.path.exists(sample_dir):
+        sample_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "demo", "sample_images"
+        )
+        if os.path.isdir(sample_dir):
             args.input_dir = sample_dir
         else:
             parser.print_help()
@@ -57,31 +66,47 @@ def main():
     if args.image:
         image_paths.append(args.image)
     elif args.input_dir:
-        valid_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tif")
+        valid_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")
         for f in sorted(os.listdir(args.input_dir)):
             if f.lower().endswith(valid_exts):
                 image_paths.append(os.path.join(args.input_dir, f))
+
+    if not image_paths:
+        print("No processable images found — nothing to do.", file=sys.stderr)
+        sys.exit(1)
 
     print(f"\n{'='*70}")
     print(f"SIH 2026: AI-Assisted DR Screening Pipeline Execution")
     print(f"Processing {len(image_paths)} image(s)...")
     print(f"{'='*70}\n")
 
+    failures = 0
     for idx, path in enumerate(image_paths, 1):
         filename = os.path.basename(path)
         img_out_dir = os.path.join(args.output_dir, os.path.splitext(filename)[0])
 
-        record = router.process_image(
-            image_input=path,
-            recapture_attempt_count=args.recaptures,
-            output_dir=img_out_dir,
-        )
+        try:
+            record = router.process_image(
+                image_input=path,
+                recapture_attempt_count=args.recaptures,
+                output_dir=img_out_dir,
+            )
+        except Exception as exc:
+            failures += 1
+            print(f"[{idx}/{len(image_paths)}] File: {filename} — FAILED: {exc}",
+                  file=sys.stderr)
+            continue
 
         print(f"[{idx}/{len(image_paths)}] File: {filename}")
         print("-" * 50)
         print(record.format_report_text())
         print("-" * 50)
         print(f"Result files saved to: {img_out_dir}\n")
+
+    print(f"Done: {len(image_paths) - failures}/{len(image_paths)} succeeded, "
+          f"{failures} failed.")
+    if failures:
+        sys.exit(2)
 
 
 if __name__ == "__main__":

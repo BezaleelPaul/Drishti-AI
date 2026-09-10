@@ -1,0 +1,32 @@
+# Drishti-AI .dockerignore — keep the 2.6 GB venv, caches, and local data out of the image
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+results/
+data/*.db
+data/*.db-journal
+*.log
+/tmp/
+flutter_app/build/
+flutter_app/.dart_tool/
+presentation/*.pptx
+docs/*.pdf
+# RUNTIME assets — MUST ship in the image. final_model.keras (32MB) is the
+# Model 2 classifier; without it the container silently falls back to
+# simulated inference. test_samples/ (1.2MB) feeds the demo's curated cases.
+# (Dockerfile uses `COPY . .` as its only copy, so anything ignored here is
+# absent at runtime.)
+# Host-only / regenerable — safe to exclude
+*.zip
+kaggle/
+external/
+matlab/

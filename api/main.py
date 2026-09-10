@@ -4,29 +4,79 @@ Binds Flutter Mobile/Tablet/Web frontend to the Python AI Screening Pipeline.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 
 # Ensure repository root is in sys.path
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.database import init_db
+from api.auth import ENV, IS_PROD, active_key_count, uses_dev_keys
+from api.database import ensure_db
+from api.ratelimit import RateLimiter
 from api.routes.patients import router as patients_router
+from api.routes.results import router as results_router
 from api.routes.risk import router as risk_router
 from api.routes.retinal import router as retinal_router
 from api.routes.review import router as review_router
 from api.routes.sync import router as sync_router
 from api.routes.system import router as system_router
 
-# Initialize database schema and demo seeds
-init_db()
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: initialize schema (idempotent, race-safe for multi-worker boot).
+    ensure_db()
+    # The __main__ runner refuses dev keys on LAN, but `uvicorn api.main:app
+    # --host 0.0.0.0` bypasses it entirely: enforce here so every serve path
+    # is covered. NOTE: the HOST env var is NOT authoritative (uvicorn CLI
+    # flags don't set it), so also parse --host out of sys.argv.
+    host = os.environ.get("HOST", "127.0.0.1")
+    for _i, _arg in enumerate(sys.argv):
+        if _arg == "--host" and _i + 1 < len(sys.argv):
+            host = sys.argv[_i + 1]
+        elif _arg.startswith("--host="):
+            host = _arg.split("=", 1)[1]
+        elif _arg in ("-b", "--bind") and _i + 1 < len(sys.argv):
+            # gunicorn/hypercorn bind flag: may be "addr:port" or "addr".
+            host = sys.argv[_i + 1].rsplit(":", 1)[0].strip("[]") or host
+        elif _arg.startswith("--bind="):
+            host = _arg.split("=", 1)[1].rsplit(":", 1)[0].strip("[]") or host
+    if uses_dev_keys() and not _is_loopback(host):
+        raise RuntimeError(
+            f"Refusing to serve {host} with built-in DEV API keys. Set "
+            "DRISHTI_API_KEYS with real keys (and ENV=prod) for network exposure."
+        )
+    logger.info("Drishti-AI API startup complete (env=%s, api_keys=%d).", ENV, active_key_count())
+    yield
+    # Shutdown: checkpoint the WAL so a `docker stop` does not leave -wal/-shm
+    # files uncheckpointed (slower next boot, larger disk footprint).
+    try:
+        from api.database import get_connection
+
+        conn = get_connection()
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("WAL checkpoint on shutdown failed: %s", e)
+
+
+def _is_loopback(host: str) -> bool:
+    return host in ("127.0.0.1", "localhost", "::1")
+
 
 app = FastAPI(
     title="Netra-AI Clinical Screening API",
@@ -36,34 +86,74 @@ app = FastAPI(
         "Model 2 EfficientNetB0 Classifier, Grad-CAM++, and Diabetes Risk Engine)."
     ),
     version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    # Interactive docs enumerate every route/schema: never expose them
+    # unauthenticated in production.
+    docs_url=None if IS_PROD else "/docs",
+    redoc_url=None if IS_PROD else "/redoc",
+    lifespan=lifespan,
 )
 
 # -----------------------------------------------------------------------------
-# CORS Configuration (Allows Flutter Web, Android 10.0.2.2, iOS, Desktop)
+# Rate limiting + request-size guard (runs before auth so abuse is cut early)
 # -----------------------------------------------------------------------------
+app.add_middleware(RateLimiter)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+# -----------------------------------------------------------------------------
+# CORS: explicit allowlist only. Wildcard origins + credentials is both broken
+# (browsers reject it) and a PHI exfiltration vector. Configure via:
+#   CORS_ORIGINS="https://app.example.com,https://clinic.example.org"
+#   CORS_ALLOW_CREDENTIALS=true   (only if cookies/Authorization are needed)
+# -----------------------------------------------------------------------------
+def _cors_origins() -> list[str]:
+    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    if raw:
+        origins = [o.strip() for o in raw.split(",") if o.strip()]
+        if "*" in origins:
+            # A wildcard origin must never be combined with credentials, and
+            # must be an explicit opt-in (it exposes unauthenticated reads to
+            # any website the operator visits).
+            if os.environ.get("CORS_ALLOW_WILDCARD", "false").lower() != "true":
+                raise RuntimeError(
+                    "CORS_ORIGINS contains '*'. Refusing to start: use an explicit "
+                    "origin allowlist, or set CORS_ALLOW_WILDCARD=true (dev only, "
+                    "never with CORS_ALLOW_CREDENTIALS=true)."
+                )
+            if os.environ.get("CORS_ALLOW_CREDENTIALS", "false").lower() == "true":
+                raise RuntimeError(
+                    "CORS_ORIGINS='*' with CORS_ALLOW_CREDENTIALS=true is "
+                    "rejected: browsers refuse it and it widens PHI reads. "
+                    "Use an explicit origin allowlist with credentials."
+                )
+            return ["*"]
+        return origins
+    # Dev defaults: local Flutter runners only.
+    return [
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://localhost:5000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:5000",
+    ]
+
+
+_allow_credentials = os.environ.get("CORS_ALLOW_CREDENTIALS", "false").lower() == "true"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins(),
+    allow_credentials=_allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
 )
 
 # -----------------------------------------------------------------------------
-# Static Directories for Grad-CAM overlays and Sample Test Images
+# Static assets (non-PHI only). Screening result images are NOT mounted here;
+# they are served authenticated via /results/{screening_id}/{file}.
 # -----------------------------------------------------------------------------
-results_dir = os.path.join(_PROJECT_ROOT, "results", "api_screenings")
-samples_dir = os.path.join(_PROJECT_ROOT, "test_samples")
 sinduri_assets = os.path.join(_PROJECT_ROOT, "sinduri_uiux_kit", "assets")
-
 flutter_web_dir = os.path.join(_PROJECT_ROOT, "flutter_app", "build", "web")
 
-if os.path.exists(results_dir):
-    app.mount("/static/results", StaticFiles(directory=results_dir), name="results")
-if os.path.exists(samples_dir):
-    app.mount("/static/samples", StaticFiles(directory=samples_dir), name="samples")
 if os.path.exists(sinduri_assets):
     app.mount("/static/uiux", StaticFiles(directory=sinduri_assets), name="uiux")
 if os.path.exists(flutter_web_dir):
@@ -78,29 +168,33 @@ app.include_router(risk_router)
 app.include_router(retinal_router)
 app.include_router(review_router)
 app.include_router(sync_router)
-
-
-@app.get("/app", include_in_schema=False)
-def app_redirect():
-    return RedirectResponse(url="/app/")
+app.include_router(results_router)
 
 
 @app.get("/")
-def root(request: Request):
-    accept = request.headers.get("accept", "")
-    if "text/html" in accept:
-        return RedirectResponse(url="/app/")
+def root():
     return {
         "platform": "Netra-AI Rural Health Screening Engine",
-        "web_application": "/app/",
-        "api_documentation": "/docs",
         "api_version": "2.0.0",
-        "status": "Operational",
+        "status": "up",
+        "auth": "X-API-Key header required (except /, /cameras, /samples)",
         "architecture": "Flutter Frontend <-> FastAPI Bridge <-> Python AI Pipeline",
-        "supported_cameras": "Manufacturer-Agnostic (Any JPG/PNG Fundus Camera, Remidio, Forus, Zeiss, Topcon)",
+        "supported_cameras": "Manufacturer-Agnostic (Any JPG/PNG Fundus Camera)",
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+
+    # Safe defaults: loopback bind always; LAN exposure is an explicit
+    # HOST=0.0.0.0 opt-in. Refuse well-known dev keys on a non-loopback
+    # interface (fail-closed against 'forgot ENV=prod' deployments).
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8000"))
+    if uses_dev_keys() and not _is_loopback(host):
+        raise RuntimeError(
+            f"Refusing to bind {host} with built-in DEV API keys. Set "
+            "DRISHTI_API_KEYS with real keys (and ENV=prod) for network exposure."
+        )
+    reload = os.environ.get("RELOAD", "false").lower() == "true" and not IS_PROD
+    uvicorn.run("api.main:app", host=host, port=port, reload=reload)

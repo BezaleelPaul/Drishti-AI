@@ -55,6 +55,7 @@ class QualityReason(str, Enum):
     INSUFFICIENT_FIELD_OF_VIEW = "Insufficient retinal field of view (Patient fixation loss or uncooperative gaze)"
     NON_FUNDUS_OR_CORRUPT = "Non-fundus or corrupt image file"
     BORDERLINE_MARGINAL = "Marginal quality across focus or illumination"
+    LOW_ML_QUALITY = "Low ML ensemble quality score (model confidence below cutoff)"
 
 
 @dataclass
@@ -63,7 +64,7 @@ class QualityMetrics:
     mean_brightness: float = 0.0          # Average pixel luminance [0, 255]
     contrast_score: float = 0.0           # Standard deviation / dynamic range
     fov_ratio: float = 0.0                # Detected retinal circle area ratio
-    raw_scores: Dict[str, float] = field(default_factory=dict)
+    raw_scores: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -93,9 +94,11 @@ class ConfidenceAssessment:
     requires_human_review: bool
     flags: List[str] = field(default_factory=list)
 
-    def format_confidence_label(self, confidence_val: float) -> str:
+    def format_confidence_label(self, confidence_val: float, is_referable: bool = False) -> str:
         pct = confidence_val * 100.0
-        if not self.is_confident or self.is_ambiguous or self.is_high_risk:
+        if not self.is_confident or self.is_ambiguous or self.is_high_risk or is_referable:
+            if is_referable and self.is_confident and not self.is_ambiguous:
+                return f"{pct:.1f}% — High model confidence but referable grade; human review required"
             return f"{pct:.1f}% — Low confidence; human review recommended"
         return f"{pct:.1f}% — High confidence; meets automated screening threshold"
 
@@ -144,10 +147,25 @@ class ScreeningRecord:
     human_review_reason: Optional[str] = None
     action: str = ""
     quality_metrics: Optional[QualityMetrics] = None
+    # Internal reuse: reassessment segmentation result (BORDERLINE-CLEARED
+    # path only). Lets biomarker extraction skip a second full segmentation
+    # over the same pixels. Never rendered; excluded from reports/exports.
+    reassessment_structures: Optional[Any] = None
 
     def format_report_text(self) -> str:
         """Formats the official screening report per Section 25."""
-        if not self.quality_grade == QualityGrade.GOOD and self.dr_prediction is None:
+        if self.quality_grade != QualityGrade.GOOD or self.dr_prediction is None:
+            # CLEARED borderline carries a valid prediction and must show detailed report.
+            if not (self.reassessment_outcome == ReassessmentOutcome.CLEARED and self.dr_prediction is not None):
+                reasons_str = " / ".join(self.rejection_reasons) if self.rejection_reasons else "Image quality verification failed"
+                cause_str = f"\nSuspected Cause:  {self.suspected_clinical_cause}" if self.suspected_clinical_cause else ""
+                return (
+                    f"Image Quality:    {self.quality_grade.value}\n"
+                    f"Reason:           {reasons_str}{cause_str}\n"
+                    f"DR Prediction:    Not generated\n"
+                    f"Action:           {self.action}"
+                )
+        if self.dr_prediction is None:
             reasons_str = " / ".join(self.rejection_reasons) if self.rejection_reasons else "Image quality verification failed"
             cause_str = f"\nSuspected Cause:  {self.suspected_clinical_cause}" if self.suspected_clinical_cause else ""
             return (
@@ -159,7 +177,10 @@ class ScreeningRecord:
         else:
             grade_str = f"Grade {self.dr_prediction.predicted_grade.value} — {self.dr_prediction.predicted_grade.label}"
             if self.confidence_assessment:
-                conf_display = self.confidence_assessment.format_confidence_label(self.dr_prediction.confidence)
+                conf_display = self.confidence_assessment.format_confidence_label(
+                    self.dr_prediction.confidence,
+                    is_referable=bool(self.dr_prediction.predicted_grade.is_referable),
+                )
             else:
                 conf_display = f"{self.dr_prediction.confidence * 100:.1f}%"
                 
@@ -170,7 +191,7 @@ class ScreeningRecord:
             )
             
             report = (
-                f"Image Quality:    GOOD\n"
+                f"Image Quality:    {self.quality_grade.value}\n"
                 f"Quality Status:   {self.quality_status}\n"
                 f"DR Prediction:    {grade_str}\n"
                 f"Model Confidence: {conf_display}\n"
@@ -178,5 +199,6 @@ class ScreeningRecord:
                 f"Action:           {self.action}"
             )
             if self.human_review_required:
-                report += f"\nHuman Review:     FLAGGED ({self.human_review_type.value}: {self.human_review_reason})"
+                reason_str = self.human_review_reason if self.human_review_reason else "unspecified"
+                report += f"\nHuman Review:     FLAGGED ({self.human_review_type.value}: {reason_str})"
             return report

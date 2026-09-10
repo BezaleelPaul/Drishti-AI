@@ -28,8 +28,9 @@ class RetinalStructuresResult:
     microaneurysm_candidates: List[Tuple[int, int, int]] = field(default_factory=list) # (x, y, radius)
     exudate_mask: Optional[np.ndarray] = None    # 2D binary uint8 mask of bright lesions
     annotated_overlay: Optional[np.ndarray] = None # RGB image with clinical annotations
-    vessel_density_pct: float = 0.0              # % of retinal area occupied by vessels
-    min_fovea_distance_px: float = 999.0         # distance from closest lesion to fovea center
+    vessel_density_pct: float = 0.0              # % of retinal area occupied by vessels (1-decimal display)
+    vessel_density_raw: float = 0.0            # unrounded density for gate comparisons (avoids 0.751->0.8 flips)
+    min_fovea_distance_px: Optional[float] = None  # distance from closest lesion to fovea center; None if no lesions (healthy)
     csme_risk: str = "LOW"                       # Clinically Significant Macular Edema risk
 
 
@@ -44,7 +45,7 @@ class RetinalStructureSegmenter:
     - Combined annotated overlay for <30s ophthalmologist validation.
     """
 
-    def __init__(self, use_dl_toolbox: bool = False):
+    def __init__(self, use_dl_toolbox: bool = True):
         self.use_dl_toolbox = use_dl_toolbox
         self._fovea_od_dl_model = None
 
@@ -61,11 +62,24 @@ class RetinalStructureSegmenter:
     def segment_structures(self, img_rgb: np.ndarray) -> RetinalStructuresResult:
         """
         Extracts all anatomical landmarks, vessels, and lesion candidates.
+        Accepts HxWx3 RGB; 2D grayscale is expanded to 3 channels.
         """
+        if not isinstance(img_rgb, np.ndarray) or img_rgb.size == 0:
+            raise ValueError(f"segment_structures requires a non-empty numpy array, got {type(img_rgb)}.")
+        from src.image_io import to_rgb_uint8 as _to_rgb
+        img_rgb = _to_rgb(img_rgb)  # normalize dtype/range/channels like every other stage
+        # _to_rgb always returns HxWx3 uint8: the 2-D branch below is dead.
+        if img_rgb.ndim != 3 or img_rgb.shape[2] != 3:
+            raise ValueError(f"segment_structures requires HxWx3 RGB, got shape {img_rgb.shape}.")
         h, w, _ = img_rgb.shape
+        if min(h, w) < 3:
+            raise ValueError(f"segment_structures requires min dimension >= 3px, got {h}x{w}.")
         green = img_rgb[:, :, 1].astype(np.float32)
-        gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY) if HAS_OPENCV else np.mean(img_rgb, axis=2).astype(np.uint8)
-        retinal_mask = (gray > 18).astype(np.uint8) * 255
+        from src.image_io import rgb_to_gray as _to_gray
+        # Shared luma (NOT mean): matches the router reassessment denominator.
+        gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY) if HAS_OPENCV else _to_gray(img_rgb).astype(np.uint8)
+        from src.image_io import retinal_mask as _retinal_mask
+        retinal_mask = _retinal_mask(gray).astype(np.uint8) * 255
 
         # 1. Optic Disc and Fovea Localization
         od_center, od_radius, fovea_center = self._localize_od_and_fovea(img_rgb, green, retinal_mask)
@@ -108,9 +122,10 @@ class RetinalStructureSegmenter:
                     min_dist = min_ex_dist
 
         # CSME Risk: Macular encroachment within 1.5x OD radius (~500-1500 microns)
-        if min_dist < od_radius * 1.5 and len(ma_candidates) > 0:
+        has_lesions = (len(ma_candidates) > 0) or (exudate_mask is not None and bool(np.count_nonzero(exudate_mask) > 0))
+        if has_lesions and min_dist < od_radius * 1.5:
             csme_risk = "HIGH (Macular Zone Encroached)"
-        elif min_dist < od_radius * 2.5 and len(ma_candidates) > 0:
+        elif has_lesions and min_dist < od_radius * 2.5:
             csme_risk = "MODERATE (Paramacular Lesions)"
         else:
             csme_risk = "LOW (Extramacular)"
@@ -124,7 +139,8 @@ class RetinalStructureSegmenter:
             exudate_mask=exudate_mask,
             annotated_overlay=annotated_overlay,
             vessel_density_pct=round(vessel_density, 1),
-            min_fovea_distance_px=round(min_dist, 1) if min_dist < 999.0 else 0.0,
+            vessel_density_raw=vessel_density,
+            min_fovea_distance_px=round(min_dist, 1) if min_dist < 999.0 else None,
             csme_risk=csme_risk,
         )
 
@@ -149,8 +165,15 @@ class RetinalStructureSegmenter:
             # Optic disc has high red + green intensity (yellowish bright area)
             red = img_rgb[:, :, 0].astype(np.float32)
             intensity = (red * 0.6 + green * 0.4)
-            # Smooth with large Gaussian to find global bright region
-            blurred = cv2.GaussianBlur(intensity, (45, 45), 0)
+            # Smooth with large Gaussian to find global bright region.
+            # Bound kernel to image size to avoid cv2.error on small images.
+            min_dim = min(h, w)
+            ks = min(45, max(3, ((min_dim // 8) | 1)))
+            if ks > min_dim:
+                ks = min_dim if (min_dim % 2 == 1) else max(3, min_dim - 1)
+            assert ks % 2 == 1  # all branches above preserve oddness; documents the invariant
+            ks = max(3, ks)
+            blurred = cv2.GaussianBlur(intensity, (ks, ks), 0)
             blurred[retinal_mask == 0] = 0
             
             # Find brightest centroid
@@ -160,8 +183,12 @@ class RetinalStructureSegmenter:
             # Fovea is roughly 2.5 disc diameters temporal to optic disc
             # If OD is on left half of retina, fovea is to the right (+X), and vice versa
             od_side = 1 if od_x < cx else -1
-            fx = int(np.clip(od_x + od_side * approx_radius * 3.2, 50, w - 50))
-            fy = int(np.clip(od_y + (cy - od_y) * 0.3, 50, h - 50))
+            # Clip margin scales with resolution: fixed 50px is degenerate
+            # below 100px (np.clip returns max when min>max -> edge/negative
+            # landmarks that still pass `>0` checks downstream).
+            _m = max(2, min(w, h) // 20)
+            fx = int(np.clip(od_x + od_side * approx_radius * 3.2, _m, w - _m))
+            fy = int(np.clip(od_y + (cy - od_y) * 0.3, _m, h - _m))
             return (od_x, od_y), approx_radius, (fx, fy)
 
         # Default geometric center estimate
@@ -172,24 +199,34 @@ class RetinalStructureSegmenter:
         if not HAS_OPENCV:
             return np.zeros((h, w), dtype=np.uint8)
 
+        # Resolution-aware scaling (reference: 512px). Keeps morphology stable
+        # across 256px thumbnails and high-res captures without breaking tests.
+        scale = max(0.5, min(2.0, min(h, w) / 512.0))
+
+        def _odd(n: int, lo: int = 3) -> int:
+            n = max(lo, int(round(n)))
+            return n if (n % 2 == 1) else n + 1
+
         # Enhance green channel contrast using CLAHE
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         g_u8 = np.clip(green, 0, 255).astype(np.uint8)
         enhanced_g = clahe.apply(g_u8)
 
         # Morphological black-hat transform: extracts structures darker than background (blood vessels)
-        kernel_bh = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+        bh_k = _odd(15 * scale)
+        kernel_bh = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (bh_k, bh_k))
         blackhat = cv2.morphologyEx(enhanced_g, cv2.MORPH_BLACKHAT, kernel_bh)
 
         # Adaptive thresholding on black-hat response
         _, vessels = cv2.threshold(blackhat, 9, 255, cv2.THRESH_BINARY)
         vessels[retinal_mask == 0] = 0
 
-        # Remove small isolated speckles (area < 20)
+        # Remove small isolated speckles (area scaled by resolution)
+        min_vessel_area = max(8, int(round(20 * scale * scale)))
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(vessels)
         cleaned_vessels = np.zeros_like(vessels)
         for i in range(1, num_labels):
-            if stats[i, cv2.CC_STAT_AREA] >= 20:
+            if stats[i, cv2.CC_STAT_AREA] >= min_vessel_area:
                 cleaned_vessels[labels == i] = 255
 
         return cleaned_vessels
@@ -218,8 +255,11 @@ class RetinalStructureSegmenter:
         # Threshold top 1.5% brightest pixels outside OD
         if np.max(exudate_metric) > 160:
             _, ex_thresh = cv2.threshold(exudate_metric, 175, 255, cv2.THRESH_BINARY)
-            # Retain only focal clusters
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            # Retain only focal clusters (kernel scaled to resolution)
+            ex_k = max(3, int(round(3 * max(0.5, min(2.0, min(h, w) / 512.0)))))
+            if ex_k % 2 == 0:
+                ex_k += 1
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ex_k, ex_k))
             ex_cleaned = cv2.morphologyEx(ex_thresh, cv2.MORPH_OPEN, kernel)
             return ex_cleaned
         return np.zeros((h, w), dtype=np.uint8)
@@ -236,23 +276,35 @@ class RetinalStructureSegmenter:
         h, w = green.shape
         g_u8 = np.clip(green, 0, 255).astype(np.uint8)
 
+        # Resolution-aware morphology (reference: 512px)
+        scale = max(0.5, min(2.0, min(h, w) / 512.0))
+
+        def _odd(n: float, lo: int = 3) -> int:
+            n = max(lo, int(round(n)))
+            return n if (n % 2 == 1) else n + 1
+
         # Bottom-hat transform highlights dark circular objects smaller than kernel
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+        ma_k = _odd(9 * scale)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ma_k, ma_k))
         blackhat = cv2.morphologyEx(g_u8, cv2.MORPH_BLACKHAT, kernel)
 
         # Mask out main vessels (MAs are adjacent to or isolated from major arcades)
-        dilated_vessels = cv2.dilate(vessel_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+        dil_k = _odd(3 * scale)
+        dilated_vessels = cv2.dilate(vessel_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (dil_k, dil_k)))
         blackhat[dilated_vessels == 255] = 0
         blackhat[retinal_mask == 0] = 0
 
         # Threshold candidate spots
         _, ma_thresh = cv2.threshold(blackhat, 15, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(ma_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        _cnt = cv2.findContours(ma_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = _cnt[0] if len(_cnt) == 2 else _cnt[1]
 
+        ma_min_area = max(2, int(round(3 * scale * scale)))
+        ma_max_area = int(round(65 * scale * scale))
         candidates = []
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            if 3 <= area <= 65:  # sub-pixel/small lesion range
+            if ma_min_area <= area <= ma_max_area:  # sub-pixel/small lesion range
                 (x, y), radius = cv2.minEnclosingCircle(cnt)
                 candidates.append((int(x), int(y), max(int(radius), 3)))
 
@@ -295,7 +347,8 @@ class RetinalStructureSegmenter:
 
         # 3. Highlight Exudate Clusters in bright yellow outline
         if exudate_mask is not None and np.sum(exudate_mask) > 0:
-            ex_contours, _ = cv2.findContours(exudate_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            _ex_cnt = cv2.findContours(exudate_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            ex_contours = _ex_cnt[0] if len(_ex_cnt) == 2 else _ex_cnt[1]
             cv2.drawContours(overlay, ex_contours, -1, (255, 255, 50), 1)
 
         # 4. Highlight Microaneurysm candidates with red circle markers

@@ -67,7 +67,7 @@ Drishti-AI consists of four integrated layers designed for rural tele-ophthalmol
 │   3. Grad-CAM++ Explainability Engine (<1.2s CPU execution)                 │
 │   4. Retinal Segmentation (Optic Disc, Fovea, Vessel Tree, CSME risk)      │
 │   5. Upstream Clinical Risk Engine (ICMR 2024 Asian-Indian BMI cutoffs)     │
-│   6. Telemedicine Simulink Model (100k patients, 98.6% bandwidth saving)    │
+│   6. Telemedicine Simulink Model (100k patients, 99.1% bandwidth saving)    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -100,7 +100,7 @@ SIH HACKATHON/
 │   ├── segmentation/           # MathWorks Req 2: Retinal Structure Segmentation
 │   │   └── structure_segmenter.py # Optic Disc, Fovea, Vessel Tree, CSME risk
 │   ├── simulation/             # MathWorks Req 5: Simulink 100k Queuing Simulation
-│   │   └── telemedicine_sim.py # 98.6% bandwidth reduction discrete-event model
+│   │   └── telemedicine_sim.py # 99.1% bandwidth reduction discrete-event model
 │   ├── reporting/              # Clinical reporting & ABDM export
 │   │   ├── pdf_generator.py    # Hospital-grade printable A4 PDF screening dossier
 │   │   └── fhir_exporter.py    # ABDM FHIR R4 DiagnosticReport (LOINC / SNOMED CT)

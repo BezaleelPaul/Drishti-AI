@@ -1,52 +1,92 @@
 from __future__ import annotations
 
+import logging
 import os
-from datetime import datetime
+import shutil
+from datetime import datetime, timezone
 from typing import Any, Dict, List
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from api.database import get_connection
+from api.auth import ApiPrincipal, require_auth
+from api.database import get_db
 from api.schemas import SystemStatusResponse
 
 router = APIRouter(tags=["System Status"])
 
+logger = logging.getLogger(__name__)
+
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+# NOTE: no liveness shortcut without auth — /status reports aggregate
+# patient/screening counts, which must not be an unauthenticated polling
+# oracle. The Flutter badge and test suite both send X-API-Key.
 @router.get("/status", response_model=SystemStatusResponse)
-def get_system_status():
-    """Returns real-time status of the screening platform, models, and queues."""
-    conn = get_connection()
-    cursor = conn.cursor()
+def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
+    """Real-time status probed from the database, disk, and model artifacts —
+    never hardcoded. A missing artifact degrades (not silently 'Ready')."""
+    db_ok = True
+    total_patients = total_screenings = pending_reviews = 0
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as count FROM patients")
+            total_patients = cursor.fetchone()["count"]
 
-    cursor.execute("SELECT COUNT(*) as count FROM patients")
-    total_patients = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM screenings")
+            total_screenings = cursor.fetchone()["count"]
 
-    cursor.execute("SELECT COUNT(*) as count FROM screenings")
-    total_screenings = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM doctor_reviews WHERE status = 'PENDING'")
+            pending_reviews = cursor.fetchone()["count"]
+    except Exception as e:
+        db_ok = False
+        logger.warning("health DB probe failed: %s", e)
 
-    cursor.execute("SELECT COUNT(*) as count FROM doctor_reviews WHERE status = 'PENDING'")
-    pending_reviews = cursor.fetchone()["count"]
+    try:
+        disk_free_mb = shutil.disk_usage(_PROJECT_ROOT).free // (1024 * 1024)
+    except OSError:
+        disk_free_mb = -1
 
-    conn.close()
-
-    models_info = {
+    artifacts = {
+        "Model 2 (DR Classifier)": os.path.join(_PROJECT_ROOT, "final_model.keras"),
+        "Upstream Risk Engine": os.path.join(
+            _PROJECT_ROOT, "src", "clinical_risk", "diabetes_ml_model.joblib"
+        ),
+    }
+    missing = [name for name, path in artifacts.items() if not os.path.isfile(path)]
+    known_paths = {
         "Model 1 (Quality Gate)": "Deep Ensemble (berenslab/fundus_image_toolbox) + MultiScale Fusion",
         "Model 2 (DR Classifier)": "EfficientNetB0 (APTOS 2019 fine-tuned, 5-class severity)",
         "Explainability Engine": "Grad-CAM++ (Higher-order gradient backpropagation)",
         "Upstream Risk Engine": "Random Forest (Google-Aravind / Indian ICMR guideline calibration)",
     }
+    models_info = {
+        name: (desc + (" [ARTIFACT MISSING]" if name in missing else ""))
+        for name, desc in known_paths.items()
+    }
+
+    if db_ok and not missing and disk_free_mb != 0:
+        engine = "Ready (Model 1 Quality + Model 2 DR + Grad-CAM++)"
+    else:
+        causes = []
+        if not db_ok:
+            causes.append("database unreachable")
+        if missing:
+            causes.append("missing artifacts: " + ", ".join(missing))
+        if disk_free_mb == 0:
+            causes.append("disk full")
+        engine = "Degraded (" + "; ".join(causes) + ")"
 
     return SystemStatusResponse(
-        ai_engine="Ready (Model 1 Quality + Model 2 DR + Grad-CAM++)",
+        ai_engine=engine,
         camera_input="Ready (Generic Fundus Camera / JPG / PNG)",
-        network_connectivity="Online",
+        network_connectivity=f"Local (offline-first, disk free: {disk_free_mb} MB)",
         pending_doctor_reviews=pending_reviews,
         total_patients_registered=total_patients,
         total_screenings_completed=total_screenings,
-        offline_queue_ready=True,
+        offline_queue_ready=db_ok and disk_free_mb != 0,
         models_loaded=models_info,
-        last_sync_time=datetime.utcnow().strftime("%d %b %Y, %H:%M UTC"),
+        last_sync_time=datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC"),
     )
 
 
@@ -100,7 +140,6 @@ def get_sample_test_cases() -> List[Dict[str, Any]]:
             "camera": "Hospital-grade desktop fundus camera",
             "expected_quality": "GOOD",
             "expected_dr": "Grade 0 / Mild",
-            "sample_url": "/static/samples/01_real_clinical_fundus/real_clinical_fundus_patient1.jpg",
         },
         {
             "id": "case_2_blur",
@@ -109,7 +148,6 @@ def get_sample_test_cases() -> List[Dict[str, Any]]:
             "camera": "Handheld smartphone camera with motion",
             "expected_quality": "REJECT (Severe Blur)",
             "expected_dr": "SUPPRESSED (Safe abstention)",
-            "sample_url": "/static/samples/02_quality_failures_and_edge_cases/real_fundus_with_extreme_motion_blur.jpg",
         },
         {
             "id": "case_3_borderline",
@@ -118,7 +156,6 @@ def get_sample_test_cases() -> List[Dict[str, Any]]:
             "camera": "Non-mydriatic camera with small pupil",
             "expected_quality": "BORDERLINE (Reassessment)",
             "expected_dr": "Conditional triage under review",
-            "sample_url": "/static/samples/04_section24_demo_scenarios/scenario_3_borderline.jpg",
         },
         {
             "id": "case_4_severe",
@@ -127,7 +164,6 @@ def get_sample_test_cases() -> List[Dict[str, Any]]:
             "camera": "Clinical fundus camera",
             "expected_quality": "GOOD",
             "expected_dr": "Grade 3 / 4 (High Risk — Mandatory Over-read)",
-            "sample_url": "/static/samples/04_section24_demo_scenarios/scenario_4_uncertain.jpg",
         },
         {
             "id": "case_5_non_fundus",
@@ -136,6 +172,5 @@ def get_sample_test_cases() -> List[Dict[str, Any]]:
             "camera": "External photo / non-retinal image",
             "expected_quality": "REJECT (Non-Fundus or Corrupt)",
             "expected_dr": "SUPPRESSED",
-            "sample_url": "/static/samples/03_adversarial_non_fundus/adversarial_non_fundus_blue_profile.jpg",
         },
     ]

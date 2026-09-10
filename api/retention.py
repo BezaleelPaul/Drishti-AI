@@ -1,0 +1,123 @@
+"""Data-retention policy: purge screenings older than a configured window.
+
+Disabled by default. Set ``RETENTION_DAYS`` (positive int) to enable, or
+pass ``--days`` explicitly. Dry-run is the default; ``--apply`` deletes.
+
+Deletes, for every screening with ``created_at`` older than the cutoff:
+  - the ``screenings`` row + its ``doctor_reviews`` rows,
+  - the ``results/api_screenings/<screening_id>/`` directory, if present.
+
+Patients, audit log, and sync receipts are NEVER deleted by this job
+(patients outlive individual screenings; audit rows are the compliance
+trail).
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import sqlite3
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List
+
+RETENTION_DAYS_ENV = "RETENTION_DAYS"
+
+
+def retention_days_from_env(default: int = 0) -> int:
+    try:
+        return max(0, int(os.environ.get(RETENTION_DAYS_ENV, default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_created(value: Any) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        v = value.strip()
+        if v.endswith("Z"):
+            v = v[:-1] + "+00:00"
+        dt = datetime.fromisoformat(v)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def purge_expired_screenings(
+    retention_days: int,
+    db_path: str | None = None,
+    results_dir: str | None = None,
+    dry_run: bool = True,
+) -> Dict[str, Any]:
+    """Purges screenings older than ``retention_days``. Returns a report dict."""
+    if retention_days <= 0:
+        raise ValueError("retention_days must be a positive integer.")
+    from api import database as db
+
+    db_path = db_path or db.DB_PATH
+    if results_dir is None:
+        results_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "results", "api_screenings",
+        )
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    removed_screenings: List[str] = []
+    removed_dirs: List[str] = []
+    removed_reviews = 0
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(screenings)")}
+        if "screening_id" not in cols or "created_at" not in cols:
+            return {"cutoff": cutoff.isoformat(), "screenings": [], "reviews": 0,
+                    "dirs": [], "dry_run": dry_run, "note": "screenings table absent"}
+        for row in conn.execute("SELECT screening_id, created_at FROM screenings"):
+            if (_parse_created(row["created_at"]) or cutoff) < cutoff:
+                removed_screenings.append(row["screening_id"])
+        if not dry_run and removed_screenings:
+            q = ",".join("?" for _ in removed_screenings)
+            cur = conn.execute(
+                f"DELETE FROM doctor_reviews WHERE screening_id IN ({q})", removed_screenings)
+            removed_reviews = cur.rowcount or 0
+            conn.execute(f"DELETE FROM screenings WHERE screening_id IN ({q})", removed_screenings)
+            conn.commit()
+        elif dry_run:
+            cur = conn.execute(
+                "SELECT COUNT(*) FROM doctor_reviews WHERE screening_id IN (%s)" % ",".join(
+                    "?" for _ in removed_screenings), removed_screenings) if removed_screenings else None
+            removed_reviews = cur.fetchone()[0] if cur else 0
+    finally:
+        conn.close()
+
+    for sid in removed_screenings:
+        d = os.path.join(results_dir, sid)
+        if os.path.isdir(d):
+            removed_dirs.append(d)
+            if not dry_run:
+                shutil.rmtree(d, ignore_errors=True)
+
+    return {"cutoff": cutoff.isoformat(), "screenings": removed_screenings,
+            "reviews": removed_reviews, "dirs": removed_dirs, "dry_run": dry_run}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Purge expired screening records (dry-run default).")
+    ap.add_argument("--days", type=int, default=retention_days_from_env(),
+                    help="Retain screenings newer than DAYS. Also via RETENTION_DAYS.")
+    ap.add_argument("--apply", action="store_true", help="Actually delete (default: dry-run).")
+    args = ap.parse_args()
+    if args.days <= 0:
+        print("retention disabled (days<=0); nothing to do.")
+        return 0
+    rep = purge_expired_screenings(args.days, dry_run=not args.apply)
+    print(f"cutoff={rep['cutoff']} dry_run={rep['dry_run']} "
+          f"screenings={len(rep['screenings'])} reviews={rep['reviews']} dirs={len(rep['dirs'])}")
+    for sid in rep["screenings"][:20]:
+        print(f"  {sid}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

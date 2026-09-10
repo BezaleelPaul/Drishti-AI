@@ -72,8 +72,8 @@
 - **Scale:** 100,000 patients/year across 50 rural PHCs and 1 District Hospital.
 - **Queueing Theory & Discrete-Event Simulation (Simulink / MATLAB):**
   - M/M/c queuing model simulating patient arrivals, edge AI inference, and tele-ophthalmology uplink.
-  - **Bandwidth Reduction:** 98.6% network bandwidth saved by processing locally and uploading only anomalous/flagged cases and lightweight metadata.
-  - **Ophthalmologist Workload:** Reduced from 100,000 cases to ~15,200 triage cases/year (feasible for a 3-doctor district hub).
+  - **Bandwidth Reduction:** 99.1% network bandwidth saved by processing locally and uploading only anomalous/flagged cases and lightweight metadata.
+  - **Ophthalmologist Workload:** Reduced from 100,000 cases to ~16,100 triage cases/year (~62/day, feasible for a single tele-reviewer).
   - **Simulink Engine (`matlab/simulink_telemedicine_model.m`):** Full parametric model generating latency curves, queue depths, and server utilization charts.
 
 ---

@@ -124,7 +124,7 @@ SIH HACKATHON/
 │   ├── segmentation/          # MathWorks Req 2: Retinal Structure Segmentation
 │   │   └── structure_segmenter.py # Optic Disc, Fovea, Vessel Tree, CSME risk
 │   ├── simulation/            # MathWorks Req 5: Simulink 100k Telemedicine Model
-│   │   └── telemedicine_sim.py    # Discrete-event queuing, 98.6% bandwidth reduction
+│   │   └── telemedicine_sim.py    # Discrete-event queuing, 99.1% bandwidth reduction
 │   ├── reporting/             # Clinical Dossier & Tele-health Interoperability
 │   │   ├── pdf_generator.py   # Hospital-grade printable A4 PDF dossier
 │   │   └── fhir_exporter.py   # ABDM FHIR R4 DiagnosticReport (LOINC/SNOMED)

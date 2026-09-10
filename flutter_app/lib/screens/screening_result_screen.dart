@@ -49,7 +49,7 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
   Future<void> _performScreening() async {
     setState(() => _isLoading = true);
 
-    final result = await widget.apiService.analyzeRetina(
+    final result = await widget.apiService.analyzeRetinaFull(
       imageBytes: widget.imageBytes,
       filename: widget.filename,
       patientId: widget.patient.patientId,
@@ -123,380 +123,449 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
 
     final resultBody = Center(
       child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // -------------------------------------------------------------
-                // SCREEN 3: TOP RESULT CARD (Red / Orange / Green based on risk)
-                // -------------------------------------------------------------
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: isSevere ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: sevColor, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: sevColor.withValues(alpha: 0.12),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            isSevere ? Icons.error_rounded : Icons.check_circle_rounded,
-                            color: sevColor,
-                            size: 32,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  isSevere
-                                      ? '🔴 RESULT: SEVERE RETINOPATHY (HIGH RISK)'
-                                      : (grade == 0
-                                          ? '🟢 RESULT: NO RETINOPATHY (NORMAL)'
-                                          : '🟡 RESULT: ${analysis.drLabel?.toUpperCase() ?? "GRADE $grade"}'),
-                                  style: TextStyle(
-                                    color: sevColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  'Severity Grade $grade • Top-1 Confidence: ${(analysis.predictionScore != null ? (analysis.predictionScore! * 100).toStringAsFixed(1) : "91.0")}%',
-                                  style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 24),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.notification_important, size: 18, color: Color(0xFF475569)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              analysis.actionRecommendation,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        analysis.plainLanguageAdvice,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF334155), height: 1.3),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Visual Fundus & Grad-CAM Inspection Card
-                Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Explainable AI Saliency Heatmap',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                            // Grad-CAM Toggle
-                            Row(
-                              children: [
-                                const Text('Heatmap', style: TextStyle(fontSize: 12)),
-                                Switch(
-                                  value: _showGradcam,
-                                  activeThumbColor: const Color(0xFF1E3A8A),
-                                  onChanged: (val) => setState(() => _showGradcam = val),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Image Display
-                        Container(
-                          height: 250,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Image.memory(
-                                  widget.imageBytes,
-                                  fit: BoxFit.contain,
-                                  width: double.infinity,
-                                ),
-                                if (_showGradcam)
-                                  (analysis.gradcamOverlayUrl != null &&
-                                          analysis.gradcamOverlayUrl!.isNotEmpty)
-                                      ? Image.network(
-                                          analysis.gradcamOverlayUrl!.startsWith('http')
-                                              ? analysis.gradcamOverlayUrl!
-                                              : '${widget.apiService.baseUrl}${analysis.gradcamOverlayUrl}',
-                                          fit: BoxFit.contain,
-                                          width: double.infinity,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              Container(
-                                            decoration: BoxDecoration(
-                                              gradient: RadialGradient(
-                                                center: Alignment.center,
-                                                radius: 0.8,
-                                                colors: [
-                                                  Colors.red.withValues(alpha: 0.40),
-                                                  Colors.amber.withValues(alpha: 0.25),
-                                                  Colors.transparent,
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                      : Container(
-                                          decoration: BoxDecoration(
-                                            gradient: RadialGradient(
-                                              center: Alignment.center,
-                                              radius: 0.8,
-                                              colors: [
-                                                Colors.red.withValues(alpha: 0.40),
-                                                Colors.amber.withValues(alpha: 0.25),
-                                                Colors.transparent,
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                Positioned(
-                                  bottom: 8,
-                                  left: 8,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.7),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      _showGradcam
-                                          ? 'Grad-CAM++ Overlay (${analysis.gradcamTargetLayer ?? "multiscale_vascular_saliency"})'
-                                          : 'Original Fundus (${widget.eyeSide})',
-                                      style: const TextStyle(color: Colors.white, fontSize: 10),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Auditable Claim: Highlights suspicious microvascular regions, not automated lesion replacement.',
-                          style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
-                        ),
-                      ],
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // -------------------------------------------------------------
+              // SCREEN 3: TOP RESULT CARD (Red / Orange / Green based on risk)
+              // -------------------------------------------------------------
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: isSevere
+                      ? const Color(0xFFFEF2F2)
+                      : const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: sevColor, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: sevColor.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-
-                // Quantitative Biomarkers Card
-                Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        const Text(
-                          '📊 Quantitative Biomarkers & CSME Risk',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        Icon(
+                          isSevere
+                              ? Icons.error_rounded
+                              : Icons.check_circle_rounded,
+                          color: sevColor,
+                          size: 32,
                         ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            _buildBiomarkerMetric(
-                              'Microaneurysms',
-                              '${analysis.biomarkers?['microaneurysm_count'] ?? (isSevere ? 14 : 0)}',
-                              Icons.lens_blur,
-                            ),
-                            _buildBiomarkerMetric(
-                              'Vessel Density',
-                              '${analysis.biomarkers?['vessel_density_pct'] ?? "11.2"}%',
-                              Icons.alt_route,
-                            ),
-                            _buildBiomarkerMetric(
-                              'CSME Risk',
-                              '${analysis.biomarkers?['csme_risk'] ?? (isSevere ? "HIGH" : "LOW")}',
-                              Icons.visibility,
-                              isAlert: isSevere,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // -------------------------------------------------------------
-                // SMS REFERRAL SLIP CARD (Screen 3 from Sinduri's Kit)
-                // -------------------------------------------------------------
-                Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.sms, color: Color(0xFF1E3A8A)),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Patient Mobile: ${widget.patient.phone}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            analysis.smsReferralSlip,
-                            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-
-                        ElevatedButton.icon(
-                          onPressed: _smsSent ? null : _sendSmsSlip,
-                          icon: Icon(_smsSent ? Icons.check : Icons.send),
-                          label: Text(
-                            _smsSent ? 'SMS Referral Slip Sent ✅' : '📲 Send SMS Referral Slip to Patient',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0D9488),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Doctor Review Queue Status
-                if (analysis.requiresHumanReview)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF3B82F6)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.medical_services_outlined, color: Color(0xFF1D4ED8)),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Enrolled in Tele-Ophthalmology Queue',
+                              Text(
+                                isSevere
+                                    ? '🔴 RESULT: SEVERE RETINOPATHY (HIGH RISK)'
+                                    : (grade == 0
+                                          ? '🟢 RESULT: NO RETINOPATHY (NORMAL)'
+                                          : '🟡 RESULT: ${analysis.drLabel?.toUpperCase() ?? "GRADE $grade"}'),
                                 style: TextStyle(
+                                  color: sevColor,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1D4ED8),
-                                  fontSize: 13,
+                                  fontSize: 16,
                                 ),
                               ),
                               Text(
-                                analysis.humanReviewReason ?? 'Grade 3/4 requires clinical sign-off.',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF1E40AF)),
+                                'Severity Grade $grade • Top-1 Confidence: ${(analysis.predictionScore != null ? (analysis.predictionScore! * 100).toStringAsFixed(1) : "91.0")}%',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF475569),
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                const SizedBox(height: 24),
-
-                // Done / Return Button
-                OutlinedButton(
-                  onPressed: () {
-                    if (widget.onDone != null) {
-                      widget.onDone!();
-                    } else {
-                      Navigator.popUntil(context, (route) => route.isFirst);
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFF1E3A8A)),
-                  ),
-                  child: const Text(
-                    'Done • Screen Next Patient',
-                    style: TextStyle(
-                      color: Color(0xFF1E3A8A),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                    const Divider(height: 24),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.notification_important,
+                          size: 18,
+                          color: Color(0xFF475569),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            analysis.actionRecommendation,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      analysis.plainLanguageAdvice,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF334155),
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Visual Fundus & Grad-CAM Inspection Card
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Explainable AI Saliency Heatmap',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          // Grad-CAM Toggle
+                          Row(
+                            children: [
+                              const Text(
+                                'Heatmap',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              Switch(
+                                value: _showGradcam,
+                                activeThumbColor: const Color(0xFF1E3A8A),
+                                onChanged: (val) =>
+                                    setState(() => _showGradcam = val),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Image Display
+                      Container(
+                        height: 250,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Image.memory(
+                                widget.imageBytes,
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                              ),
+                              if (_showGradcam)
+                                (analysis.gradcamOverlayUrl != null &&
+                                        analysis.gradcamOverlayUrl!.isNotEmpty)
+                                    ? Image.network(
+                                        analysis.gradcamOverlayUrl!.startsWith(
+                                              'http',
+                                            )
+                                            ? analysis.gradcamOverlayUrl!
+                                            : '${widget.apiService.baseUrl}${analysis.gradcamOverlayUrl}',
+                                        fit: BoxFit.contain,
+                                        width: double.infinity,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    gradient: RadialGradient(
+                                                      center: Alignment.center,
+                                                      radius: 0.8,
+                                                      colors: [
+                                                        Colors.red.withValues(
+                                                          alpha: 0.40,
+                                                        ),
+                                                        Colors.amber.withValues(
+                                                          alpha: 0.25,
+                                                        ),
+                                                        Colors.transparent,
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                      )
+                                    : Container(
+                                        decoration: BoxDecoration(
+                                          gradient: RadialGradient(
+                                            center: Alignment.center,
+                                            radius: 0.8,
+                                            colors: [
+                                              Colors.red.withValues(
+                                                alpha: 0.40,
+                                              ),
+                                              Colors.amber.withValues(
+                                                alpha: 0.25,
+                                              ),
+                                              Colors.transparent,
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                              Positioned(
+                                bottom: 8,
+                                left: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.7),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    _showGradcam
+                                        ? 'Grad-CAM++ Overlay (${analysis.gradcamTargetLayer ?? "multiscale_vascular_saliency"})'
+                                        : 'Original Fundus (${widget.eyeSide})',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Auditable Claim: Highlights suspicious microvascular regions, not automated lesion replacement.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 30),
-              ],
-            ),
+              ),
+              const SizedBox(height: 16),
+
+              // Quantitative Biomarkers Card
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '📊 Quantitative Biomarkers & CSME Risk',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _buildBiomarkerMetric(
+                            'Microaneurysms',
+                            '${analysis.biomarkers?['microaneurysm_count'] ?? (isSevere ? 14 : 0)}',
+                            Icons.lens_blur,
+                          ),
+                          _buildBiomarkerMetric(
+                            'Vessel Density',
+                            '${analysis.biomarkers?['vessel_density_pct'] ?? "11.2"}%',
+                            Icons.alt_route,
+                          ),
+                          _buildBiomarkerMetric(
+                            'CSME Risk',
+                            '${analysis.biomarkers?['csme_risk'] ?? (isSevere ? "HIGH" : "LOW")}',
+                            Icons.visibility,
+                            isAlert: isSevere,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // -------------------------------------------------------------
+              // SMS REFERRAL SLIP CARD (Screen 3 from Sinduri's Kit)
+              // -------------------------------------------------------------
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.sms, color: Color(0xFF1E3A8A)),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Patient Mobile: ${widget.patient.phone}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          analysis.smsReferralSlip,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      ElevatedButton.icon(
+                        onPressed: _smsSent ? null : _sendSmsSlip,
+                        icon: Icon(_smsSent ? Icons.check : Icons.send),
+                        label: Text(
+                          _smsSent
+                              ? 'SMS Referral Slip Sent ✅'
+                              : '📲 Send SMS Referral Slip to Patient',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0D9488),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Doctor Review Queue Status
+              if (analysis.requiresHumanReview)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF3B82F6)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.medical_services_outlined,
+                        color: Color(0xFF1D4ED8),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Enrolled in Tele-Ophthalmology Queue',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1D4ED8),
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              analysis.humanReviewReason ??
+                                  'Grade 3/4 requires clinical sign-off.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF1E40AF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 24),
+
+              // Done / Return Button
+              OutlinedButton(
+                onPressed: () {
+                  if (widget.onDone != null) {
+                    widget.onDone!();
+                  } else {
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Color(0xFF1E3A8A)),
+                ),
+                child: const Text(
+                  'Done • Screen Next Patient',
+                  style: TextStyle(
+                    color: Color(0xFF1E3A8A),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+            ],
           ),
         ),
-      );
+      ),
+    );
 
     if (widget.embedded) {
-      return Container(
-        color: const Color(0xFFF8FAFC),
-        child: resultBody,
-      );
+      return Container(color: const Color(0xFFF8FAFC), child: resultBody);
     }
 
     return Scaffold(
@@ -511,7 +580,9 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
             tooltip: 'Export Report',
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ABDM FHIR R4 Bundle ready for download')),
+                const SnackBar(
+                  content: Text('ABDM FHIR R4 Bundle ready for download'),
+                ),
               );
             },
           ),
@@ -521,7 +592,12 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
     );
   }
 
-  Widget _buildBiomarkerMetric(String label, String value, IconData icon, {bool isAlert = false}) {
+  Widget _buildBiomarkerMetric(
+    String label,
+    String value,
+    IconData icon, {
+    bool isAlert = false,
+  }) {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -535,7 +611,11 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, size: 20, color: isAlert ? Colors.red : const Color(0xFF1E3A8A)),
+            Icon(
+              icon,
+              size: 20,
+              color: isAlert ? Colors.red : const Color(0xFF1E3A8A),
+            ),
             const SizedBox(height: 4),
             Text(
               value,

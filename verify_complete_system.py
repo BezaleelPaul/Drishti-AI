@@ -1,6 +1,6 @@
 """
 End-to-End System Verification Suite for MathWorks SIH26038.
-Tests all 11 core sub-systems and benchmarks execution time.
+Tests all 10 core sub-systems and benchmarks execution time.
 """
 import time
 import os
@@ -22,7 +22,16 @@ from src.simulation.telemedicine_sim import TelemedicineSimulinkEngine, District
 from src.reporting.pdf_generator import generate_clinical_screening_pdf
 from src.reporting.fhir_exporter import export_abdm_fhir_diagnostic_report
 from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import QualityGrade
+from src.pipeline.schema import QualityGrade, ScreeningRecord
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+def _sample(*parts: str) -> str:
+    path = os.path.join(PROJECT_ROOT, "test_samples", *parts)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Required verification sample missing: {path}")
+    return path
 
 def run_comprehensive_verification():
     print("=" * 70)
@@ -55,8 +64,8 @@ def run_comprehensive_verification():
     # Test 2: Model 1 Quality Gate & Biological Triage
     t0 = time.time()
     checker = ImageQualityChecker(QualityThresholds())
-    good_img = Image.open("test_samples/04_section24_demo_scenarios/scenario_1_good.jpg").convert("RGB")
-    bad_img = Image.open("test_samples/04_section24_demo_scenarios/scenario_2_bad.jpg").convert("RGB")
+    good_img = Image.open(_sample("04_section24_demo_scenarios", "scenario_1_good.jpg")).convert("RGB")
+    bad_img = Image.open(_sample("04_section24_demo_scenarios", "scenario_2_bad.jpg")).convert("RGB")
     
     q_good = checker.assess_image(good_img)
     q_bad = checker.assess_image(bad_img)
@@ -65,6 +74,7 @@ def run_comprehensive_verification():
     assert q_bad.grade == QualityGrade.BAD
     assert len(q_bad.reasons) > 0
     assert q_good.metrics.raw_scores.get("ml_quality_score") is not None
+    assert 0.0 <= q_good.metrics.raw_scores["ml_quality_score"] <= 1.0
     ml_q = q_good.metrics.raw_scores["ml_quality_score"]
     results["Model 1 Quality Gate"] = f"PASS ({t_quality*1000:.1f} ms) - Good certified (ML Quality: {ml_q*100:.1f}%), Bad rejected"
 
@@ -100,7 +110,7 @@ def run_comprehensive_verification():
     gradcam_res = explainer.generate_heatmap(good_img, dr_pred.predicted_grade, classifier=classifier)
     t_cam = time.time() - t0
     assert gradcam_res.heatmap_generated is True
-    assert t_cam < 30.0 # MathWorks strict requirement
+    assert t_cam < 10.0 # Explainability must be near-instant (measured ~1s)
     results["Req 4 Grad-CAM Explainability"] = f"PASS ({t_cam:.2f} s < 30s limit) - Layer: {gradcam_res.target_layer}"
 
     # Test 7: MathWorks Req 5 Simulink 100k Telemedicine Simulation
@@ -108,7 +118,7 @@ def run_comprehensive_verification():
     sim_engine = TelemedicineSimulinkEngine(DistrictSimulationParams())
     sim_res = sim_engine.run_simulation()
     t_sim = time.time() - t0
-    assert sim_res.bandwidth_saved_pct > 90.0
+    assert sim_res.bandwidth_saved_pct > 98.0 # measured 99.1%
     assert sim_res.annual_patients_successfully_screened == 100_000
     results["Req 5 Simulink 100k Sim"] = f"PASS ({t_sim*1000:.1f} ms) - Bandwidth saving: {sim_res.bandwidth_saved_pct:.1f}%, Turnaround: {sim_res.avg_turnaround_time_edge_sec:.1f}s"
 
@@ -128,13 +138,16 @@ def run_comprehensive_verification():
         "csme_risk": seg_res.csme_risk,
         "min_fovea_distance_px": seg_res.min_fovea_distance_px,
     }
-    dummy_record = type("DummyRecord", (), {
-        "quality_grade": QualityGrade.GOOD,
-        "dr_prediction": dr_pred,
-    })()
+    dummy_record = ScreeningRecord(
+        image_path="verification_fixture.jpg",
+        quality_grade=QualityGrade.GOOD,
+        quality_status="Reliable",
+        dr_prediction=dr_pred,
+    )
     pdf_bytes = generate_clinical_screening_pdf(patient_dict, dummy_record, biomarker_dict)
     t_pdf = time.time() - t0
     assert len(pdf_bytes) > 2000
+    assert pdf_bytes[:4] == b'%PDF'
     results["Hospital PDF Generator"] = f"PASS ({t_pdf*1000:.1f} ms) - Generated {len(pdf_bytes)} bytes printable A4 PDF"
 
     # Test 9: ABDM FHIR R4 DiagnosticReport JSON

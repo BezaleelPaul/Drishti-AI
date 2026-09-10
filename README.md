@@ -38,10 +38,10 @@ While pioneering deep learning research (e.g., Google Health ARDA, EyePACS) achi
 
 Drishti-AI is purpose-engineered to bridge this exact last-mile gap as mandated by **Smart India Hackathon 2026 (Problem Statement SIH26038 • MathWorks)**:
 
-- **Model 1 Image Quality Gating (Abstention Before Grading):** Image reliability is the first decision the system makes. Degraded or non-fundus captures are immediately rejected with sub-second actionable feedback (e.g., *"Blur detected: Hold camera steady"*, Hindi audio guidance for ASHA workers), strictly bounded to 2 recaptures before human review.
-- **100% Offline Edge Computing (<180 ms on CPU):** The entire pipeline (Model 1 Quality Gate, Model 2 5-Class Classifier, Retinal Anatomical Segmentation, and Grad-CAM++ Explainability) runs natively on consumer laptops (Intel Core i3 / AMD Ryzen 3, 4GB RAM) with zero internet and zero cloud GPU reliance.
+- **Model 1 Image Quality Gating (Abstention Before Grading):** Image reliability is the first decision the system makes. Degraded or non-fundus captures are immediately rejected with sub-second actionable feedback (e.g., *"Blur detected: Hold camera steady"*, English audio prompts with Hindi on-screen guidance for ASHA workers), strictly bounded to 2 recaptures before human review.
+- **100% Offline Edge Computing (field budget ≤1.4 s end-to-end on CPU):** The entire pipeline (Model 1 Quality Gate, Model 2 5-Class Classifier, Retinal Anatomical Segmentation, and Grad-CAM++ Explainability) runs natively on consumer laptops (Intel Core i3 / AMD Ryzen 3, 4GB RAM) with zero internet and zero cloud GPU reliance. Measured latency on Apple M3 dev machine (see `results/benchmark.json`, re-run `python benchmark_latency.py` on target hardware): quality gate ~1–3 ms, classifier ~67 ms warm, full screening ~73–82 ms warm. Field budget on i3/4GB-class hardware: ≤1.4 s including cold-start margin.
 - **Quantitative Retinal Biomarkers (MathWorks Req 2):** Automated segmentation of Optic Disc, Fovea center, and Retinal Vascular Caliber enables physical Euclidean distance calculation for Clinically Significant Macular Edema (CSME) risk.
-- **District-Scale Bandwidth Optimization (Simulink Model):** A discrete-event queuing simulation across 50 rural PHCs and 100,000 patients proves a **98.6% reduction in telemetry bandwidth** (250 GB down to 3.4 GB) and cuts required ophthalmologist review capacity from ~13 to ~2 tele-reviewers per 100k patients.
+- **District-Scale Bandwidth Optimization (Simulink Model):** A discrete-event queuing simulation across 20 rural PHCs + 5 mobile vans and 100,000 patients proves a **99.1% reduction in telemetry bandwidth** (439.9 GB down to 3.8 GB) and cuts required doctor review capacity from ~4 to ~1 tele-reviewer per 100k patients.
 
 ```
                       [ Raw Fundus Photograph ]
@@ -84,7 +84,7 @@ Drishti-AI is structured around four architectural pillars explicitly formulated
 ### 1. ♻️ Sustainability (Modest Compute & Resource Longevity)
 The pipeline is engineered to run indefinitely on modest, low-power hardware rather than depending on recurring cloud subscriptions:
 - **Zero Cloud Compute Costs:** Inference runs on-device/on-edge, ensuring a Primary Health Centre (PHC) never pays an ongoing cloud compute or API bill just to keep screening citizens.
-- **98.6% Data Reduction:** Edge-filtering cuts data volume from 250 GB raw fundus imagery down to 3.4 GB of structured telemetry and flagged cases before transmission.
+- **99.1% Data Reduction:** Edge-filtering cuts data volume from 439.9 GB raw fundus imagery down to 3.8 GB of structured telemetry and flagged cases before transmission.
 - **Hardware Longevity:** Designed to operate on existing ₹15,000 laptops and legacy equipment for years without requiring forced hardware refresh cycles.
 - **Waste Elimination via Quality Gating:** Rejecting an ungradable image before it reaches the classifier prevents wasted compute cycles, avoids erroneous referrals, and eliminates costly repeat visits.
 
@@ -92,13 +92,13 @@ The pipeline is engineered to run indefinitely on modest, low-power hardware rat
 The system remains operational when connectivity, electrical power, or specialist personnel fail:
 - **Offline-First Screening:** Full on-site screening, quality verification, and clinical reporting operate with zero live internet connection. Central sync occurs opportunistically when a network becomes available.
 - **2G/3G Bandwidth Resilience:** Lightweight compressed packets ensure functionality even on intermittent rural cellular links.
-- **District-Scale Validation:** Validated via a discrete-event queuing simulation across 100,000 patients/year, 50 PHCs, and 1 district hospital.
-- **Specialist Capacity Multiplier:** Reduces required ophthalmologist review capacity from ~13 down to ~2 tele-reviewers per 100,000 patients, breaking the rural specialist bottleneck.
+- **District-Scale Validation:** Validated via a discrete-event queuing simulation across 100,000 patients/year, 20 PHCs + 5 mobile vans, and 1 district hospital.
+- **Specialist Capacity Multiplier:** Reduces required doctor review capacity from ~4 down to ~1 tele-reviewer per 100,000 patients, breaking the rural specialist bottleneck.
 
 ### 3. 👥 Accessibility (Operated by Frontline Workers, Understandable by Patients)
 Screening is designed for the people actually present at a rural PHC, not just specialists in tertiary hospitals:
 - **ASHA & Technician Usability:** Operated by community health workers (ASHAs/ANMs) with plain-language, actionable recapture feedback.
-- **Multilingual Patient Communication:** Bilingual (English + Hindi) patient-facing reports and audio prompts today, with Tamil, Telugu, and Kannada roadmap support for South Indian high-burden regions.
+- **Multilingual Patient Communication:** Bilingual (English + Hindi) patient-facing reports today with English audio prompts and Hindi on-screen guidance, with Tamil, Telugu, and Kannada roadmap support for South Indian high-burden regions.
 - **Commodity Camera Compatibility:** Validated on low-cost (~₹15,000) portable fundus attachments (Remidio, Forus 3Nethra, Volk iNview) rather than million-rupee tabletop hospital cameras.
 - **At-a-Glance Triage:** Immediate visual indicators (Clear / Review / Urgent) accompanied by ICDR technical grades.
 
@@ -118,12 +118,12 @@ Health systems are never locked into a single proprietary vendor, operating syst
 | **1. Patient Check-In** | Upstream clinical risk scoring (ICMR 2024 BMI/HbA1c criteria); directs at-risk patients to blood labs before unnecessary imaging | **Availability** (protects imaging bandwidth) & **Sustainability** (avoids unneeded compute) |
 | **2. Image Capture** | Frontline technician captures fundus image on portable attachment (~₹15,000) | **Accessibility** (non-specialist operation) & **Platform Independence** (hardware-agnostic) |
 | **3. Quality Gate (Model 1)** | Evaluates blur, illumination, contrast, and FOV coverage on-device; rejects ungradable captures with plain-text/voice prompts | **Sustainability** (zero wasted compute) & **Accessibility** (clear operator guidance) |
-| **4. DR Classifier (Model 2)** | Runs 5-class grading (Grades 0–4) *only* on validated, reliable images (<180 ms CPU execution) | **Availability** & **Sustainability** (zero cloud round-trip) |
+| **4. DR Classifier (Model 2)** | Runs 5-class grading (Grades 0–4) *only* on validated, reliable images (~67 ms warm-CPU on dev machine; field budget ≤1.4 s full pipeline) | **Availability** & **Sustainability** (zero cloud round-trip) |
 | **5. Grad-CAM++ Visual Evidence** | Computes true gradient backpropagation heatmap in <1.2s on CPU | **Accessibility** (clinician sees *why*, not just a black-box score) |
 | **6. Structural Segmentation** | Automatically segments Optic Disc, Fovea, and vessels to measure Euclidean distance for CSME risk | **Availability** (speeds specialist review to <30s per referable case) |
 | **7. Dual-Tier Safety Check** | Low confidence (<60%) or high risk (Grade 3/4) automatically flags for ophthalmologist over-read | **Safety & Regulatory Compliance** (human-in-the-loop) |
 | **8. Bilingual Reporting** | Generates bilingual English/Hindi PDF report with FHIR R4 JSON | **Accessibility** (patient comprehension) & **Platform Independence** (ABDM integration) |
-| **9. Telemedicine Uplink** | Only flagged/referable cases and lightweight metadata sync over rural 2G/3G | **Availability** & **Sustainability** (98.6% network bandwidth saved) |
+| **9. Telemedicine Uplink** | Only flagged/referable cases and lightweight metadata sync over rural 2G/3G | **Availability** & **Sustainability** (99.1% network bandwidth saved) |
 
 ---
 
@@ -256,7 +256,7 @@ python run_pipeline.py --input_dir test_samples/01_real_clinical_fundus --output
 ## ⚡ Edge Hardware Portability & Offline Guarantees
 
 - **100% Offline Capable**: Zero runtime API calls, telemetry, or external weight downloads.
-- **Low Memory & CPU Optimized**: Inference runs natively on cheap laptop CPUs (Intel Core i3 / AMD Ryzen 3, 4GB RAM) with an average end-to-end latency of **<180 ms**.
+- **Low Memory & CPU Optimized**: Inference runs natively on cheap laptop CPUs (Intel Core i3 / AMD Ryzen 3, 4GB RAM); field budget **≤1.4 s** end-to-end (measured ~80 ms warm on Apple M3 dev machine).
 - **Cross-Platform Compatibility**: Fully validated on Windows, Linux, and macOS with containerized Docker images and GitHub Actions CI matrix.
 
 ## 📋 Sample Screening Reports (Section 25)

@@ -72,7 +72,11 @@ class DRClassifier:
         if self.pytorch_model_path and os.path.exists(self.pytorch_model_path):
             try:
                 import torch
-                self._torch_model = torch.load(self.pytorch_model_path, map_location=self.device)
+                try:
+                    self._torch_model = torch.load(self.pytorch_model_path, map_location=self.device, weights_only=True)
+                except TypeError:
+                    # Older torch without weights_only
+                    self._torch_model = torch.load(self.pytorch_model_path, map_location=self.device)
                 self._torch_model.eval()
                 self.model_backend = "pytorch"
                 return
@@ -80,6 +84,11 @@ class DRClassifier:
                 pass
 
         # 3. Deterministic simulation mode for testing / pipeline verification
+        import logging
+        logging.getLogger(__name__).warning(
+            "DRClassifier: no DL weights loaded, using simulated backend. "
+            "Do NOT use for clinical diagnosis without real model."
+        )
         self.model_backend = "simulated"
 
     def get_keras_model(self):
@@ -114,14 +123,26 @@ class DRClassifier:
             return self._predict_simulated(pil_img)
 
     def _load_as_pil(self, image_input: Union[str, np.ndarray, Image.Image]) -> Image.Image:
-        if isinstance(image_input, str):
-            return Image.open(image_input).convert("RGB")
-        elif isinstance(image_input, np.ndarray):
-            return Image.fromarray(image_input.astype(np.uint8)).convert("RGB")
-        elif isinstance(image_input, Image.Image):
-            return image_input.convert("RGB")
-        else:
-            raise ValueError(f"Unsupported image type: {type(image_input)}")
+        try:
+            from src.image_io import to_rgb_uint8
+            if isinstance(image_input, str):
+                # Shared funnel: dimension cap applies to file paths too.
+                return Image.fromarray(to_rgb_uint8(np.array(Image.open(image_input).convert("RGB"))))
+            elif isinstance(image_input, np.ndarray):
+                # Single shared loader (float scale, NaN fail-closed, 2D/RGBA
+                # handled). See src/image_io.
+                arr = to_rgb_uint8(image_input)
+                return Image.fromarray(arr).convert("RGB")
+            elif isinstance(image_input, Image.Image):
+                return Image.fromarray(to_rgb_uint8(np.array(image_input.convert("RGB"))))
+            else:
+                raise ValueError(f"Unsupported image type: {type(image_input)}")
+        except FileNotFoundError:
+            raise ValueError(f"Image file not found: {image_input}")
+        except (OSError, ValueError):
+            raise
+        except Exception as e:
+            raise ValueError(f"Could not decode image input: {e}")
 
     def _predict_keras(self, pil_img: Image.Image) -> DRClassificationResult:
         img_resized = pil_img.resize((224, 224))
@@ -139,7 +160,19 @@ class DRClassifier:
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-        tensor = transform(pil_img).unsqueeze(0).to(self.device)
+        # Validate device, fallback to cpu if cuda unavailable
+        try:
+            dev = str(self.device)
+            if dev.startswith("cuda") and not torch.cuda.is_available():
+                dev = "cpu"
+        except Exception:
+            dev = "cpu"
+        try:
+            self._torch_model.eval()
+            self._torch_model.to(dev)
+        except Exception:
+            dev = "cpu"
+        tensor = transform(pil_img).unsqueeze(0).to(dev)
         with torch.no_grad():
             logits = self._torch_model(tensor)
             probs = torch.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
@@ -155,9 +188,14 @@ class DRClassifier:
         r_mean = float(np.mean(arr[:, :, 0]))
         r_std = float(np.std(arr[:, :, 0]))
 
-        # Pseudo-deterministic distribution from image hash / features
-        seed_val = int((r_mean * 100 + r_std) % 1000)
-        rng = np.random.RandomState(seed_val)
+        # Pseudo-deterministic distribution from image features
+        # Add hash of all channels to make distribution more unique
+        g_mean = float(np.mean(arr[:, :, 1]))
+        b_mean = float(np.mean(arr[:, :, 2]))
+        image_hash = int((r_mean * 10000 + g_mean * 100 + b_mean * 100 + r_std) % 100000)
+        
+        # Pseudo-deterministic distribution from image features
+        rng = np.random.RandomState(image_hash)
         raw = rng.dirichlet(alpha=[2.0, 1.0, 1.0, 0.5, 0.5])
         probs = [float(p) for p in raw]
 
@@ -165,10 +203,13 @@ class DRClassifier:
 
     def _build_result(self, probs: List[float]) -> DRClassificationResult:
         probs = list(probs)
+        if len(probs) != 5:
+            raise ValueError(f"Expected 5-class probability vector, got {len(probs)}")
         # Ensure sum to 1
         total = sum(probs)
-        if total > 0:
-            probs = [p / total for p in probs]
+        if total <= 0 or not np.isfinite(total):
+            raise ValueError("Invalid probability vector: sum must be positive and finite")
+        probs = [p / total for p in probs]
 
         sorted_indices = np.argsort(probs)[::-1]
         top1_idx = int(sorted_indices[0])

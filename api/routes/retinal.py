@@ -1,20 +1,60 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, Depends
+from fastapi.concurrency import run_in_threadpool
+from api.auth import ApiPrincipal, audit_action, require_auth
 
-from api.database import get_connection
+
+from api.database import get_db, save_screening_record
 from api.schemas import RetinalAnalysisResponse, RetinalQualityResponse
 from api.services.ai_bridge import AIBridge
 
 router = APIRouter(tags=["Retinal Screening"])
 
+_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+_UPLOAD_CHUNK = 256 * 1024
+
+
+async def _read_upload_capped(file: UploadFile, what: str = "image") -> bytes:
+    """Read an upload in chunks with an early abort: a lying or missing
+    Content-Length (e.g. chunked encoding) must not OOM the worker before
+    the size check runs."""
+    parts = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > _UPLOAD_MAX_BYTES:
+            raise HTTPException(status_code=413, detail=f"{what.capitalize()} too large (max 10MB).")
+        parts.append(chunk)
+    data = b"".join(parts)
+    if not data:
+        raise HTTPException(status_code=400, detail=f"Empty {what} file uploaded.")
+    return data
+
+
+def _safe_json_list(value) -> list:
+    """Parse a JSON list column; return [] on NULL/garbage instead of 500."""
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
 
 @router.post("/retinal/quality", response_model=RetinalQualityResponse)
-async def check_image_quality(
+async def check_image_quality(_principal: ApiPrincipal = Depends(require_auth),
     file: UploadFile = File(..., description="Fundus image (JPG/PNG)"),
     camera_profile: str = Form("Generic Fundus Camera"),
 ):
@@ -23,17 +63,23 @@ async def check_image_quality(
     Evaluates blur, illumination, contrast, FOV, and deep ensemble gradability in <100ms.
     Returns immediate ASHA guidance and Hindi voice tip if image fails.
     """
-    image_bytes = await file.read()
-    if not image_bytes:
-        raise HTTPException(status_code=400, detail="Empty image file uploaded.")
+    if file.content_type not in ("image/jpeg", "image/png", "application/octet-stream"):
+        raise HTTPException(status_code=400, detail=f"Unsupported content type: {file.content_type}. Upload JPG/PNG.")
+    image_bytes = await _read_upload_capped(file)
 
     bridge = AIBridge.get_instance()
-    quality_result = bridge.assess_quality(image_bytes, camera_profile=camera_profile)
+    try:
+        # Blocking TF/OpenCV inference must not run on the event loop:
+        # concurrent uploads would stall every other request behind it.
+        quality_result = await run_in_threadpool(
+            bridge.assess_quality, image_bytes, camera_profile)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return RetinalQualityResponse(**quality_result)
 
 
 @router.post("/retinal/analyze", response_model=RetinalAnalysisResponse)
-async def analyze_retinal_image(
+async def analyze_retinal_image(_principal: ApiPrincipal = Depends(require_auth),
     file: UploadFile = File(..., description="Fundus image (JPG/PNG)"),
     patient_id: str = Form(..., description="Target patient identifier"),
     eye_side: str = Form("Right", description="'Right' or 'Left'"),
@@ -47,130 +93,107 @@ async def analyze_retinal_image(
     4. Softmax Confidence margin evaluation & Clinical human review flagging
     5. Automatic enrollment into Doctor Review queue if flagged
     """
-    image_bytes = await file.read()
-    if not image_bytes:
-        raise HTTPException(status_code=400, detail="Empty image file uploaded.")
+    if eye_side not in ("Right", "Left"):
+        raise HTTPException(status_code=422, detail="eye_side must be 'Right' or 'Left'.")
+    if file.content_type not in ("image/jpeg", "image/png", "application/octet-stream"):
+        raise HTTPException(status_code=400, detail=f"Unsupported content type: {file.content_type}. Upload JPG/PNG.")
+    image_bytes = await _read_upload_capped(file)
 
-    # Validate patient exists (or auto-register from mobile ASHA client)
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT patient_id FROM patients WHERE patient_id = ?", (patient_id,))
-    if not cursor.fetchone():
-        now_ts = datetime.utcnow().isoformat() + "Z"
-        cursor.execute("""
-        INSERT INTO patients (
-            patient_id, name, age, gender, phone, village, screening_centre,
-            known_diabetes, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            patient_id, f"Patient {patient_id}", 52, "Unknown", "+91 98000 00000",
-            "Field PHC", "Rural Screening Camp", "Yes", now_ts
-        ))
-        conn.commit()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT patient_id FROM patients WHERE patient_id = ?", (patient_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail=f"Patient {patient_id} not registered.")
 
     bridge = AIBridge.get_instance()
-    analysis = bridge.analyze_retina(
-        image_bytes=image_bytes,
-        patient_id=patient_id,
-        eye_side=eye_side,
-        camera_profile=camera_profile,
-    )
+    try:
+        analysis = await run_in_threadpool(
+            bridge.analyze_retina,
+            image_bytes,
+            patient_id,
+            eye_side,
+            camera_profile,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    # Persist screening record
-    cursor.execute("""
-    INSERT INTO screenings (
-        screening_id, patient_id, eye_side, camera_profile, quality_grade,
-        quality_score, rejection_reasons, suspected_clinical_cause,
-        dr_grade_num, dr_grade_label, dr_confidence, is_referable,
-        requires_human_review, human_review_type, human_review_reason,
-        original_image_path, gradcam_overlay_path, target_layer,
-        action_recommendation, screening_status, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        analysis["screening_id"],
-        analysis["patient_id"],
-        analysis["eye_side"],
-        analysis["camera_profile"],
-        analysis["quality_grade"],
-        analysis["quality_score"],
-        json.dumps(analysis["rejection_reasons"]),
-        analysis["suspected_clinical_cause"],
-        analysis["dr_grade"],
-        analysis["dr_label"],
-        analysis["prediction_score"],
-        1 if analysis["is_referable"] else 0,
-        1 if analysis["requires_human_review"] else 0,
-        analysis["human_review_type"],
-        analysis["human_review_reason"],
-        analysis["original_image_url"],
-        analysis["gradcam_overlay_url"],
-        analysis["gradcam_target_layer"],
-        analysis["action_recommendation"],
-        "Completed",
-        analysis["created_at"],
-    ))
-
-    # If human review required, create pending doctor review queue item
-    if analysis["requires_human_review"]:
-        review_id = f"REV-{uuid.uuid4().hex[:6].upper()}"
-        cursor.execute("""
-        INSERT INTO doctor_reviews (
-            review_id, screening_id, patient_id, status, created_at
-        ) VALUES (?, ?, ?, 'PENDING', ?)
-        """, (
-            review_id,
-            analysis["screening_id"],
-            analysis["patient_id"],
-            analysis["created_at"],
-        ))
-
-    conn.commit()
-    conn.close()
+    try:
+        with get_db() as conn:
+            save_screening_record(conn, analysis)
+    except sqlite3.IntegrityError:
+        # Patient deleted between the existence check and the save (FK).
+        raise HTTPException(status_code=409, detail=f"Patient {patient_id} no longer registered; re-register and retry.")
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail="Screening completed but persistence failed.")
 
     return RetinalAnalysisResponse(**analysis)
 
 
 @router.get("/screenings/{patient_id}", response_model=List[RetinalAnalysisResponse])
-def get_patient_screenings(patient_id: str):
-    """Retrieves all past retinal screening records for a specific patient."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-    SELECT * FROM screenings
-    WHERE patient_id = ?
-    ORDER BY created_at DESC
-    """, (patient_id,))
-    rows = cursor.fetchall()
-    conn.close()
+def get_patient_screenings(
+    patient_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    _principal: ApiPrincipal = Depends(require_auth),
+):
+    """Retrieves past retinal screening records for a specific patient (paginated)."""
+    audit_action(_principal, "screening_list_read", patient_id)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT * FROM screenings
+        WHERE patient_id = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+        """, (patient_id, limit, offset))
+        rows = cursor.fetchall()
 
     results = []
     for r in rows:
+        ref = r["is_referable"]
+        stored_summary = r["patient_summary"] if "patient_summary" in r.keys() else None
         results.append(RetinalAnalysisResponse(
             screening_id=r["screening_id"],
             patient_id=r["patient_id"],
             eye_side=r["eye_side"],
             camera_profile=r["camera_profile"],
             quality_grade=r["quality_grade"],
-            quality_score=r["quality_score"] or 0.0,
-            quality_passed=r["quality_grade"] == "GOOD",
-            rejection_reasons=json.loads(r["rejection_reasons"] or "[]"),
+            quality_score=r["quality_score"] if r["quality_score"] is not None else 0.0,
+            # BORDERLINE with a stored DR grade was cleared by reassessment
+            # (failed borderlines store no grade) — counts as passed.
+            quality_passed=(r["quality_grade"] == "GOOD" or r["dr_grade_num"] is not None),
+            rejection_reasons=_safe_json_list(r["rejection_reasons"]),
             suspected_clinical_cause=r["suspected_clinical_cause"],
             dr_grade=r["dr_grade_num"],
             dr_label=r["dr_grade_label"],
             prediction_score=r["dr_confidence"],
-            is_referable=bool(r["is_referable"]),
+            probabilities=_safe_json_list(r["probabilities"]) or None,
+            # Backend is not persisted for history rows: None = unknown,
+            # never silently claimed as a real model.
+            model_backend=None,
+            # NULL in DB = ungradable: must stay None, never False (healthy).
+            is_referable=None if ref is None else bool(ref),
+            vessel_density_pct=r["vessel_density_pct"],
+            microaneurysm_count=r["microaneurysm_count"],
+            csme_risk=r["csme_risk"],
+            min_fovea_distance_px=r["min_fovea_distance_px"],
             requires_human_review=bool(r["requires_human_review"]),
             human_review_type=r["human_review_type"] or "NONE",
             human_review_reason=r["human_review_reason"],
+            confidence_flags=_safe_json_list(r["confidence_flags"]),
             original_image_url=r["original_image_path"],
             gradcam_overlay_url=r["gradcam_overlay_path"],
             gradcam_target_layer=r["target_layer"],
             action_recommendation=r["action_recommendation"] or "",
+            # Stored verbatim: never re-fabricate a "Grade X detected"
+            # summary for rows that have no grade.
             patient_plain_language_summary=(
-                f"Grade {r['dr_grade_num']} detected. Doctor review assigned."
-                if r["dr_grade_num"] is not None else "Screening completed."
+                stored_summary
+                or ("Screening completed. No gradable result; recapture advised."
+                    if r["dr_grade_num"] is None else "Screening completed.")
             ),
             created_at=r["created_at"],
+            captured_at=r["captured_at"] if "captured_at" in r.keys() else None,
         ))
 
     return results

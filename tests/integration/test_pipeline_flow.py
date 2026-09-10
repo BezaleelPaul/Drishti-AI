@@ -4,7 +4,9 @@ import numpy as np
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import (
     HumanReviewType,
+    QualityAssessmentResult,
     QualityGrade,
+    QualityReason,
     ReassessmentOutcome,
 )
 from tests.unit.test_quality import create_synthetic_fundus_image
@@ -66,18 +68,27 @@ class TestPipelineFlowIntegration(unittest.TestCase):
         Borderline image -> enters reassessment (Node 4).
         If reassessment fails -> does NOT reach Model 2.
         """
-        # Marginal brightness to trigger borderline
+        # Force the BORDERLINE branch deterministically: brightness shifts alone
+        # grade GOOD in this environment, which previously let this test pass
+        # vacuously without ever entering reassessment.
         img = create_synthetic_fundus_image(brightness_shift=-35.0)
+        borderline = QualityAssessmentResult(
+            grade=QualityGrade.BORDERLINE,
+            is_reliable=False,
+            reasons=[QualityReason.BORDERLINE_MARGINAL],
+            details="Forced borderline for reassessment-path coverage.",
+        )
+        self.router.quality_checker.assess_image = lambda *a, **k: borderline
         record = self.router.process_image(img, recapture_attempt_count=0)
 
-        # In case it evaluates as Borderline:
-        if record.quality_grade == QualityGrade.BORDERLINE:
-            self.assertIn(record.reassessment_outcome, (ReassessmentOutcome.FAILED, ReassessmentOutcome.CLEARED))
-            if record.reassessment_outcome == ReassessmentOutcome.FAILED:
-                self.assertIsNone(record.dr_prediction)
-                self.assertTrue(record.human_review_required)
-            elif record.reassessment_outcome == ReassessmentOutcome.CLEARED:
-                self.assertIsNotNone(record.dr_prediction)
+        # Must have entered reassessment (Node 4).
+        self.assertEqual(record.quality_grade, QualityGrade.BORDERLINE)
+        self.assertIn(record.reassessment_outcome, (ReassessmentOutcome.FAILED, ReassessmentOutcome.CLEARED))
+        if record.reassessment_outcome == ReassessmentOutcome.FAILED:
+            self.assertIsNone(record.dr_prediction)
+            self.assertTrue(record.human_review_required)
+        else:
+            self.assertIsNotNone(record.dr_prediction)
 
 
 if __name__ == "__main__":

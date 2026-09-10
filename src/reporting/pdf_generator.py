@@ -22,6 +22,27 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+_HINDI_FONT = 'Helvetica-Oblique'
+_DEVANAGARI_CANDIDATES = [
+    '/System/Library/Fonts/Supplemental/DevanagariMT.ttc',
+    '/System/Library/Fonts/Kohinoor.ttc',
+    '/System/Library/Fonts/Supplemental/ITFDevanagari.ttc',
+    '/System/Library/Fonts/Supplemental/Nirmala.ttf',
+    '/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf',
+    r'C:\Windows\Fonts\nirmala.ttf',
+]
+for _font_path in _DEVANAGARI_CANDIDATES:
+    if os.path.exists(_font_path):
+        try:
+            pdfmetrics.registerFont(TTFont('DevanagariFont', _font_path))
+            _HINDI_FONT = 'DevanagariFont'
+            break
+        except Exception:
+            pass
+
 
 def generate_clinical_screening_pdf(
     patient_data: Dict[str, Any],
@@ -37,6 +58,8 @@ def generate_clinical_screening_pdf(
     Generates an official, hospital-grade 1-page PDF screening dossier.
     Returns PDF bytes suitable for direct download or storage.
     """
+    biomarkers = biomarkers or {}
+    patient_data = patient_data or {}
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -93,7 +116,7 @@ def generate_clinical_screening_pdf(
     hindi_note = ParagraphStyle(
         "HindiNote",
         parent=body_style,
-        fontName="Helvetica-Oblique",
+        fontName=_HINDI_FONT,
         fontSize=8,
         leading=10,
         textColor=colors.HexColor("#742A2A"),
@@ -111,9 +134,20 @@ def generate_clinical_screening_pdf(
     patient_id = patient_data.get("patient_id", "N/A")
     age = patient_data.get("age", "N/A")
     gender = patient_data.get("gender", "N/A")
-    bmi = patient_data.get("bmi", 0.0)
+    _bmi_raw = patient_data.get("bmi", 0.0)
+    try:
+        bmi = float(_bmi_raw)
+    except (TypeError, ValueError):
+        bmi = float("nan")
+    import math as _math
+    bmi_str = f"{bmi:.1f} kg/m\u00b2 ({'Elevated >=23' if bmi >= 23 else 'Normal'})" if _math.isfinite(bmi) else "N/A"
     dm_status = patient_data.get("diabetes_status", "CONFIRMED_DIABETES")
-    risk_score = patient_data.get("risk_score", 0.0)
+    _risk_raw = patient_data.get("risk_score", 0.0)
+    try:
+        risk_score = float(_risk_raw)
+    except (TypeError, ValueError):
+        risk_score = float("nan")
+    risk_str = f"{risk_score:.0f}/100" if _math.isfinite(risk_score) else "N/A"
     report_date = datetime.now().strftime("%d-%b-%Y %H:%M")
 
     demo_data = [
@@ -127,13 +161,13 @@ def generate_clinical_screening_pdf(
             Paragraph("<b>Age / Gender:</b>", body_style),
             Paragraph(f"{age} Yrs / {gender}", body_style),
             Paragraph("<b>BMI (Asian Cutoff):</b>", body_style),
-            Paragraph(f"{bmi:.1f} kg/m² ({'Elevated >=23' if bmi >= 23 else 'Normal'})", body_style),
+            Paragraph(bmi_str, body_style),
         ],
         [
             Paragraph("<b>Diabetes Status:</b>", body_style),
             Paragraph(str(dm_status), bold_body),
             Paragraph("<b>Stage 1 Risk Score:</b>", body_style),
-            Paragraph(f"{risk_score:.0f}/100", bold_body),
+            Paragraph(risk_str, bold_body),
         ],
     ]
     t_demo = Table(demo_data, colWidths=[110, 155, 110, 165])
@@ -165,10 +199,35 @@ def generate_clinical_screening_pdf(
         dr_str = "NOT GENERATED (Quality Gate Inhibited)"
         conf_str = "N/A"
 
-    ma_count = biomarkers.get("microaneurysm_count", 0)
-    vessel_density = biomarkers.get("vessel_density_pct", 0.0)
     csme_risk = biomarkers.get("csme_risk", "LOW")
     fovea_dist = biomarkers.get("min_fovea_distance_px", 0)
+    # Never fabricate negative findings for an ungradable capture: when the
+    # pipeline refused to segment (or refused to grade at all), every
+    # biomarker cell must read NOT ASSESSED. The "UNGRADABLE" sentinel is one
+    # signal; a missing (None) csme_risk or a missing DR prediction is another
+    # (e.g. API bridge forwards None, not the sentinel).
+    bio_unassessed = (
+        (csme_risk in (None, "UNGRADABLE"))
+        or (dr_pred is None)
+    )
+    if bio_unassessed:
+        ma_str = "NOT ASSESSED (ungradable capture)"
+        vessel_str = "NOT ASSESSED (ungradable capture)"
+        csme_str = "NOT ASSESSED (ungradable capture)"
+        fovea_dist_str = "NOT ASSESSED (ungradable capture)"
+    else:
+        try:
+            ma_count = int(biomarkers.get("microaneurysm_count", 0) or 0)
+        except (TypeError, ValueError):
+            ma_count = 0
+        try:
+            vessel_density = float(biomarkers.get("vessel_density_pct", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            vessel_density = 0.0
+        ma_str = f"{ma_count} Microaneurysms detected"
+        vessel_str = f"{vessel_density:.1f}% retinal area"
+        csme_str = f"{csme_risk}"
+        fovea_dist_str = "N/A (no lesions)" if fovea_dist is None else f"{fovea_dist}px"
 
     findings_data = [
         [
@@ -181,13 +240,13 @@ def generate_clinical_screening_pdf(
             Paragraph("<b>Model Confidence:</b>", body_style),
             Paragraph(conf_str, body_style),
             Paragraph("<b>CSME / Macular Risk:</b>", body_style),
-            Paragraph(f"<b>{csme_risk}</b> (Fovea Prox: {fovea_dist}px)", bold_body),
+            Paragraph(f"<b>{csme_str}</b> (Fovea Prox: {fovea_dist_str})", bold_body),
         ],
         [
             Paragraph("<b>Candidate Lesions:</b>", body_style),
-            Paragraph(f"{ma_count} Microaneurysms detected", body_style),
+            Paragraph(ma_str, body_style),
             Paragraph("<b>Vessel Density:</b>", body_style),
-            Paragraph(f"{vessel_density:.1f}% retinal area", body_style),
+            Paragraph(vessel_str, body_style),
         ],
     ]
     t_findings = Table(findings_data, colWidths=[110, 155, 110, 165])
@@ -220,6 +279,20 @@ def generate_clinical_screening_pdf(
             [img_cells[0][1], img_cells[1][1]],
         ]
         t_imgs = Table(img_table_data, colWidths=[270, 270])
+        t_imgs.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        story.append(t_imgs)
+        story.append(Spacer(1, 10))
+    elif len(img_cells) == 1:
+        img_table_data = [
+            [img_cells[0][0]],
+            [img_cells[0][1]],
+        ]
+        t_imgs = Table(img_table_data, colWidths=[540])
         t_imgs.setStyle(TableStyle([
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),

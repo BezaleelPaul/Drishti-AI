@@ -15,7 +15,8 @@ class CameraCaptureScreen extends StatefulWidget {
     String cameraProfile,
     String eyeSide,
     RetinalQualityModel? qualityResult,
-  )? onProceedToAnalysis;
+  )?
+  onProceedToAnalysis;
   final VoidCallback? onBack;
   final bool embedded;
 
@@ -112,24 +113,36 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
 
   Future<void> _pickCustomImage() async {
     try {
-      final file = await FilePicker.pickFile(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png'],
+        withData: true,
       );
-      if (file != null) {
-        final bytes = await file.readAsBytes();
-        setState(() {
-          _imageBytes = bytes;
-          _currentSampleAsset = 'custom_upload';
-          _currentSampleName = file.name;
-        });
-        _runQualityCheck();
+      if (result != null && result.files.isNotEmpty) {
+        final picked = result.files.first;
+        final bytes = picked.bytes ?? (picked.path != null ? null : null);
+        if (bytes != null) {
+          setState(() {
+            _imageBytes = bytes;
+            _currentSampleAsset = 'custom_upload';
+            _currentSampleName = picked.name;
+          });
+          _runQualityCheck();
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not read file bytes on this platform.'),
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open file: $e')));
       }
     }
   }
@@ -184,14 +197,18 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   void _proceedToAnalysis() {
     if (_imageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select or capture an eye photo first.')),
+        const SnackBar(
+          content: Text('Please select or capture an eye photo first.'),
+        ),
       );
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('🔬 Running AI Diagnostic Screening (Model 2 & Grad-CAM++)...'),
+        content: Text(
+          '🔬 Running AI Diagnostic Screening (Model 2 & Grad-CAM++)...',
+        ),
         duration: Duration(milliseconds: 1000),
         backgroundColor: Color(0xFF1E3A8A),
       ),
@@ -247,13 +264,20 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                     isBlurry
                         ? '⚠️ Defocus Flagged (Proceed to AI Report Anyway)'
                         : '⚡ Proceed to DR Analysis (Step 3) 🔬',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isBlurry ? const Color(0xFFDC2626) : const Color(0xFF047857),
+                    backgroundColor: isBlurry
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF047857),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     elevation: 2,
                   ),
                 ),
@@ -261,286 +285,266 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
               // Patient & Hardware Ribbon
               Card(
                 elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 color: Colors.white,
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Row(
-                      children: [
-                        const Icon(Icons.person, color: Color(0xFF1E3A8A)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${widget.patient.name} (${widget.patient.age}y, ${widget.patient.gender})',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    children: [
+                      const Icon(Icons.person, color: Color(0xFF1E3A8A)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${widget.patient.name} (${widget.patient.age}y, ${widget.patient.gender})',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
                         ),
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              _selectedEye = _selectedEye.contains('OD')
-                                  ? 'Left Eye (OS)'
-                                  : 'Right Eye (OD)';
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFF93C5FD)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _selectedEye,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1E3A8A),
-                                  ),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedEye = _selectedEye.contains('OD')
+                                ? 'Left Eye (OS)'
+                                : 'Right Eye (OD)';
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF93C5FD)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _selectedEye,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E3A8A),
                                 ),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.swap_horiz, size: 14, color: Color(0xFF1E3A8A)),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.swap_horiz,
+                                size: 14,
+                                color: Color(0xFF1E3A8A),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Upload Custom Image Button
-                ElevatedButton.icon(
-                  onPressed: _pickCustomImage,
-                  icon: const Icon(Icons.add_photo_alternate_rounded, color: Colors.white, size: 20),
-                  label: const Text(
-                    '📁 Upload Fundus Image (from Device / Camera)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0D9488),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 1,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Camera Hardware Preset Selector
-                Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedCamera,
-                    isExpanded: true,
-                    icon: const Icon(Icons.tune),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Remidio FOP (Smartphone Handheld)',
-                        child: Text('📷 Remidio FOP (Smartphone Handheld)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Forus 3nethra classic (PHC Desktop)',
-                        child: Text('📷 Forus 3nethra classic (PHC Desktop)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Volk iNview (Lens Attachment)',
-                        child: Text('📷 Volk iNview (Lens Attachment)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Generic Fundus Camera',
-                        child: Text('📷 Generic Handheld Camera'),
                       ),
                     ],
-                    onChanged: (v) {
-                      setState(() => _selectedCamera = v!);
-                      _runQualityCheck();
-                    },
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // Test Sample Fast Selector for Judges
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text(
-                          'Test Fundus Photo Scenario:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              // Upload Custom Image Button
+              ElevatedButton.icon(
+                onPressed: _pickCustomImage,
+                icon: const Icon(
+                  Icons.add_photo_alternate_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                label: const Text(
+                  '📁 Upload Fundus Image (from Device / Camera)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D9488),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 1,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Camera Hardware Preset Selector
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12.0,
+                    vertical: 4.0,
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedCamera,
+                      isExpanded: true,
+                      icon: const Icon(Icons.tune),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Remidio FOP (Smartphone Handheld)',
+                          child: Text('📷 Remidio FOP (Smartphone Handheld)'),
                         ),
-                        Text(
-                          'Live Hardware Feed',
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        DropdownMenuItem(
+                          value: 'Forus 3nethra classic (PHC Desktop)',
+                          child: Text('📷 Forus 3nethra classic (PHC Desktop)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Volk iNview (Lens Attachment)',
+                          child: Text('📷 Volk iNview (Lens Attachment)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Generic Fundus Camera',
+                          child: Text('📷 Generic Handheld Camera'),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _currentSampleAsset,
-                        isExpanded: true,
-                        items: _sampleImages.map((s) {
-                          return DropdownMenuItem<String>(
-                            value: s['asset']!,
-                            child: Text(s['title']!, style: const TextStyle(fontSize: 13)),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            final chosen = _sampleImages.firstWhere((x) => x['asset'] == val);
-                            _loadImageAsset(chosen['asset']!, chosen['filename']!);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Live Camera Viewfinder / Fundus Preview
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isBlurry ? const Color(0xFFD97706) : const Color(0xFF10B981),
-                  width: 3,
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (_imageBytes != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(13),
-                      child: Image.memory(
-                        _imageBytes!,
-                        fit: BoxFit.contain,
-                        width: double.infinity,
-                      ),
-                    )
-                  else
-                    const CircularProgressIndicator(color: Colors.white),
-
-                  // Overlay Reticle Guide
-                  Container(
-                    width: 170,
-                    height: 170,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        width: 1.5,
-                      ),
+                      onChanged: (v) {
+                        setState(() => _selectedCamera = v!);
+                        _runQualityCheck();
+                      },
                     ),
                   ),
-
-                  // Quality Badge Top Right
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: isBlurry ? const Color(0xFFD97706) : const Color(0xFF10B981),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _isCheckingQuality
-                            ? 'Evaluating...'
-                            : (isBlurry ? 'BAD QUALITY' : 'GRADEABLE'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // -------------------------------------------------------------
-            // DYNAMIC ALERT CARD (Screen 2 from Sinduri's Kit)
-            // -------------------------------------------------------------
-            if (_qualityResult != null && isBlurry) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFD97706), width: 1.5),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 26),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '⚠️ PHOTO TOO BLURRY - PLEASE RETAKE',
+              ),
+              const SizedBox(height: 12),
+
+              // Test Sample Fast Selector for Judges
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: const [
+                          Text(
+                            'Test Fundus Photo Scenario:',
                             style: TextStyle(
-                              color: Color(0xFFB45309),
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                              fontSize: 13,
                             ),
                           ),
+                          Text(
+                            'Live Hardware Feed',
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _currentSampleAsset,
+                          isExpanded: true,
+                          items: _sampleImages.map((s) {
+                            return DropdownMenuItem<String>(
+                              value: s['asset']!,
+                              child: Text(
+                                s['title']!,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              final chosen = _sampleImages.firstWhere(
+                                (x) => x['asset'] == val,
+                              );
+                              _loadImageAsset(
+                                chosen['asset']!,
+                                chosen['filename']!,
+                              );
+                            }
+                          },
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '• Camera distance error: Move camera 2 cm closer to patient eye.\n'
-                      '• Instruct patient to fixate steadily on the green internal cross light.\n'
-                      '• Retries remaining: 2 attempts before human specialist referral.',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF78350F), height: 1.4),
-                    ),
-                    const SizedBox(height: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
-                    // Voice Guidance Button in Hindi
-                    OutlinedButton.icon(
-                      onPressed: () => _simulateHindiVoicePrompt(
-                        _qualityResult!.audioGuidanceHindi,
-                      ),
-                      icon: const Icon(Icons.volume_up, color: Color(0xFFB45309)),
-                      label: Text(
-                        '🔊 Listen in Hindi: "${_qualityResult!.audioGuidanceHindi}"',
-                        style: const TextStyle(
-                          color: Color(0xFFB45309),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+              // Live Camera Viewfinder / Fundus Preview
+              Container(
+                height: 270,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isBlurry
+                        ? const Color(0xFFD97706)
+                        : const Color(0xFF10B981),
+                    width: 3,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (_imageBytes != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(13),
+                        child: Image.memory(
+                          _imageBytes!,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                        ),
+                      )
+                    else
+                      const CircularProgressIndicator(color: Colors.white),
+
+                    // Overlay Reticle Guide
+                    Container(
+                      width: 170,
+                      height: 170,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          width: 1.5,
                         ),
                       ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFD97706)),
-                        backgroundColor: Colors.white,
+                    ),
+
+                    // Quality Badge Top Right
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isBlurry
+                              ? const Color(0xFFD97706)
+                              : const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _isCheckingQuality
+                              ? 'Evaluating...'
+                              : (isBlurry ? 'BAD QUALITY' : 'GRADEABLE'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -548,97 +552,187 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Retake Button
-              ElevatedButton.icon(
-                onPressed: _retakePhoto,
-                icon: const Icon(Icons.refresh),
-                label: Text(
-                  '🔄 Retake Photo (Attempt ${_recaptureCount + 1}/2)',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD97706),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: _proceedToAnalysis,
-                icon: const Icon(Icons.science_outlined),
-                label: const Text('Proceed with Screening Anyway (Clinical Override)'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF1E3A8A),
-                  side: const BorderSide(color: Color(0xFF1E3A8A)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ] else ...[
-              if (_qualityResult != null && !isBlurry)
+              // -------------------------------------------------------------
+              // DYNAMIC ALERT CARD (Screen 2 from Sinduri's Kit)
+              // -------------------------------------------------------------
+              if (_qualityResult != null && isBlurry) ...[
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFECFDF5),
+                    color: const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF10B981)),
+                    border: Border.all(
+                      color: const Color(0xFFD97706),
+                      width: 1.5,
+                    ),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 28),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '✅ Image Certified for Clinical Grading',
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Color(0xFFD97706),
+                            size: 26,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '⚠️ PHOTO TOO BLURRY - PLEASE RETAKE',
                               style: TextStyle(
-                                color: Color(0xFF047857),
+                                color: Color(0xFFB45309),
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 15,
                               ),
                             ),
-                            Text(
-                              'Laplacian sharpness score: ${_qualityResult!.qualityScore.toStringAsFixed(2)} | FOV & illumination passed.',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF065F46)),
-                            ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '• Camera distance error: Move camera 2 cm closer to patient eye.\n'
+                        '• Instruct patient to fixate steadily on the green internal cross light.\n'
+                        '• Retries remaining: 2 attempts before human specialist referral.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF78350F),
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Voice Guidance Button in Hindi
+                      OutlinedButton.icon(
+                        onPressed: () => _simulateHindiVoicePrompt(
+                          _qualityResult!.audioGuidanceHindi,
+                        ),
+                        icon: const Icon(
+                          Icons.volume_up,
+                          color: Color(0xFFB45309),
+                        ),
+                        label: Text(
+                          '🔊 Listen in Hindi: "${_qualityResult!.audioGuidanceHindi}"',
+                          style: const TextStyle(
+                            color: Color(0xFFB45309),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFD97706)),
+                          backgroundColor: Colors.white,
                         ),
                       ),
                     ],
                   ),
                 ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Proceed to Analysis Button
-              ElevatedButton.icon(
-                onPressed: _proceedToAnalysis,
-                icon: const Icon(Icons.science_outlined),
-                label: const Text(
-                  'Run AI Diagnostic Screening 🔬',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                // Retake Button
+                ElevatedButton.icon(
+                  onPressed: _retakePhoto,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(
+                    '🔄 Retake Photo (Attempt ${_recaptureCount + 1}/2)',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD97706),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E3A8A),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _proceedToAnalysis,
+                  icon: const Icon(Icons.science_outlined),
+                  label: const Text(
+                    'Proceed with Screening Anyway (Clinical Override)',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1E3A8A),
+                    side: const BorderSide(color: Color(0xFF1E3A8A)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                 ),
-              ),
+              ] else ...[
+                if (_qualityResult != null && !isBlurry)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF10B981)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          color: Color(0xFF10B981),
+                          size: 28,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '✅ Image Certified for Clinical Grading',
+                                style: TextStyle(
+                                  color: Color(0xFF047857),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'Laplacian sharpness score: ${_qualityResult!.qualityScore.toStringAsFixed(2)} | FOV & illumination passed.',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF065F46),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+
+                // Proceed to Analysis Button
+                ElevatedButton.icon(
+                  onPressed: _proceedToAnalysis,
+                  icon: const Icon(Icons.science_outlined),
+                  label: const Text(
+                    'Run AI Diagnostic Screening 🔬',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
             ],
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
 
     if (widget.embedded) {
-      return Container(
-        color: const Color(0xFFF8FAFC),
-        child: cameraBody,
-      );
+      return Container(color: const Color(0xFFF8FAFC), child: cameraBody);
     }
 
     return Scaffold(
