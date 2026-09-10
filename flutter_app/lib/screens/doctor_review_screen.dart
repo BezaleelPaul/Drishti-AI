@@ -4,7 +4,13 @@ import '../services/api_service.dart';
 class DoctorReviewScreen extends StatefulWidget {
   final ApiService apiService;
 
-  const DoctorReviewScreen({super.key, required this.apiService});
+  final bool embedded;
+
+  const DoctorReviewScreen({
+    super.key,
+    required this.apiService,
+    this.embedded = false,
+  });
 
   @override
   State<DoctorReviewScreen> createState() => _DoctorReviewScreenState();
@@ -108,22 +114,8 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Tele-Ophthalmologist Review Queue'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Queue',
-            onPressed: _loadQueue,
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
+    final queueBody = Center(
+      child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E3A8A)))
@@ -259,7 +251,55 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
                         ),
                 ),
         ),
+      );
+
+    if (widget.embedded) {
+      return Container(
+        color: const Color(0xFFF8FAFC),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.white,
+              child: Row(
+                children: [
+                  const Icon(Icons.medical_services_rounded, color: Color(0xFF1E3A8A)),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Tele-Ophthalmologist Review Queue',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E3A8A)),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Color(0xFF1E3A8A)),
+                    tooltip: 'Refresh Queue',
+                    onPressed: _loadQueue,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(child: queueBody),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('Tele-Ophthalmologist Review Queue'),
+        backgroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Queue',
+            onPressed: _loadQueue,
+          ),
+        ],
       ),
+      body: queueBody,
     );
   }
 }

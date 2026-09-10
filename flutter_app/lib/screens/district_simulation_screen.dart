@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class DistrictSimulationScreen extends StatefulWidget {
-  const DistrictSimulationScreen({super.key});
+  final bool embedded;
+  const DistrictSimulationScreen({super.key, this.embedded = false});
 
   @override
   State<DistrictSimulationScreen> createState() => _DistrictSimulationScreenState();
@@ -24,15 +25,8 @@ class _DistrictSimulationScreenState extends State<DistrictSimulationScreen> {
     final doctorsNeededWithoutSystem = ((dailyIntake * 210.0) / (6.0 * 3600)).toStringAsFixed(1);
     final costSavingsCr = ((double.parse(doctorsNeededWithoutSystem) - double.parse(doctorsNeededWithSystem)) * 14.2).toStringAsFixed(2);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('District Telemedicine Simulation'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: ConstrainedBox(
+    final simBody = Center(
+      child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
           child: ListView(
             padding: const EdgeInsets.all(16.0),
@@ -163,6 +157,16 @@ class _DistrictSimulationScreenState extends State<DistrictSimulationScreen> {
                         onChanged: (val) => setState(() => _numPhcs = val),
                       ),
 
+                      Text('Mobile Screening Vans in Field: ${_numVans.toInt()} Units'),
+                      Slider(
+                        value: _numVans,
+                        min: 1,
+                        max: 20,
+                        divisions: 19,
+                        activeColor: const Color(0xFF2563EB),
+                        onChanged: (val) => setState(() => _numVans = val),
+                      ),
+
                       Text('Tele-Ophthalmologist Reviewers: ${_numDoctors.toInt()} Specialists'),
                       Slider(
                         value: _numDoctors,
@@ -235,7 +239,23 @@ class _DistrictSimulationScreenState extends State<DistrictSimulationScreen> {
             ],
           ),
         ),
+      );
+
+    if (widget.embedded) {
+      return Container(
+        color: const Color(0xFFF8FAFC),
+        child: simBody,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('District Telemedicine Simulation'),
+        backgroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: Colors.white,
       ),
+      body: simBody,
     );
   }
 

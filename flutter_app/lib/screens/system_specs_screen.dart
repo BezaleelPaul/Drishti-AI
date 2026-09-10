@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 
 class SystemSpecsScreen extends StatelessWidget {
-  const SystemSpecsScreen({super.key});
+  final bool embedded;
+  const SystemSpecsScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('System Specs & Hardware Profiles'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: ConstrainedBox(
+    final specsBody = Center(
+      child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
           child: ListView(
             padding: const EdgeInsets.all(16.0),
@@ -221,7 +215,23 @@ class SystemSpecsScreen extends StatelessWidget {
             ],
           ),
         ),
+      );
+
+    if (embedded) {
+      return Container(
+        color: const Color(0xFFF8FAFC),
+        child: specsBody,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('System Specs & Hardware Profiles'),
+        backgroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: Colors.white,
       ),
+      body: specsBody,
     );
   }
 

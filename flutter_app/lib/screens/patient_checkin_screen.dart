@@ -7,10 +7,13 @@ class PatientCheckinScreen extends StatefulWidget {
   final ApiService apiService;
   final void Function(PatientModel patient, DiabetesRiskModel? risk)? onProceedToScan;
 
+  final bool embedded;
+
   const PatientCheckinScreen({
     super.key,
     required this.apiService,
     this.onProceedToScan,
+    this.embedded = false,
   });
 
   @override
@@ -158,48 +161,42 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Netra-AI Rural Health Screening'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.flash_on, color: Colors.amber),
-            tooltip: 'Fast Demo Presets',
-            onSelected: _loadPreset,
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'ramesh',
-                child: Text('Preset: Ramesh Kumar (High Risk)'),
-              ),
-              const PopupMenuItem(
-                value: 'sunita',
-                child: Text('Preset: Sunita Devi (Low Risk)'),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header Card
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+    final formBody = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Quick Proceed Button at top of form
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: _proceedToEyeScan,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                    label: const Text(
+                      '⚡ Proceed to Eye Scan (Step 2) 📸',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0D9488),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
+                    ),
+                  ),
+                ),
+                // Header Card
+                Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -527,49 +524,64 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+                // Inline primary button at bottom of form
+                ElevatedButton.icon(
+                  onPressed: _proceedToEyeScan,
+                  icon: const Icon(Icons.camera_alt_rounded, size: 22),
+                  label: const Text(
+                    'Start Eye Scan 📸 (Next Step: Quality Gate)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 2,
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (widget.embedded) {
+      return Container(
+        color: const Color(0xFFF8FAFC),
+        child: formBody,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('Netra-AI Rural Health Screening'),
+        backgroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.flash_on, color: Colors.amber),
+            tooltip: 'Fast Demo Presets',
+            onSelected: _loadPreset,
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'ramesh',
+                child: Text('Preset: Ramesh Kumar (High Risk)'),
+              ),
+              const PopupMenuItem(
+                value: 'sunita',
+                child: Text('Preset: Sunita Devi (Low Risk)'),
+              ),
             ],
           ),
-        ),
+        ],
       ),
-    ),
-  ),
-  bottomNavigationBar: Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.08),
-          blurRadius: 8,
-          offset: const Offset(0, -2),
-        ),
-      ],
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    child: SafeArea(
-      top: false,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: ElevatedButton.icon(
-            onPressed: _proceedToEyeScan,
-            icon: const Icon(Icons.camera_alt_rounded, size: 20),
-            label: const Text(
-              'Start Eye Scan 📸 (Next Step)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1E3A8A),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              elevation: 2,
-            ),
-          ),
-        ),
-      ),
-    ),
-  ),
-);
+      body: formBody,
+    );
 }
 }

@@ -51,15 +51,83 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    final screens = [
-      IntegratedScreeningFlow(apiService: _apiService),
-      DoctorReviewScreen(apiService: _apiService),
-      const DistrictSimulationScreen(),
-      const SystemSpecsScreen(),
-    ];
-
     return Scaffold(
-      body: screens[_currentIndex],
+      appBar: AppBar(
+        toolbarHeight: 64,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.remove_red_eye_rounded, color: Colors.amber, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Text(
+                  'Netra-AI Clinical Platform',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                ),
+                Text(
+                  'Rural Tele-Ophthalmology & ASHA Screening • MoHFW Compliant',
+                  style: TextStyle(fontSize: 11, color: Colors.white70),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D9488),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.wifi, size: 14, color: Colors.white),
+                SizedBox(width: 6),
+                Text(
+                  '127.0.0.1:8000 Online',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            color: const Color(0xFF172554),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                _buildTopNavTab(0, '1. ASHA Pipeline (3-Step)', Icons.remove_red_eye),
+                _buildTopNavTab(1, '2. Doctor Review', Icons.medical_services),
+                _buildTopNavTab(2, '3. District Sim (100k)', Icons.hub_rounded),
+                _buildTopNavTab(3, '4. System Specs', Icons.tune_rounded),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          IntegratedScreeningFlow(apiService: _apiService, embedded: true),
+          DoctorReviewScreen(apiService: _apiService, embedded: true),
+          const DistrictSimulationScreen(embedded: true),
+          const SystemSpecsScreen(embedded: true),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -108,6 +176,52 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopNavTab(int index, String title, IconData icon) {
+    final isSelected = _currentIndex == index;
+    return Expanded(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => setState(() => _currentIndex = index),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected ? Colors.white : Colors.white24,
+                width: isSelected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isSelected ? Colors.white : Colors.white70,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

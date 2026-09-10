@@ -24,8 +24,10 @@ class ScreeningResultScreen extends StatefulWidget {
     this.qualityResult,
     this.riskModel,
     this.onDone,
+    this.embedded = false,
   });
 
+  final bool embedded;
   final VoidCallback? onDone;
 
   @override
@@ -119,26 +121,8 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
     final isSevere = grade >= 3;
     final sevColor = _getSeverityColor(grade);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Screening Dossier & Referral'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share_outlined),
-            tooltip: 'Export Report',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ABDM FHIR R4 Bundle ready for download')),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
+    final resultBody = Center(
+      child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
@@ -506,7 +490,34 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
             ),
           ),
         ),
+      );
+
+    if (widget.embedded) {
+      return Container(
+        color: const Color(0xFFF8FAFC),
+        child: resultBody,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('Screening Dossier & Referral'),
+        backgroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: 'Export Report',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('ABDM FHIR R4 Bundle ready for download')),
+              );
+            },
+          ),
+        ],
       ),
+      body: resultBody,
     );
   }
 

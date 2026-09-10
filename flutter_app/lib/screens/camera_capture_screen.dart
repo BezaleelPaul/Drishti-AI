@@ -17,6 +17,7 @@ class CameraCaptureScreen extends StatefulWidget {
     RetinalQualityModel? qualityResult,
   )? onProceedToAnalysis;
   final VoidCallback? onBack;
+  final bool embedded;
 
   const CameraCaptureScreen({
     super.key,
@@ -25,6 +26,7 @@ class CameraCaptureScreen extends StatefulWidget {
     this.riskModel,
     this.onProceedToAnalysis,
     this.onBack,
+    this.embedded = false,
   });
 
   @override
@@ -227,36 +229,43 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   Widget build(BuildContext context) {
     final isBlurry = _qualityResult?.qualityGrade == 'BAD';
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Camera & Model 1 Quality Gate'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
-        leading: widget.onBack != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onBack,
-                tooltip: 'Back to Patient Intake',
-              )
-            : null,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Patient & Hardware Ribbon
-                Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
+    final cameraBody = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Top Quick Action Button
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ElevatedButton.icon(
+                  onPressed: _proceedToAnalysis,
+                  icon: const Icon(Icons.biotech_rounded, size: 20),
+                  label: Text(
+                    isBlurry
+                        ? '⚠️ Defocus Flagged (Proceed to AI Report Anyway)'
+                        : '⚡ Proceed to DR Analysis (Step 3) 🔬',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isBlurry ? const Color(0xFFDC2626) : const Color(0xFF047857),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+              // Patient & Hardware Ribbon
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
                       children: [
                         const Icon(Icons.person, color: Color(0xFF1E3A8A)),
                         const SizedBox(width: 8),
@@ -623,7 +632,30 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         ),
       ),
     ),
-  ),
-);
-}
+  );
+
+    if (widget.embedded) {
+      return Container(
+        color: const Color(0xFFF8FAFC),
+        child: cameraBody,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text('Camera & Model 1 Quality Gate'),
+        backgroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: Colors.white,
+        leading: widget.onBack != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onBack,
+                tooltip: 'Back to Patient Intake',
+              )
+            : null,
+      ),
+      body: cameraBody,
+    );
+  }
 }
