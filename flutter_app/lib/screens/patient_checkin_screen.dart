@@ -124,6 +124,15 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
     // Register asynchronously in the background so screen transition is instantaneous
     widget.apiService.registerPatient(patient).catchError((_) => patient);
 
+    // Provide immediate visual feedback to the healthcare worker
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('📸 Opening Eye Scan & Model 1 Quality Gate for ${patient.name}...'),
+        duration: const Duration(milliseconds: 1000),
+        backgroundColor: const Color(0xFF1E3A8A),
+      ),
+    );
+
     // Immediate navigation to Eye Scan screen
     Navigator.push(
       context,
@@ -212,6 +221,48 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                       ),
                     ],
                   ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Quick Demo Presets Banner
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bolt, color: Color(0xFF1E3A8A), size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Fast Presets:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          ActionChip(
+                            avatar: const Icon(Icons.person, size: 16, color: Colors.white),
+                            label: const Text('Ramesh (High Risk)', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                            backgroundColor: const Color(0xFFDC2626),
+                            onPressed: () => _loadPreset('ramesh'),
+                          ),
+                          ActionChip(
+                            avatar: const Icon(Icons.person_outline, size: 16, color: Colors.white),
+                            label: const Text('Sunita (Low Risk)', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                            backgroundColor: const Color(0xFF059669),
+                            onPressed: () => _loadPreset('sunita'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
@@ -466,8 +517,44 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 16),
             ],
+          ),
+        ),
+      ),
+    ),
+  ),
+  bottomNavigationBar: Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.08),
+          blurRadius: 8,
+          offset: const Offset(0, -2),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    child: SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ElevatedButton.icon(
+            onPressed: _proceedToEyeScan,
+            icon: const Icon(Icons.camera_alt_rounded, size: 20),
+            label: const Text(
+              'Start Eye Scan 📸 (Next Step)',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1E3A8A),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 2,
+            ),
           ),
         ),
       ),

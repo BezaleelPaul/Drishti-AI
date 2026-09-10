@@ -170,7 +170,20 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   }
 
   void _proceedToAnalysis() {
-    if (_imageBytes == null) return;
+    if (_imageBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select or capture an eye photo first.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🔬 Running AI Diagnostic Screening (Model 2 & Grad-CAM++)...'),
+        duration: Duration(milliseconds: 1000),
+        backgroundColor: Color(0xFF1E3A8A),
+      ),
+    );
 
     Navigator.push(
       context,
