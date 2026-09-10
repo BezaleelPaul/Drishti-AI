@@ -83,11 +83,12 @@ app.include_router(sync_router)
 def root():
     return {
         "platform": "Netra-AI Rural Health Screening Engine",
+        "web_application": "/app",
+        "api_documentation": "/docs",
         "api_version": "2.0.0",
         "status": "Operational",
-        "documentation": "/docs",
         "architecture": "Flutter Frontend <-> FastAPI Bridge <-> Python AI Pipeline",
-        "supported_cameras": "Manufacturer-Agnostic (Any JPG/PNG Fundus Camera)",
+        "supported_cameras": "Manufacturer-Agnostic (Any JPG/PNG Fundus Camera, Remidio, Forus, Zeiss, Topcon)",
     }
 
 

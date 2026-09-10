@@ -139,6 +139,8 @@ class RetinalAnalysisResponse(BaseModel):
         ...,
         example="Signs of mild-to-moderate changes in blood vessels detected. An eye doctor review has been scheduled."
     )
+    sms_referral_slip: Optional[str] = None
+    biomarkers: Optional[Dict[str, Any]] = None
     created_at: str
 
 
