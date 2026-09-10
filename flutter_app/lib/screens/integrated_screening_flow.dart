@@ -79,18 +79,13 @@ class _IntegratedScreeningFlowState extends State<IntegratedScreeningFlow> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('ASHA Tele-Screening Pipeline'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
-        elevation: 1,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Container(
-            color: const Color(0xFF172554),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    return Column(
+      children: [
+        Container(
+          color: const Color(0xFF1E3A8A),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: SafeArea(
+            bottom: false,
             child: Row(
               children: [
                 _buildStepPill(0, '1. Patient Intake', Icons.person_add_rounded),
@@ -102,9 +97,9 @@ class _IntegratedScreeningFlowState extends State<IntegratedScreeningFlow> {
             ),
           ),
         ),
-      ),
-      body: IndexedStack(
-        index: _activeStep,
+        Expanded(
+          child: IndexedStack(
+            index: _activeStep,
         children: [
           // Step 1: Patient Checkin
           PatientCheckinScreen(
@@ -156,8 +151,10 @@ class _IntegratedScreeningFlowState extends State<IntegratedScreeningFlow> {
             ),
         ],
       ),
-    );
-  }
+    ),
+  ],
+);
+}
 
   Widget _buildStepPill(int stepIndex, String title, IconData icon) {
     final isActive = _activeStep == stepIndex;

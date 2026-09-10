@@ -44,7 +44,7 @@ class RetinalStructureSegmenter:
     - Combined annotated overlay for <30s ophthalmologist validation.
     """
 
-    def __init__(self, use_dl_toolbox: bool = True):
+    def __init__(self, use_dl_toolbox: bool = False):
         self.use_dl_toolbox = use_dl_toolbox
         self._fovea_od_dl_model = None
 
