@@ -5,8 +5,13 @@ import 'camera_capture_screen.dart';
 
 class PatientCheckinScreen extends StatefulWidget {
   final ApiService apiService;
+  final void Function(PatientModel patient, DiabetesRiskModel? risk)? onProceedToScan;
 
-  const PatientCheckinScreen({super.key, required this.apiService});
+  const PatientCheckinScreen({
+    super.key,
+    required this.apiService,
+    this.onProceedToScan,
+  });
 
   @override
   State<PatientCheckinScreen> createState() => _PatientCheckinScreenState();
@@ -132,6 +137,11 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
         backgroundColor: const Color(0xFF1E3A8A),
       ),
     );
+
+    if (widget.onProceedToScan != null) {
+      widget.onProceedToScan!(patient, _riskAssessment);
+      return;
+    }
 
     // Immediate navigation to Eye Scan screen
     Navigator.push(

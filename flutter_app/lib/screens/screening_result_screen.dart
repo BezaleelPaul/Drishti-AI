@@ -23,7 +23,10 @@ class ScreeningResultScreen extends StatefulWidget {
     required this.eyeSide,
     this.qualityResult,
     this.riskModel,
+    this.onDone,
   });
+
+  final VoidCallback? onDone;
 
   @override
   State<ScreeningResultScreen> createState() => _ScreeningResultScreenState();
@@ -478,7 +481,13 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
 
                 // Done / Return Button
                 OutlinedButton(
-                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                  onPressed: () {
+                    if (widget.onDone != null) {
+                      widget.onDone!();
+                    } else {
+                      Navigator.popUntil(context, (route) => route.isFirst);
+                    }
+                  },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: const BorderSide(color: Color(0xFF1E3A8A)),

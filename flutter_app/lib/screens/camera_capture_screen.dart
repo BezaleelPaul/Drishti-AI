@@ -9,12 +9,22 @@ class CameraCaptureScreen extends StatefulWidget {
   final ApiService apiService;
   final PatientModel patient;
   final DiabetesRiskModel? riskModel;
+  final void Function(
+    Uint8List imageBytes,
+    String filename,
+    String cameraProfile,
+    String eyeSide,
+    RetinalQualityModel? qualityResult,
+  )? onProceedToAnalysis;
+  final VoidCallback? onBack;
 
   const CameraCaptureScreen({
     super.key,
     required this.apiService,
     required this.patient,
     this.riskModel,
+    this.onProceedToAnalysis,
+    this.onBack,
   });
 
   @override
@@ -185,6 +195,17 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
       ),
     );
 
+    if (widget.onProceedToAnalysis != null) {
+      widget.onProceedToAnalysis!(
+        _imageBytes!,
+        _currentSampleName,
+        _selectedCamera,
+        _selectedEye.contains('Right') ? 'Right' : 'Left',
+        _qualityResult,
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -212,6 +233,13 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         title: const Text('Camera & Model 1 Quality Gate'),
         backgroundColor: const Color(0xFF1E3A8A),
         foregroundColor: Colors.white,
+        leading: widget.onBack != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onBack,
+                tooltip: 'Back to Patient Intake',
+              )
+            : null,
       ),
       body: Center(
         child: ConstrainedBox(
