@@ -1,6 +1,9 @@
-# Streamlit Community Cloud deploy file for the validation dashboard.
-# Entry point: demo/app.py (set as "Main file path" in the Cloud dashboard).
-# Streamlit Cloud auto-redeploys on every push to the tracked branch.
+# Streamlit Community Cloud dependency file for the validation dashboard.
+# Location matters: Cloud searches the entrypoint's directory FIRST
+# (demo/app.py -> demo/requirements.txt wins over root requirements.txt),
+# and only recognizes exact filenames (requirements.txt, environment.yml...).
+# Set "Main file path" to demo/app.py in the Cloud dashboard; deploys and
+# re-deploys automatically on every push to the tracked branch.
 #
 # Lean by design: demo/app.py's import closure (src.clinical_risk,
 # src.pipeline.router, src.quality, src.segmentation, src.simulation,
