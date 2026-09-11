@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/patient.dart';
@@ -294,8 +293,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                     center: Alignment.center,
                                     radius: 0.8,
                                     colors: isReferable
-                                        ? [Colors.red.withOpacity(0.65), Colors.orange.withOpacity(0.3), Colors.transparent]
-                                        : [Colors.blue.withOpacity(0.3), Colors.transparent],
+                                        ? [Colors.red.withValues(alpha: 0.65), Colors.orange.withValues(alpha: 0.3), Colors.transparent]
+                                        : [Colors.blue.withValues(alpha: 0.3), Colors.transparent],
                                   ),
                                 ),
                               ),

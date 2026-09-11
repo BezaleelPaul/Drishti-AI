@@ -123,7 +123,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                   'Offline — patient saved on device and will be registered on sync.')),
         );
       }
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => QualityGateScreen(
@@ -331,7 +331,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                value: _gender,
+                                initialValue: _gender,
                                 decoration: InputDecoration(
                                   labelText: 'Gender',
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

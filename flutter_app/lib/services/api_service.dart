@@ -247,17 +247,16 @@ class ApiService {
     String? patientId,
   }) async {
     final payload = {
-      if (patientId != null) 'patient_id': patientId,
+      'patient_id': ?patientId,
       'age': age,
       'gender': gender,
       'bmi': bmi,
       'family_history': familyHistory,
       'physical_activity': physicalActivity,
       'symptoms': symptoms,
-      if (hba1c != null) 'hba1c': hba1c,
-      if (fastingGlucose != null) 'fasting_glucose': fastingGlucose,
-      if (knownDiabetesYears != null)
-        'known_diabetes_years': knownDiabetesYears,
+      'hba1c': ?hba1c,
+      'fasting_glucose': ?fastingGlucose,
+      'known_diabetes_years': ?knownDiabetesYears,
     };
     try {
       final response = await http
@@ -349,7 +348,7 @@ class ApiService {
             body: json.encode({
               'doctor_name': doctorName,
               'decision': normalized,
-              if (gradeOverride != null) 'grade_override': gradeOverride,
+              'grade_override': ?gradeOverride,
               'clinical_notes': clinicalNotes,
               'referral_urgency': referralUrgency,
               'follow_up_days': followUpDays,

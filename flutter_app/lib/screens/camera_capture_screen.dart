@@ -105,7 +105,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         _currentSampleAsset = assetPath;
         _currentSampleName = filename;
       });
-      _runQualityCheck();
+      await _runQualityCheck();
     } catch (e) {
       debugPrint('Error loading asset $assetPath: $e');
     }
@@ -113,30 +113,19 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
 
   Future<void> _pickCustomImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png'],
-        withData: true,
       );
-      if (result != null && result.files.isNotEmpty) {
-        final picked = result.files.first;
-        final bytes = picked.bytes ?? (picked.path != null ? null : null);
-        if (bytes != null) {
-          setState(() {
-            _imageBytes = bytes;
-            _currentSampleAsset = 'custom_upload';
-            _currentSampleName = picked.name;
-          });
-          _runQualityCheck();
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Could not read file bytes on this platform.'),
-              ),
-            );
-          }
-        }
+      if (files.isNotEmpty) {
+        final picked = files.first;
+        final bytes = await picked.readAsBytes();
+        setState(() {
+          _imageBytes = bytes;
+          _currentSampleAsset = 'custom_upload';
+          _currentSampleName = picked.name;
+        });
+        await _runQualityCheck();
       }
     } catch (e) {
       if (mounted) {

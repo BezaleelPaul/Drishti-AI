@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -25,7 +24,6 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
   // explicit override, tracked separately so it can never read as "passed".
   bool _isOfflinePending = false;
   String _qualityMessage = 'Awaiting server quality gate...';
-  double? _qualityScore;
   String _qualityGrade = 'PENDING';
   String _selectedAssetImage = 'assets/images/scenario_1_good.jpg';
 
@@ -61,7 +59,6 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
         _isAssessing = false;
         _isQualityChecked = true;
         _qualityGrade = grade;
-        _qualityScore = score;
         if (grade == 'GOOD') {
           _qualityPassed = true;
           _isOfflinePending = false;
@@ -91,7 +88,6 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
         _isQualityChecked = true;
         _qualityPassed = false;
         _isOfflinePending = false;
-        _qualityScore = null;
         _qualityGrade = 'ERROR';
         _qualityMessage = 'Quality check unavailable: $e';
       });
@@ -122,7 +118,7 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _cameraPreset,
+                      initialValue: _cameraPreset,
                       decoration: InputDecoration(
                         labelText: 'Hardware Camera Preset',
                         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -137,7 +133,7 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                           // Thresholds changed: prior verdict is stale, re-gate.
                           _isQualityChecked = false;
                         });
-                        _runQualityCheck(_selectedAssetImage);
+                        unawaited(_runQualityCheck(_selectedAssetImage));
                       },
                     ),
                   ),
@@ -167,7 +163,7 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                         color: Colors.black,
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, spreadRadius: 2),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, spreadRadius: 2),
                         ],
                       ),
                       child: ClipOval(
