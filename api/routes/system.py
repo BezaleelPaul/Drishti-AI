@@ -54,6 +54,19 @@ def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
         ),
     }
     missing = [name for name, path in artifacts.items() if not os.path.isfile(path)]
+    runtime_issues = []
+    try:
+        from api.services.ai_bridge import AIBridge
+
+        classifier_backend = AIBridge.get_instance().dr_classifier.get_backend()
+        if classifier_backend not in ("keras", "pytorch"):
+            runtime_issues.append(
+                f"Model 2 runtime backend is {classifier_backend}; clinical weights are unavailable"
+            )
+    except Exception as exc:
+        logger.warning("Model runtime probe failed: %s", exc)
+        runtime_issues.append("Model 2 runtime probe failed")
+
     known_paths = {
         "Model 1 (Quality Gate)": "Deep Ensemble (berenslab/fundus_image_toolbox) + MultiScale Fusion",
         "Model 2 (DR Classifier)": "EfficientNetB0 (APTOS 2019 fine-tuned, 5-class severity)",
@@ -64,8 +77,10 @@ def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
         name: (desc + (" [ARTIFACT MISSING]" if name in missing else ""))
         for name, desc in known_paths.items()
     }
+    if runtime_issues:
+        models_info["Model 2 (DR Classifier)"] += " [UNAVAILABLE: clinical backend not loaded]"
 
-    if db_ok and not missing and disk_free_mb != 0:
+    if db_ok and not missing and not runtime_issues and disk_free_mb != 0:
         engine = "Ready (Model 1 Quality + Model 2 DR + Grad-CAM++)"
     else:
         causes = []
@@ -73,6 +88,7 @@ def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
             causes.append("database unreachable")
         if missing:
             causes.append("missing artifacts: " + ", ".join(missing))
+        causes.extend(runtime_issues)
         if disk_free_mb == 0:
             causes.append("disk full")
         engine = "Degraded (" + "; ".join(causes) + ")"

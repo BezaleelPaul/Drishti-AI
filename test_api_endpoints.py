@@ -122,12 +122,17 @@ def run_api_checks():
             files={"file": ("good.jpg", f, "image/jpeg")},
             headers=OP,
         )
-        assert r.status_code == 200, f"Analyze failed: {r.text}"
-        a_res = r.json()
-        print(f"[PASS] POST /retinal/analyze -> Screening ID: {a_res['screening_id']}")
-        print(f"       DR Grade: {a_res['dr_grade']} ({a_res['dr_label']})")
-        print(f"       Grad-CAM Layer: {a_res['gradcam_target_layer']}")
-        print(f"       Human Review: {a_res['requires_human_review']} ({a_res['human_review_type']})")
+        from api.services.ai_bridge import AIBridge
+        if AIBridge.get_instance().dr_classifier.get_backend() == "simulated":
+            assert r.status_code == 503, f"Unavailable model was not rejected: {r.text}"
+            print("[PASS] POST /retinal/analyze -> Refused non-diagnostic simulated model (503)")
+        else:
+            assert r.status_code == 200, f"Analyze failed: {r.text}"
+            a_res = r.json()
+            print(f"[PASS] POST /retinal/analyze -> Screening ID: {a_res['screening_id']}")
+            print(f"       DR Grade: {a_res['dr_grade']} ({a_res['dr_label']})")
+            print(f"       Grad-CAM Layer: {a_res['gradcam_target_layer']}")
+            print(f"       Human Review: {a_res['requires_human_review']} ({a_res['human_review_type']})")
 
     # 7. Doctor Review Queue
     r = client.get("/review/pending", headers=DR)

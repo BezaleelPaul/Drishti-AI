@@ -49,6 +49,7 @@ class DiabetesRiskAssessment:
     pathway: ScreeningPathway
     clinical_rationale: List[str] = field(default_factory=list)
     action_recommendation: str = ""
+    risk_source: str = "heuristic"           # clinical_rule, ml, or heuristic
 
     def summary_text(self) -> str:
         s = (

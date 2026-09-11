@@ -25,6 +25,7 @@ from src.clinical_risk import (
 from src.quality.checker import ImageQualityChecker, QualityThresholds
 from src.quality.enhancer import AdaptiveQualityEnhancer
 from src.classification.classifier import DRClassifier
+from src.classification.classifier import ClinicalModelUnavailableError
 from src.classification.gradcam import GradCAMExplainer
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import DRGrade, QualityGrade, ScreeningRecord
@@ -189,6 +190,11 @@ class AIBridge:
         eye_side: str = "Right",
         camera_profile: str = "Generic Fundus Camera",
     ) -> Dict[str, Any]:
+        if self.dr_classifier.get_backend() == "simulated":
+            raise ClinicalModelUnavailableError(
+                "Clinical DR model weights are unavailable; screening was not graded."
+            )
+
         screening_id = f"SCR-{uuid.uuid4().hex[:12].upper()}"
         screening_dir = os.path.join(_RESULTS_DIR, screening_id)
         os.makedirs(screening_dir, exist_ok=True)
@@ -356,6 +362,7 @@ class AIBridge:
             "risk_score": round(assessment.risk_score, 1),
             "risk_level": assessment.risk_level.value,
             "pathway": assessment.pathway.value,
+            "risk_source": assessment.risk_source,
             "clinical_rationale": assessment.clinical_rationale,
             "action_recommendation": assessment.action_recommendation,
             "patient_friendly_guidance": patient_guide,

@@ -13,6 +13,7 @@ from api.auth import ApiPrincipal, audit_action, require_auth
 from api.database import get_db, save_screening_record
 from api.schemas import RetinalAnalysisResponse, RetinalQualityResponse
 from api.services.ai_bridge import AIBridge
+from src.classification.classifier import ClinicalModelUnavailableError
 
 router = APIRouter(tags=["Retinal Screening"])
 
@@ -114,6 +115,8 @@ async def analyze_retinal_image(_principal: ApiPrincipal = Depends(require_auth)
             eye_side,
             camera_profile,
         )
+    except ClinicalModelUnavailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

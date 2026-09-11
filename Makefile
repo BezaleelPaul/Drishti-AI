@@ -25,6 +25,7 @@ setup:
 
 test:
 	$(PY) verify_complete_system.py
+	$(PY) -m pytest -q
 
 test-api:
 	$(PY) test_api_endpoints.py

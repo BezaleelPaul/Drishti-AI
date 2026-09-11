@@ -120,6 +120,9 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
     final grade = analysis.drGrade ?? 0;
     final isSevere = grade >= 3;
     final sevColor = _getSeverityColor(grade);
+    final isOffline = analysis.isOffline;
+    final hasFallbackData = analysis.isFromFallback;
+    final isSimulated = analysis.modelBackend == 'simulated';
 
     final resultBody = Center(
       child: ConstrainedBox(
@@ -132,17 +135,23 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
               // -------------------------------------------------------------
               // SCREEN 3: TOP RESULT CARD (Red / Orange / Green based on risk)
               // -------------------------------------------------------------
-              Container(
+               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: isSevere
-                      ? const Color(0xFFFEF2F2)
-                      : const Color(0xFFF0FDF4),
+                  color: isOffline
+                      ? const Color(0xFFF1F5F9)
+                      : (isSevere
+                          ? const Color(0xFFFEF2F2)
+                          : const Color(0xFFF0FDF4)),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: sevColor, width: 2),
+                  border: Border.all(
+                    color: (isOffline || isSimulated) ? Colors.grey : sevColor,
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: sevColor.withValues(alpha: 0.12),
+                      color: (isOffline ? Colors.grey : sevColor)
+                          .withValues(alpha: 0.12),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -154,10 +163,18 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
                     Row(
                       children: [
                         Icon(
-                          isSevere
-                              ? Icons.error_rounded
-                              : Icons.check_circle_rounded,
-                          color: sevColor,
+                          isOffline
+                              ? Icons.schedule
+                              : (isSimulated
+                                  ? Icons.warning_rounded
+                                  : (isSevere
+                                      ? Icons.error_rounded
+                                      : Icons.check_circle_rounded)),
+                          color: isOffline
+                              ? Colors.grey
+                              : (isSimulated
+                                  ? Colors.orange
+                                  : sevColor),
                           size: 32,
                         ),
                         const SizedBox(width: 10),
@@ -166,22 +183,34 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isSevere
-                                    ? '🔴 RESULT: SEVERE RETINOPATHY (HIGH RISK)'
-                                    : (grade == 0
-                                          ? '🟢 RESULT: NO RETINOPATHY (NORMAL)'
-                                          : '🟡 RESULT: ${analysis.drLabel?.toUpperCase() ?? "GRADE $grade"}'),
+                                isOffline
+                                    ? '⏳ RESULT: PENDING SERVER ANALYSIS (Offline)'
+                                    : (isSimulated
+                                        ? '⚠️ RESULT: NON-DIAGNOSTIC SIMULATION (No DL Weights)'
+                                        : (isSevere
+                                            ? '🔴 RESULT: SEVERE RETINOPATHY (HIGH RISK)'
+                                            : (grade == 0
+                                                ? '🟢 RESULT: NO RETINOPATHY (NORMAL)'
+                                                : '🟡 RESULT: ${analysis.drLabel?.toUpperCase() ?? "GRADE $grade"}'))),
                                 style: TextStyle(
-                                  color: sevColor,
+                                  color: (isOffline || isSimulated) ? Colors.grey : sevColor,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
                                 ),
                               ),
                               Text(
-                                'Severity Grade $grade • Top-1 Confidence: ${(analysis.predictionScore != null ? (analysis.predictionScore! * 100).toStringAsFixed(1) : "91.0")}%',
-                                style: const TextStyle(
+                                'Severity Grade '
+                                '${(isOffline || isSimulated) ? "N/A" : grade.toString()} • '
+                                'Top-1 Confidence: '
+                                '${analysis.predictionScore != null ? (analysis.predictionScore! * 100).toStringAsFixed(1) : "N/A"}%',
+                                style: TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF475569),
+                                  color: analysis.predictionScore == null
+                                      ? Colors.red
+                                      : const Color(0xFF475569),
+                                  fontStyle: analysis.predictionScore == null
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
                                 ),
                               ),
                             ],
@@ -225,7 +254,101 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Visual Fundus & Grad-CAM Inspection Card
+              // -------------------------------------------------------------
+               // DATA SOURCE WARNING BANNER (shown when data is offline or
+               // when AI-provided values are missing — never disguise fallback
+               // data as real clinical measurements)
+               // -------------------------------------------------------------
+               if (isOffline || hasFallbackData || isSimulated)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isOffline
+                        ? const Color(0xFFFEF3C7)
+                        : (isSimulated
+                            ? const Color(0xFFFEF9C4)
+                            : const Color(0xFFFEF2F2)),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isOffline
+                          ? const Color(0xFFF59E0B)
+                          : (isSimulated
+                              ? const Color(0xFFEAB308)
+                              : const Color(0xFFEF4444)),
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        isOffline
+                            ? Icons.warning_rounded
+                            : (isSimulated
+                                ? Icons.warning_rounded
+                                : Icons.error_rounded),
+                        color: isOffline
+                            ? const Color(0xFF92400E)
+                            : (isSimulated
+                                ? const Color(0xFF92400E)
+                                : const Color(0xFF991B1B)),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isOffline
+                                  ? '⚠️ OFFLINE — No AI Analysis Performed'
+                                  : (isSimulated
+                                      ? '⚠️ NON-DIAGNOSTIC SIMULATION MODE'
+                                      : '⚠️ Missing AI Analysis Data'),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: isOffline
+                                    ? const Color(0xFF92400E)
+                                    : (isSimulated
+                                        ? const Color(0xFF92400E)
+                                        : const Color(0xFF991B1B)),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isOffline
+                                  ? 'This screening was captured without network connectivity. '
+                                  'No AI grader ran on-device. The data shown is NOT a '
+                                  'clinical diagnosis — sync this image at the PHC to '
+                                  'receive the real AI grade.'
+                                  : (isSimulated
+                                      ? 'The server is running in simulation mode: no trained '
+                                      'deep-learning weights are loaded. The DR grade and '
+                                      'biomarkers shown are NOT a clinical diagnosis — they '
+                                      'are generated from image heuristics for testing only. '
+                                      'Deploy real model weights to produce diagnostic results.'
+                                      : 'Some biomarker values were not returned by the AI backend '
+                                      'and are shown as N/A. Do NOT rely on placeholder values '
+                                      'for clinical decisions.'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.3,
+                                color: isOffline
+                                    ? const Color(0xFF78350F)
+                                    : (isSimulated
+                                        ? const Color(0xFF78350E)
+                                        : const Color(0xFF7F1D1D)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+               if (isOffline || hasFallbackData || isSimulated)
+                 const SizedBox(height: 16),
               Card(
                 elevation: 1,
                 shape: RoundedRectangleBorder(
@@ -346,7 +469,7 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
                                   ),
                                   child: Text(
                                     _showGradcam
-                                        ? 'Grad-CAM++ Overlay (${analysis.gradcamTargetLayer ?? "multiscale_vascular_saliency"})'
+                                        ? 'Grad-CAM++ Overlay (${analysis.gradcamTargetLayer ?? "N/A"})'
                                         : 'Original Fundus (${widget.eyeSide})',
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -398,17 +521,18 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
                         children: [
                           _buildBiomarkerMetric(
                             'Microaneurysms',
-                            '${analysis.biomarkers?['microaneurysm_count'] ?? (isSevere ? 14 : 0)}',
+                            _formatBiomarker(analysis.biomarkers?['microaneurysm_count']),
                             Icons.lens_blur,
                           ),
                           _buildBiomarkerMetric(
                             'Vessel Density',
-                            '${analysis.biomarkers?['vessel_density_pct'] ?? "11.2"}%',
+                            _formatBiomarker(analysis.biomarkers?['vessel_density_pct'],
+                                suffix: '%'),
                             Icons.alt_route,
                           ),
                           _buildBiomarkerMetric(
                             'CSME Risk',
-                            '${analysis.biomarkers?['csme_risk'] ?? (isSevere ? "HIGH" : "LOW")}',
+                            _formatBiomarker(analysis.biomarkers?['csme_risk']),
                             Icons.visibility,
                             isAlert: isSevere,
                           ),
@@ -634,5 +758,15 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
         ),
       ),
     );
+  }
+
+  String _formatBiomarker(dynamic value, {String suffix = ''}) {
+    if (value == null) return 'N/A';
+    if (value is double) {
+      final str = value.toStringAsFixed(1);
+      if (suffix.isNotEmpty) return '$str$suffix';
+      return str;
+    }
+    return '$value$suffix';
   }
 }

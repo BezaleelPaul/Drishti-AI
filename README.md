@@ -225,9 +225,11 @@ SIH HACKATHON/
 ### Option A: One-Command Containerized Run (Recommended for Judges)
 Run the entire platform with zero local dependency installation:
 ```bash
+export DRISHTI_API_KEYS='replace-with-a-long-random-key:operator'
 docker compose up
 ```
-Open **http://localhost:8501** in your browser.
+Open **http://localhost:8501** in your browser. Configure the same API key in
+the Flutter client when using the backend (`--dart-define=DRISHTI_API_KEY=...`).
 
 ### Option B: Local Python Environment
 Using Python 3.10+:

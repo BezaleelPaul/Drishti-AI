@@ -19,6 +19,7 @@ class ScreeningResult {
   final String? originalImageUrl;
   final String? gradcamOverlayUrl;
   final String? gradcamTargetLayer;
+  final String? modelBackend;
   final String actionRecommendation;
   final String patientPlainLanguageSummary;
   final String createdAt;
@@ -49,6 +50,7 @@ class ScreeningResult {
     this.originalImageUrl,
     this.gradcamOverlayUrl,
     this.gradcamTargetLayer,
+    this.modelBackend,
     this.actionRecommendation = '',
     this.patientPlainLanguageSummary = '',
     required this.createdAt,
@@ -62,9 +64,9 @@ class ScreeningResult {
   factory ScreeningResult.fromJson(Map<String, dynamic> json) => ScreeningResult(
     screeningId: json['screening_id'] ?? '',
     patientId: json['patient_id'] ?? '',
-    eyeSide: json['eye_side'] ?? 'Right',
-    cameraProfile: json['camera_profile'] ?? 'Generic Fundus Camera',
-    qualityGrade: json['quality_grade'] ?? 'BAD',
+    eyeSide: json['eye_side'] ?? 'Unknown',
+    cameraProfile: json['camera_profile'] ?? 'Unknown',
+    qualityGrade: json['quality_grade'] ?? 'Unknown',
     qualityScore: (json['quality_score'] as num?)?.toDouble() ?? 0.0,
     // NOTE: ungradable (non-GOOD) is fail. BORDERLINE cleared by server-side
     // reassessment arrives as an explicit quality_passed=true from the
@@ -84,6 +86,7 @@ class ScreeningResult {
     originalImageUrl: json['original_image_url']?.toString(),
     gradcamOverlayUrl: json['gradcam_overlay_url']?.toString(),
     gradcamTargetLayer: json['gradcam_target_layer']?.toString(),
+    modelBackend: json['model_backend']?.toString(),
     actionRecommendation: (json['action_recommendation'] ?? '').toString(),
     patientPlainLanguageSummary:
         (json['patient_plain_language_summary'] ?? '').toString(),

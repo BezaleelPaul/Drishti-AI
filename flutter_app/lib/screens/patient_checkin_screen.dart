@@ -74,12 +74,24 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
   }
 
   Future<void> _evaluateRisk() async {
-    final age = int.tryParse(_ageController.text) ?? 50;
-    final bmi = double.tryParse(_bmiController.text) ?? 25.0;
-    final hba1c = double.tryParse(_hba1cController.text);
+    final ageStr = _ageController.text.trim();
+    final bmiStr = _bmiController.text.trim();
+    final hba1c = double.tryParse(_hba1cController.text.trim());
     double years = 5.0;
     if (_diabetesCategory == '< 5 yrs') years = 2.0;
     if (_diabetesCategory == '> 10 yrs') years = 12.0;
+
+    // Do NOT fabricate clinical values when fields are empty or invalid.
+    final age = int.tryParse(ageStr);
+    final bmi = double.tryParse(bmiStr);
+    if (age == null || bmi == null) {
+      if (mounted) {
+        setState(() {
+          _riskAssessment = null;
+        });
+      }
+      return;
+    }
 
     final risk = await widget.apiService.evaluateDiabetesRisk(
       age: age,
@@ -102,7 +114,7 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
     final name = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : 'Ramesh Kumar';
-    final age = int.tryParse(_ageController.text.trim()) ?? 54;
+    final age = int.tryParse(_ageController.text.trim());
     final phone = _phoneController.text.trim().isNotEmpty
         ? _phoneController.text.trim()
         : '+91 98451 22340';
@@ -120,15 +132,15 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
     final patient = PatientModel(
       patientId: 'PT-ASHA-${DateTime.now().millisecondsSinceEpoch % 100000}',
       name: name,
-      age: age,
+      age: age ?? 0,
       gender: _gender,
       phone: phone,
       abhaId: abha,
       village: village,
       knownDiabetes: 'Yes',
       diabetesDurationYears: years,
-      hba1c: double.tryParse(_hba1cController.text.trim()) ?? 8.2,
-      bmi: double.tryParse(_bmiController.text.trim()) ?? 28.4,
+      hba1c: double.tryParse(_hba1cController.text.trim()),
+      bmi: double.tryParse(_bmiController.text.trim()),
       familyHistory: _familyHistory,
     );
 
@@ -554,15 +566,26 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                            if (_riskAssessment!.riskSource == 'heuristic')
                               Text(
-                                'ICMR Risk: ${_riskAssessment!.riskLevel} (${_riskAssessment!.riskScore.toStringAsFixed(0)}/100)',
+                                '⚠️ Risk estimated via ${_riskAssessment!.riskSource} fallback — confirm with lab HbA1c and server risk engine.',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: _riskAssessment!.riskLevel == 'HIGH'
-                                      ? const Color(0xFFDC2626)
-                                      : const Color(0xFF047857),
+                                  fontSize: 11,
+                                  color: Colors.orange.shade800,
+                                  fontStyle: FontStyle.italic,
                                 ),
                               ),
+                            if (_riskAssessment!.riskSource == 'heuristic') const SizedBox(height: 4),
+                            Text(
+                              'ICMR Risk: ${_riskAssessment!.riskLevel} (${_riskAssessment!.riskScore.toStringAsFixed(0)}/100)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: _riskAssessment!.riskLevel == 'HIGH'
+                                    ? Colors.red
+                                    : (_riskAssessment!.riskLevel == 'MODERATE' ? Colors.orange : Colors.green),
+                              ),
+                            ),
                               Text(
                                 _riskAssessment!.patientFriendlyGuidance,
                                 style: const TextStyle(

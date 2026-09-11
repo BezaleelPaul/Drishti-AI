@@ -31,9 +31,9 @@ class PatientModel {
 
   factory PatientModel.fromJson(Map<String, dynamic> json) {
     return PatientModel(
-      patientId: json['patient_id'] ?? 'PT-UNKNOWN',
+      patientId: json['patient_id'] ?? 'Unknown',
       name: json['name'] ?? '',
-      age: json['age'] ?? 45,
+      age: (json['age'] as num?)?.toInt() ?? 0,
       gender: json['gender'] ?? 'Unknown',
       phone: json['phone'] ?? '',
       abhaId: json['abha_id'] ?? '',
@@ -70,6 +70,7 @@ class DiabetesRiskModel {
   final double riskScore;
   final String riskLevel;
   final String pathway;
+  final String riskSource;
   final List<String> clinicalRationale;
   final String actionRecommendation;
   final String patientFriendlyGuidance;
@@ -78,6 +79,7 @@ class DiabetesRiskModel {
     required this.riskScore,
     required this.riskLevel,
     required this.pathway,
+    required this.riskSource,
     required this.clinicalRationale,
     required this.actionRecommendation,
     required this.patientFriendlyGuidance,
@@ -86,8 +88,9 @@ class DiabetesRiskModel {
   factory DiabetesRiskModel.fromJson(Map<String, dynamic> json) {
     return DiabetesRiskModel(
       riskScore: (json['risk_score'] as num?)?.toDouble() ?? 0.0,
-      riskLevel: json['risk_level'] ?? 'LOW',
-      pathway: json['pathway'] ?? 'ROUTINE_MONITORING',
+      riskLevel: json['risk_level'] ?? 'Unknown',
+      pathway: json['pathway'] ?? 'Unknown',
+      riskSource: json['risk_source'] ?? 'unknown',
       clinicalRationale: List<String>.from(json['clinical_rationale'] ?? []),
       actionRecommendation: json['action_recommendation'] ?? '',
       patientFriendlyGuidance: json['patient_friendly_guidance'] ?? '',
@@ -118,8 +121,8 @@ class RetinalQualityModel {
 
   factory RetinalQualityModel.fromJson(Map<String, dynamic> json) {
     return RetinalQualityModel(
-      qualityGrade: json['quality_grade'] ?? 'BORDERLINE',
-      qualityScore: (json['quality_score'] as num?)?.toDouble() ?? 0.5,
+      qualityGrade: json['quality_grade'] ?? 'Unknown',
+      qualityScore: (json['quality_score'] as num?)?.toDouble() ?? 0.0,
       isReliable: json['is_reliable'] ?? false,
       rejectionReasons: List<String>.from(json['rejection_reasons'] ?? []),
       suspectedClinicalCause: json['suspected_clinical_cause'],
@@ -142,17 +145,26 @@ class ScreeningAnalysisModel {
   final int? drGrade;
   final String? drLabel;
   final double? predictionScore;
-  final bool isReferable;
+  final bool? isReferable;
   final bool requiresHumanReview;
   final String? humanReviewType;
   final String? humanReviewReason;
   final String originalImageUrl;
   final String? gradcamOverlayUrl;
   final String? gradcamTargetLayer;
+  final String? modelBackend;
   final String actionRecommendation;
   final String plainLanguageAdvice;
   final String smsReferralSlip;
   final Map<String, dynamic>? biomarkers;
+  // Tracks whether this result was produced without real AI analysis
+  // (e.g. offline capture pending server-side analysis). When true, NO
+  // diagnosis-grade values should have been presented — the UI must show
+  // a data-source warning instead of rendering clinical metrics.
+  final bool isOffline;
+  // Tracks whether any individual value was not returned by the AI backend
+  // and was left null. The UI uses this to flag gaps in the analysis.
+  final bool isFromFallback;
 
   ScreeningAnalysisModel({
     required this.screeningId,
@@ -173,36 +185,42 @@ class ScreeningAnalysisModel {
     required this.originalImageUrl,
     this.gradcamOverlayUrl,
     this.gradcamTargetLayer,
+    this.modelBackend,
     required this.actionRecommendation,
     required this.plainLanguageAdvice,
     required this.smsReferralSlip,
     this.biomarkers,
+    this.isOffline = false,
+    this.isFromFallback = false,
   });
 
   factory ScreeningAnalysisModel.fromJson(Map<String, dynamic> json) {
     return ScreeningAnalysisModel(
-      screeningId: json['screening_id'] ?? 'SCR-DEMO',
+      screeningId: json['screening_id'] ?? 'Unknown',
       patientId: json['patient_id'] ?? '',
-      eyeSide: json['eye_side'] ?? 'Right',
-      cameraProfile: json['camera_profile'] ?? 'Generic',
-      qualityGrade: json['quality_grade'] ?? 'GOOD',
-      qualityScore: (json['quality_score'] as num?)?.toDouble() ?? 0.9,
-      qualityPassed: json['quality_passed'] ?? true,
+      eyeSide: json['eye_side'] ?? 'Unknown',
+      cameraProfile: json['camera_profile'] ?? 'Unknown',
+      qualityGrade: json['quality_grade'] ?? 'Unknown',
+      qualityScore: (json['quality_score'] as num?)?.toDouble() ?? 0.0,
+      qualityPassed: json['quality_passed'] as bool? ?? false,
       rejectionReasons: List<String>.from(json['rejection_reasons'] ?? []),
       drGrade: json['dr_grade'],
       drLabel: json['dr_label'],
       predictionScore: (json['prediction_score'] as num?)?.toDouble(),
-      isReferable: json['is_referable'] ?? false,
+      isReferable: json['is_referable'] as bool?,
       requiresHumanReview: json['requires_human_review'] ?? false,
       humanReviewType: json['human_review_type'],
       humanReviewReason: json['human_review_reason'],
       originalImageUrl: json['original_image_url'] ?? '',
       gradcamOverlayUrl: json['gradcam_overlay_url'],
-      gradcamTargetLayer: json['gradcam_target_layer'],
+      gradcamTargetLayer: json['gradcam_target_layer']?.toString(),
+      modelBackend: json['model_backend']?.toString(),
       actionRecommendation: json['action_recommendation'] ?? '',
       plainLanguageAdvice: json['plain_language_advice'] ?? json['patient_plain_language_summary'] ?? '',
       smsReferralSlip: json['sms_referral_slip'] ?? '',
       biomarkers: json['biomarkers'] as Map<String, dynamic>?,
+      isOffline: json['is_offline'] ?? false,
+      isFromFallback: json['is_from_fallback'] ?? false,
     );
   }
 }

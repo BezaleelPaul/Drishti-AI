@@ -272,7 +272,22 @@ class ApiService {
         );
       }
       throw Exception('Risk assessment failed: ${response.statusCode}');
-    } catch (_) {
+    } on SocketException {
+      return _offlineRiskFallback(age, bmi, familyHistory, knownDiabetesYears, hba1c);
+    } on http.ClientException {
+      return _offlineRiskFallback(age, bmi, familyHistory, knownDiabetesYears, hba1c);
+    } on TimeoutException {
+      return _offlineRiskFallback(age, bmi, familyHistory, knownDiabetesYears, hba1c);
+    }
+  }
+
+  ui.DiabetesRiskModel _offlineRiskFallback(
+    int age,
+    double bmi,
+    bool familyHistory,
+    double? knownDiabetesYears,
+    double? hba1c,
+  ) {
       // Offline heuristic — never presented as a diagnosis.
       double score = 20;
       if (age >= 45) score += 15;
@@ -288,6 +303,7 @@ class ApiService {
         riskScore: score,
         riskLevel: level,
         pathway: 'OFFLINE_HEURISTIC',
+        riskSource: 'heuristic',
         clinicalRationale: const [
           'Offline estimate — confirm with lab HbA1c and server risk engine.',
         ],
@@ -298,7 +314,6 @@ class ApiService {
             ? 'Some risk factors were noted. An eye check and sugar test are advised.'
             : 'Risk looks low today. Keep up healthy habits and recheck yearly.',
       );
-    }
   }
 
   /// Doctor review queue (GET /review/pending). Returns [] when offline
@@ -466,7 +481,13 @@ class ApiService {
         filename: filename,
       );
       final grade = result.drGrade;
-      final isSevere = (grade ?? 0) >= 3;
+      final isOffline = result.qualityGrade == 'PENDING_SYNC';
+      final isFromFallback = result.modelBackend == 'simulated' ||
+          result.microaneurysmCount == null ||
+          result.vesselDensityPct == null ||
+          result.csmeRisk == null ||
+          result.predictionScore == null ||
+          result.isReferable == null;
       return ui.ScreeningAnalysisModel(
         screeningId: result.screeningId,
         patientId: result.patientId,
@@ -479,25 +500,27 @@ class ApiService {
         drGrade: result.drGrade,
         drLabel: result.drLabel,
         predictionScore: result.predictionScore,
-        isReferable: result.isReferable ?? isSevere,
+        isReferable: result.isReferable,
         requiresHumanReview: result.requiresHumanReview,
         humanReviewType: result.humanReviewType,
         humanReviewReason: result.humanReviewReason,
         originalImageUrl: result.originalImageUrl ?? '',
         gradcamOverlayUrl: result.gradcamOverlayUrl,
         gradcamTargetLayer: result.gradcamTargetLayer,
+        modelBackend: result.modelBackend,
         actionRecommendation: result.actionRecommendation,
         plainLanguageAdvice: result.patientPlainLanguageSummary,
         smsReferralSlip:
             'Netra-AI: ${result.drLabel ?? 'Screening complete'} (Grade ${grade ?? '-'}). '
             '${result.actionRecommendation} Screening:${result.screeningId}',
         biomarkers: {
-          'microaneurysm_count':
-              result.microaneurysmCount ?? (isSevere ? 14 : 0),
-          'vessel_density_pct': result.vesselDensityPct ?? 11.2,
-          'csme_risk': result.csmeRisk ?? (isSevere ? 'HIGH' : 'LOW'),
+          'microaneurysm_count': result.microaneurysmCount,
+          'vessel_density_pct': result.vesselDensityPct,
+          'csme_risk': result.csmeRisk,
           'min_fovea_distance_px': result.minFoveaDistancePx,
         },
+        isOffline: isOffline,
+        isFromFallback: isFromFallback,
       );
     } catch (e) {
       // analyzeRetina only throws on server rejection — surface it.

@@ -71,6 +71,10 @@ class DiabetesRiskResponse(BaseModel):
     risk_score: float = Field(..., json_schema_extra={"example": 84.0})  # 0 to 100
     risk_level: str = Field(..., json_schema_extra={"example": "HIGH"})   # 'LOW', 'MODERATE', 'HIGH'
     pathway: str = Field(..., json_schema_extra={"example": "RETINAL_SCREENING_INDICATED"})
+    # 'clinical_rule' for diagnostic biomarkers, 'ml' for model-weighted
+    # prediction, and 'heuristic' when the fallback is used.
+    # Clients MUST treat 'heuristic' as non-diagnostic and warn the user.
+    risk_source: str = Field(..., json_schema_extra={"example": "ml"})
     clinical_rationale: List[str] = Field(default_factory=list)
     action_recommendation: str = Field(..., json_schema_extra={"example": "Retinal imaging indicated for Diabetic Retinopathy screening."})
     patient_friendly_guidance: str = Field(

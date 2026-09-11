@@ -148,8 +148,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
     // be shown — even if a dr_grade somehow arrives with the payload.
     final gradeLeaked = !res.qualityPassed && res.drGrade != null;
     final isPending = res.drGrade == null || gradeLeaked;
-    final isReferable = !isPending && res.isReferable == true;
-    final drGradeLabel = isPending ? 'PENDING' : '${res.drGrade}';
+    final isSimulated = res.modelBackend == 'simulated';
+    final isReferable = !isPending && !isSimulated && res.isReferable == true;
+    final drGradeLabel = (isPending || isSimulated) ? 'PENDING' : '${res.drGrade}';
 
     return Scaffold(
       appBar: AppBar(
@@ -165,10 +166,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isPending ? const Color(0xFFFFFBEB) : (isReferable ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4)),
+                  color: (isPending || isSimulated)
+                      ? const Color(0xFFFFFBEB)
+                      : (isReferable ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4)),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isPending ? Colors.amber.shade600 : (isReferable ? const Color(0xFFF87171) : Colors.green.shade400),
+                    color: (isPending || isSimulated)
+                        ? Colors.amber.shade600
+                        : (isReferable ? const Color(0xFFF87171) : Colors.green.shade400),
                     width: 1.5,
                   ),
                 ),
@@ -178,17 +183,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     Row(
                       children: [
                         Icon(
-                          isPending ? Icons.hourglass_top : (isReferable ? Icons.crisis_alert : Icons.check_circle),
-                          color: isPending ? Colors.amber.shade800 : (isReferable ? Colors.red.shade700 : Colors.green.shade700),
+                          isPending ? Icons.hourglass_top : (isSimulated ? Icons.warning_rounded : (isReferable ? Icons.crisis_alert : Icons.check_circle)),
+                          color: isPending ? Colors.amber.shade800 : (isSimulated ? Colors.orange.shade700 : (isReferable ? Colors.red.shade700 : Colors.green.shade700)),
                           size: 26,
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          isPending ? 'ANALYSIS PENDING — NO GRADE ASSIGNED' : (isReferable ? 'URGENT SPECIALIST REFERRAL' : 'HEALTHY RETINA — NO DR'),
+                          isPending ? 'ANALYSIS PENDING — NO GRADE ASSIGNED' : (isSimulated ? '⚠️ SIMULATION MODE — NOT A DIAGNOSIS' : (isReferable ? 'URGENT SPECIALIST REFERRAL' : 'HEALTHY RETINA — NO DR')),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isPending ? Colors.amber.shade900 : (isReferable ? Colors.red.shade900 : Colors.green.shade900),
+                            color: isPending ? Colors.amber.shade900 : (isSimulated ? Colors.orange.shade900 : (isReferable ? Colors.red.shade900 : Colors.green.shade900)),
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -210,18 +215,24 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       ),
                     if (gradeLeaked) const SizedBox(height: 6),
                     Text(
-                      isPending ? 'GRADE: PENDING (image queued for server analysis)' : 'GRADE $drGradeLabel: ${res.drLabel?.toUpperCase() ?? "UNKNOWN"}',
+                      (isPending || isSimulated) ? 'GRADE: PENDING (image queued for server analysis)' : 'GRADE $drGradeLabel: ${res.drLabel?.toUpperCase() ?? "UNKNOWN"}',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: isReferable ? Colors.red.shade800 : Colors.green.shade800,
+                        color: (isPending || isSimulated) ? Colors.amber.shade800 : (isReferable ? Colors.red.shade800 : Colors.green.shade800),
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${res.predictionScore != null ? "Confidence: ${(res.predictionScore! * 100).toStringAsFixed(1)}% • " : ""}${widget.eyeSide} Eye (${widget.cameraProfile})',
+                      '${(res.predictionScore != null && !isSimulated) ? "Confidence: ${(res.predictionScore! * 100).toStringAsFixed(1)}% • " : (isSimulated ? "Confidence: N/A (Simulated) • " : "")}${widget.eyeSide} Eye (${widget.cameraProfile})',
                       style: const TextStyle(fontSize: 12, color: Colors.black54),
                     ),
+                    if (isSimulated)
+                      Text(
+                        '⚠️ Non-diagnostic: server running without trained model weights. Simulated output for demo/testing only.',
+                        style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+                      ),
+                    if (isSimulated) const SizedBox(height: 2),
                     Text(
                       res.capturedAt != null && res.capturedAt!.isNotEmpty
                           ? 'Captured in field: ${res.capturedAt}'
@@ -234,7 +245,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isPending ? Colors.amber.shade900 : (isReferable ? Colors.red.shade900 : Colors.green.shade900),
+                        color: isPending ? Colors.amber.shade900 : (isSimulated ? Colors.orange.shade900 : (isReferable ? Colors.red.shade900 : Colors.green.shade900)),
                       ),
                     ),
                   ],
@@ -292,9 +303,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                   gradient: RadialGradient(
                                     center: Alignment.center,
                                     radius: 0.8,
-                                    colors: isReferable
-                                        ? [Colors.red.withValues(alpha: 0.65), Colors.orange.withValues(alpha: 0.3), Colors.transparent]
-                                        : [Colors.blue.withValues(alpha: 0.3), Colors.transparent],
+                                      colors: (isPending || isSimulated)
+                                        ? [Colors.blue.withValues(alpha: 0.3), Colors.transparent]
+                                        : (isReferable
+                                          ? [Colors.red.withValues(alpha: 0.65), Colors.orange.withValues(alpha: 0.3), Colors.transparent]
+                                          : [Colors.blue.withValues(alpha: 0.3), Colors.transparent]),
                                   ),
                                 ),
                               ),

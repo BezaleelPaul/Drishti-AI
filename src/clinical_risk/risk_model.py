@@ -135,6 +135,7 @@ class DiabetesRiskModel:
                 action_recommendation=(
                     "Proceed immediately to AI-assisted retinal screening for diabetic retinopathy triage."
                 ),
+                risk_source="clinical_rule",
             )
 
         # 2. Laboratory Biomarker Verification (Physician Diagnostic Criteria)
@@ -149,6 +150,7 @@ class DiabetesRiskModel:
                 action_recommendation=(
                     "HbA1c indicates diabetes. Proceed to retinal fundus screening and physician consult."
                 ),
+                risk_source="clinical_rule",
             )
 
         if profile.fasting_glucose_mg_dl is not None and profile.fasting_glucose_mg_dl >= 126.0:
@@ -162,6 +164,7 @@ class DiabetesRiskModel:
                 action_recommendation=(
                     "Fasting blood glucose diagnostic of diabetes. Proceed to retinal screening and physician consult."
                 ),
+                risk_source="clinical_rule",
             )
 
         if profile.random_glucose_mg_dl is not None and profile.random_glucose_mg_dl >= 200.0:
@@ -177,6 +180,7 @@ class DiabetesRiskModel:
                 action_recommendation=(
                     "Random blood glucose diagnostic of diabetes. Proceed to retinal screening and physician consult."
                 ),
+                risk_source="clinical_rule",
             )
 
         # 3. Machine Learning Risk Prediction (Random Forest)
@@ -208,6 +212,7 @@ class DiabetesRiskModel:
             s += min(symptom_cnt * 6.0, 18.0)
             return min(s, 100.0)
 
+        risk_source = 'ml'
         if self.ml_model is not None:
             try:
                 import pandas as pd
@@ -215,6 +220,7 @@ class DiabetesRiskModel:
                 logger.warning("pandas not available; falling back to heuristic diabetes risk estimate.")
                 rationale.append("ML library (pandas) unavailable; using heuristic fallback risk estimate.")
                 score = _heuristic_score()
+                risk_source = 'heuristic'
             else:
                 try:
                     features = pd.DataFrame([[
@@ -244,10 +250,12 @@ class DiabetesRiskModel:
                         "ML prediction unavailable; using heuristic fallback risk estimate."
                     )
                     score = _heuristic_score()
+                    risk_source = 'heuristic'
         else:
             logger.warning("ML model not loaded; using heuristic diabetes risk estimate.")
             # Fallback heuristic calculation if model file not available
             score = _heuristic_score()
+            risk_source = 'heuristic'
 
         # Explain top patient contributors
         if age_val >= 45:
@@ -291,6 +299,7 @@ class DiabetesRiskModel:
                     "(Fasting Plasma Glucose and HbA1c) for physician diagnosis. "
                     "If confirmed, patient must enroll in annual retinal screening."
                 ),
+                risk_source=risk_source,
             )
         elif score >= 30.0:
             return DiabetesRiskAssessment(
@@ -303,6 +312,7 @@ class DiabetesRiskModel:
                     "Moderate diabetes risk. Recommend routine screening glucose check "
                     "and lifestyle counseling at primary healthcare centre."
                 ),
+                risk_source=risk_source,
             )
         else:
             return DiabetesRiskAssessment(
@@ -314,4 +324,5 @@ class DiabetesRiskModel:
                 action_recommendation=(
                     "Low risk. Encourage healthy diet, active lifestyle, and routine re-evaluation every 3 years."
                 ),
+                risk_source=risk_source,
             )

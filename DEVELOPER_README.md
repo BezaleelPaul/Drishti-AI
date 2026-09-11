@@ -30,6 +30,7 @@ Whether you are on **Windows** or **macOS**, this repository includes automated,
 
 ### 🐳 If You Prefer Docker (Any OS):
 ```bash
+export DRISHTI_API_KEYS='replace-with-a-long-random-key:operator'
 docker compose up
 ```
 Open **http://localhost:8501** in your browser.

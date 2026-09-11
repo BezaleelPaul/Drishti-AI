@@ -104,7 +104,7 @@ class Patient {
     bloodPressure: json['blood_pressure'] ?? '',
     bmi: (json['bmi'] as num?)?.toDouble(),
     familyHistory: json['family_history'] == true || json['family_history'] == 1,
-    physicalActivity: json['physical_activity'] ?? 'Moderate',
+    physicalActivity: json['physical_activity'] ?? 'Unknown',
     symptoms: _parseSymptoms(json['symptoms']),
     createdAt: json['created_at']?.toString(),
   );

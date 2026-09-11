@@ -8,6 +8,10 @@ from PIL import Image
 from src.pipeline.schema import DRClassificationResult, DRGrade
 
 
+class ClinicalModelUnavailableError(RuntimeError):
+    """Raised when clinical inference cannot run with real model weights."""
+
+
 class DRClassifier:
     """
     Model 2: Diabetic Retinopathy 5-Class Severity Classifier.

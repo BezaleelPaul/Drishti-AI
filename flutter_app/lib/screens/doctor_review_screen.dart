@@ -20,35 +20,6 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
   bool _isLoading = false;
   List<Map<String, dynamic>> _pendingCases = [];
 
-  final List<Map<String, dynamic>> _mockPendingCases = [
-    {
-      'review_id': 'REV-260909-01',
-      'patient_name': 'Ramesh Kumar (54y, M)',
-      'abha_id': '91-4521-8890-3321',
-      'screening_id': 'SCR-260909-A101',
-      'eye_side': 'Right Eye (OD)',
-      'dr_grade': 3,
-      'dr_label': 'Severe NPDR',
-      'reason': 'Mandatory safety protocol: Grade 3/4 always requires specialist audit.',
-      'confidence': '91.2%',
-      'priority': 'High (Refer within 30 days)',
-      'is_signed_off': false,
-    },
-    {
-      'review_id': 'REV-260909-02',
-      'patient_name': 'Anand Verma (62y, M)',
-      'abha_id': '91-3312-9901-4455',
-      'screening_id': 'SCR-260909-B202',
-      'eye_side': 'Left Eye (OS)',
-      'dr_grade': 2,
-      'dr_label': 'Moderate NPDR',
-      'reason': 'Low softmax top-1 confidence (58.4% < 65% clinical threshold).',
-      'confidence': '58.4%',
-      'priority': 'Medium (Routine audit)',
-      'is_signed_off': false,
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -63,22 +34,35 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
         _isLoading = false;
         if (remoteCases.isNotEmpty) {
           _pendingCases = remoteCases.map((item) {
+            final rawGrade = item['dr_grade'];
+            final int? parsedGrade = rawGrade == null
+                ? null
+                : (rawGrade is int
+                    ? rawGrade
+                    : int.tryParse(rawGrade.toString()));
+            final rawConf = item['confidence'];
+            final String confidenceStr = rawConf != null
+                ? '${(rawConf * 100).toStringAsFixed(1)}%'
+                : 'N/A';
             return {
-              'review_id': item['review_id'] ?? item['id'] ?? 'REV-AUTO',
-              'patient_name': item['patient_name'] ?? 'Registered Patient',
-              'abha_id': item['abha_id'] ?? '91-4500-0000-0000',
-              'screening_id': item['screening_id'] ?? 'SCR-LIVE',
-              'eye_side': item['eye_side'] ?? 'OD',
-              'dr_grade': item['dr_grade'] ?? 3,
-              'dr_label': item['dr_label'] ?? 'Referral Required',
-              'reason': item['reason'] ?? 'AI referral flagged for specialist sign-off.',
-              'confidence': item['confidence'] != null ? '${(item['confidence'] * 100).toStringAsFixed(1)}%' : '88.5%',
-              'priority': item['priority'] ?? 'Clinical Audit',
+              'review_id': item['review_id'] ?? item['id'] ?? 'Unknown',
+              'patient_name': item['patient_name'] ?? 'Unknown',
+              'abha_id': item['abha_id'] ?? 'Unknown',
+              'screening_id': item['screening_id'] ?? 'Unknown',
+              'eye_side': item['eye_side'] ?? 'Unknown',
+              'dr_grade': parsedGrade,
+              'dr_label': item['dr_label'] ?? 'Unknown',
+              'reason': item['reason'] ?? 'No reason provided by AI backend.',
+              'confidence': confidenceStr,
+              'priority': item['priority'] ?? 'Review Required',
               'is_signed_off': item['status'] == 'APPROVED' || item['status'] == 'COMPLETED',
             };
           }).toList();
         } else {
-          _pendingCases = List.from(_mockPendingCases);
+          // No remote cases and no cached queue: truly nothing to review.
+          // Do NOT inject mock patient data — that would present fabricated
+          // clinical records as real.
+          _pendingCases = [];
         }
       });
     }

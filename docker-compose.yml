@@ -12,6 +12,8 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
+        - ENV=prod
+        - DRISHTI_API_KEYS=${DRISHTI_API_KEYS:?Set DRISHTI_API_KEYS to key:role before starting the backend}
     volumes:
       - ./data:/app/data
       - ./results:/app/results
