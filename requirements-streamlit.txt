@@ -1,0 +1,28 @@
+# Streamlit Community Cloud deploy file for the validation dashboard.
+# Entry point: demo/app.py (set as "Main file path" in the Cloud dashboard).
+# Streamlit Cloud auto-redeploys on every push to the tracked branch.
+#
+# Lean by design: demo/app.py's import closure (src.clinical_risk,
+# src.pipeline.router, src.quality, src.segmentation, src.simulation,
+# src.reporting) needs NO web-server stack and NO DL backend at import time:
+#   - tensorflow / keras / torch / torchvision are lazy imports inside
+#     functions that only run when model weights exist. Weights
+#     (*.keras, *.pt) are gitignored, so Cloud runs the deterministic
+#     "simulated" classifier backend — UI + pipeline preview, not clinical
+#     inference.
+#   - fastapi / uvicorn / pydantic / httpx / requests serve the API backend
+#     (api/), which the Streamlit demo never imports.
+# Pins mirror the proven requirements-runtime.txt combination.
+numpy==2.4.6
+pandas==3.0.5
+scikit-learn==1.9.0
+scipy==1.17.1
+Pillow==12.3.0
+opencv-python-headless==5.0.0.93
+joblib==1.6.0
+
+# Clinical Reporting (PDF + FHIR export in demo/app.py)
+reportlab==5.0.1
+
+# Validation Dashboard
+streamlit==1.63.0
