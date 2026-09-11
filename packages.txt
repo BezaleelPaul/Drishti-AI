@@ -1,4 +1,2 @@
-# Streamlit Community Cloud system packages (installed via apt).
-# Safety net for opencv / image-codec native libs on the Cloud base image.
 libgl1
 libglib2.0-0
