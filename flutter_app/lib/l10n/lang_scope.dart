@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app_strings.dart';
 
 /// Figma prototype languages: English, Kannada, Hindi, Telugu, Tamil.
@@ -11,9 +12,31 @@ extension AppLangMeta on AppLang {
       FigmaStrings.languageNames[code] ?? code.toUpperCase();
 }
 
-/// App-wide language state. Held by [NetraAiApp], read via [BuildContext.tr].
+/// App-wide language state, persisted across restarts.
+/// Held by [NetraAiApp], read via [BuildContext.tr].
 class LangController extends ValueNotifier<AppLang> {
-  LangController() : super(AppLang.en);
+  static const _prefsKey = 'drishti_lang';
+
+  LangController() : super(AppLang.en) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_prefsKey);
+    if (code == null) return;
+    final match = AppLang.values.where((l) => l.code == code);
+    if (match.isNotEmpty) value = match.first;
+  }
+
+  @override
+  set value(AppLang next) {
+    if (value == next) return;
+    super.value = next;
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setString(_prefsKey, next.code),
+    );
+  }
 }
 
 class LangScope extends InheritedNotifier<LangController> {

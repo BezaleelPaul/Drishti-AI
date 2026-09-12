@@ -92,9 +92,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 16),
-              Text('Running server-side quality gate + DR grading...', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Running server-side quality gate + DR grading...',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               SizedBox(height: 4),
-              Text('Includes Grad-CAM++ explainability overlay', style: TextStyle(color: Colors.black54, fontSize: 12)),
+              Text(
+                'Includes Grad-CAM++ explainability overlay',
+                style: TextStyle(color: Colors.black54, fontSize: 12),
+              ),
             ],
           ),
         ),
@@ -112,13 +118,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
               children: [
                 const Icon(Icons.cloud_off, size: 48, color: Colors.orange),
                 const SizedBox(height: 12),
-                const Text('Analysis unavailable', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Analysis unavailable',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                Text(_errorMessage ?? 'No result returned by the server.',
-                    textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
+                Text(
+                  _errorMessage ?? 'No result returned by the server.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black54),
+                ),
                 const SizedBox(height: 8),
-                const Text('No diagnosis is shown without a verified server result.',
-                    textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black45)),
+                const Text(
+                  'No diagnosis is shown without a verified server result.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.black45),
+                ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -150,11 +165,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final isPending = res.drGrade == null || gradeLeaked;
     final isSimulated = res.modelBackend == 'simulated';
     final isReferable = !isPending && !isSimulated && res.isReferable == true;
-    final drGradeLabel = (isPending || isSimulated) ? 'PENDING' : '${res.drGrade}';
+    final drGradeLabel = (isPending || isSimulated)
+        ? 'PENDING'
+        : '${res.drGrade}';
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Diagnostic Report (${widget.patient.name})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: Text(
+          'Diagnostic Report (${widget.patient.name})',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -168,12 +188,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 decoration: BoxDecoration(
                   color: (isPending || isSimulated)
                       ? const Color(0xFFFFFBEB)
-                      : (isReferable ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4)),
+                      : (isReferable
+                            ? const Color(0xFFFEF2F2)
+                            : const Color(0xFFF0FDF4)),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: (isPending || isSimulated)
                         ? Colors.amber.shade600
-                        : (isReferable ? const Color(0xFFF87171) : Colors.green.shade400),
+                        : (isReferable
+                              ? const Color(0xFFF87171)
+                              : Colors.green.shade400),
                     width: 1.5,
                   ),
                 ),
@@ -183,17 +207,41 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     Row(
                       children: [
                         Icon(
-                          isPending ? Icons.hourglass_top : (isSimulated ? Icons.warning_rounded : (isReferable ? Icons.crisis_alert : Icons.check_circle)),
-                          color: isPending ? Colors.amber.shade800 : (isSimulated ? Colors.orange.shade700 : (isReferable ? Colors.red.shade700 : Colors.green.shade700)),
+                          isPending
+                              ? Icons.hourglass_top
+                              : (isSimulated
+                                    ? Icons.warning_rounded
+                                    : (isReferable
+                                          ? Icons.crisis_alert
+                                          : Icons.check_circle)),
+                          color: isPending
+                              ? Colors.amber.shade800
+                              : (isSimulated
+                                    ? Colors.orange.shade700
+                                    : (isReferable
+                                          ? Colors.red.shade700
+                                          : Colors.green.shade700)),
                           size: 26,
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          isPending ? 'ANALYSIS PENDING — NO GRADE ASSIGNED' : (isSimulated ? '⚠️ SIMULATION MODE — NOT A DIAGNOSIS' : (isReferable ? 'URGENT SPECIALIST REFERRAL' : 'HEALTHY RETINA — NO DR')),
+                          isPending
+                              ? 'ANALYSIS PENDING — NO GRADE ASSIGNED'
+                              : (isSimulated
+                                    ? '⚠️ SIMULATION MODE — NOT A DIAGNOSIS'
+                                    : (isReferable
+                                          ? 'URGENT SPECIALIST REFERRAL'
+                                          : 'HEALTHY RETINA — NO DR')),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isPending ? Colors.amber.shade900 : (isSimulated ? Colors.orange.shade900 : (isReferable ? Colors.red.shade900 : Colors.green.shade900)),
+                            color: isPending
+                                ? Colors.amber.shade900
+                                : (isSimulated
+                                      ? Colors.orange.shade900
+                                      : (isReferable
+                                            ? Colors.red.shade900
+                                            : Colors.green.shade900)),
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -210,34 +258,54 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         ),
                         child: const Text(
                           'Image failed the quality gate — grade withheld. Retake the photograph; do not act on any grade for this image.',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF92400E),
+                          ),
                         ),
                       ),
                     if (gradeLeaked) const SizedBox(height: 6),
                     Text(
-                      (isPending || isSimulated) ? 'GRADE: PENDING (image queued for server analysis)' : 'GRADE $drGradeLabel: ${res.drLabel?.toUpperCase() ?? "UNKNOWN"}',
+                      (isPending || isSimulated)
+                          ? 'GRADE: PENDING (image queued for server analysis)'
+                          : 'GRADE $drGradeLabel: ${res.drLabel?.toUpperCase() ?? "UNKNOWN"}',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: (isPending || isSimulated) ? Colors.amber.shade800 : (isReferable ? Colors.red.shade800 : Colors.green.shade800),
+                        color: (isPending || isSimulated)
+                            ? Colors.amber.shade800
+                            : (isReferable
+                                  ? Colors.red.shade800
+                                  : Colors.green.shade800),
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${(res.predictionScore != null && !isSimulated) ? "Confidence: ${(res.predictionScore! * 100).toStringAsFixed(1)}% • " : (isSimulated ? "Confidence: N/A (Simulated) • " : "")}${widget.eyeSide} Eye (${widget.cameraProfile})',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
                     ),
                     if (isSimulated)
                       Text(
                         '⚠️ Non-diagnostic: server running without trained model weights. Simulated output for demo/testing only.',
-                        style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.orange.shade800,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     if (isSimulated) const SizedBox(height: 2),
                     Text(
                       res.capturedAt != null && res.capturedAt!.isNotEmpty
                           ? 'Captured in field: ${res.capturedAt}'
                           : 'Captured: ${res.createdAt}',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
                     ),
                     const Divider(height: 16),
                     Text(
@@ -245,7 +313,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isPending ? Colors.amber.shade900 : (isSimulated ? Colors.orange.shade900 : (isReferable ? Colors.red.shade900 : Colors.green.shade900)),
+                        color: isPending
+                            ? Colors.amber.shade900
+                            : (isSimulated
+                                  ? Colors.orange.shade900
+                                  : (isReferable
+                                        ? Colors.red.shade900
+                                        : Colors.green.shade900)),
                       ),
                     ),
                   ],
@@ -254,7 +328,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
               const SizedBox(height: 16),
 
               // Retinal Inspection Split View
-              const Text('Visual Explainability Inspection (Grad-CAM++)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const Text(
+                'Visual Explainability Inspection (Grad-CAM++)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -262,7 +339,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Original Fundus', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                        const Text(
+                          'Original Fundus',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                         const SizedBox(height: 4),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -271,7 +351,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                             height: 150,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(height: 150, color: Colors.grey.shade300),
+                            errorBuilder: (c, e, s) => Container(
+                              height: 150,
+                              color: Colors.grey.shade300,
+                            ),
                           ),
                         ),
                       ],
@@ -282,7 +365,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Grad-CAM++ Attention', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                        const Text(
+                          'Grad-CAM++ Attention',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                         const SizedBox(height: 4),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -294,7 +380,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                 height: 150,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
-                                errorBuilder: (c, e, s) => Container(height: 150, color: Colors.grey.shade300),
+                                errorBuilder: (c, e, s) => Container(
+                                  height: 150,
+                                  color: Colors.grey.shade300,
+                                ),
                               ),
                               // Heatmap overlay simulation
                               Container(
@@ -303,11 +392,27 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                   gradient: RadialGradient(
                                     center: Alignment.center,
                                     radius: 0.8,
-                                      colors: (isPending || isSimulated)
-                                        ? [Colors.blue.withValues(alpha: 0.3), Colors.transparent]
+                                    colors: (isPending || isSimulated)
+                                        ? [
+                                            Colors.blue.withValues(alpha: 0.3),
+                                            Colors.transparent,
+                                          ]
                                         : (isReferable
-                                          ? [Colors.red.withValues(alpha: 0.65), Colors.orange.withValues(alpha: 0.3), Colors.transparent]
-                                          : [Colors.blue.withValues(alpha: 0.3), Colors.transparent]),
+                                              ? [
+                                                  Colors.red.withValues(
+                                                    alpha: 0.65,
+                                                  ),
+                                                  Colors.orange.withValues(
+                                                    alpha: 0.3,
+                                                  ),
+                                                  Colors.transparent,
+                                                ]
+                                              : [
+                                                  Colors.blue.withValues(
+                                                    alpha: 0.3,
+                                                  ),
+                                                  Colors.transparent,
+                                                ]),
                                   ),
                                 ),
                               ),
@@ -315,9 +420,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                 bottom: 6,
                                 right: 6,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
-                                  child: const Text('Illustrative overlay*', style: TextStyle(color: Colors.white, fontSize: 10)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black87,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'Illustrative overlay*',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -330,27 +447,62 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ),
               const Padding(
                 padding: EdgeInsets.only(top: 4.0),
-                child: Text('*On-device illustration only — the verified Grad-CAM++ heatmap is served with the server result.',
-                    style: TextStyle(fontSize: 10, color: Colors.black45)),
+                child: Text(
+                  '*On-device illustration only — the verified Grad-CAM++ heatmap is served with the server result.',
+                  style: TextStyle(fontSize: 10, color: Colors.black45),
+                ),
               ),
               const SizedBox(height: 16),
 
               // 2x2 Biomarker Grid
-              const Text('Extracted Clinical Biomarkers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const Text(
+                'Extracted Clinical Biomarkers',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: _buildBiomarkerTile('Vessel Density', _vesselDensity != null ? '$_vesselDensity%' : 'N/A', 'Normal: 12-16%', Icons.timeline)),
+                  Expanded(
+                    child: _buildBiomarkerTile(
+                      'Vessel Density',
+                      _vesselDensity != null ? '$_vesselDensity%' : 'N/A',
+                      'Normal: 12-16%',
+                      Icons.timeline,
+                    ),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: _buildBiomarkerTile('CSME Edema Risk', _csmeRisk?.split(' ').first ?? 'N/A', 'ETDRS <500µm Rule', Icons.remove_red_eye)),
+                  Expanded(
+                    child: _buildBiomarkerTile(
+                      'CSME Edema Risk',
+                      _csmeRisk?.split(' ').first ?? 'N/A',
+                      'ETDRS <500µm Rule',
+                      Icons.remove_red_eye,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: _buildBiomarkerTile('Lesion / MA Count', _hemorrhageCount?.toString() ?? 'N/A', 'Sub-pixel morphology', Icons.scatter_plot)),
+                  Expanded(
+                    child: _buildBiomarkerTile(
+                      'Lesion / MA Count',
+                      _hemorrhageCount?.toString() ?? 'N/A',
+                      'Sub-pixel morphology',
+                      Icons.scatter_plot,
+                    ),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: _buildBiomarkerTile('Total Wait', _aiLatency != null ? '${_aiLatency!.toStringAsFixed(1)}s' : 'N/A', 'Request round-trip', Icons.speed)),
+                  Expanded(
+                    child: _buildBiomarkerTile(
+                      'Total Wait',
+                      _aiLatency != null
+                          ? '${_aiLatency!.toStringAsFixed(1)}s'
+                          : 'N/A',
+                      'Request round-trip',
+                      Icons.speed,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 18),
@@ -361,13 +513,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   backgroundColor: const Color(0xFF1A56DB),
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 icon: const Icon(Icons.sms),
-                label: const Text('📲 Send Free SMS Referral Slip to Patient'),
+                label: const Text(
+                  '📲 Send Free SMS Referral Slip to Patient (Demo)',
+                ),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Demo build: SMS not sent. Server referral slip: ${res.actionRecommendation}')),
+                    SnackBar(
+                      content: Text(
+                        'Demo build: SMS not sent. Server referral slip: ${res.actionRecommendation}',
+                      ),
+                    ),
                   );
                 },
               ),
@@ -375,13 +535,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(46),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 icon: const Icon(Icons.print),
-                label: const Text('🖨️ Print 2-Inch Thermal Receipt'),
+                label: const Text('🖨️ Print 2-Inch Thermal Receipt (Demo)'),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Demo build: no printer connected. Use the server PDF for print.')),
+                    const SnackBar(
+                      content: Text(
+                        'Demo build: no printer connected. Use the server PDF for print.',
+                      ),
+                    ),
                   );
                 },
               ),
@@ -389,13 +555,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(46),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 icon: const Icon(Icons.cloud_upload_outlined),
-                label: const Text('📄 Export ABDM FHIR R4 Bundle'),
+                label: const Text('📄 Export ABDM FHIR R4 Bundle (Demo)'),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Demo build: FHIR export runs on the server, not on-device.')),
+                    const SnackBar(
+                      content: Text(
+                        'Demo build: FHIR export runs on the server, not on-device.',
+                      ),
+                    ),
                   );
                 },
               ),
@@ -407,14 +579,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   backgroundColor: Colors.teal.shade700,
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 icon: const Icon(Icons.person_add),
-                label: const Text('Start Next Patient Screen ➕', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Start Next Patient Screen ➕',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(builder: (context) => const CheckInScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const CheckInScreen(),
+                    ),
                     (route) => false,
                   );
                 },
@@ -426,7 +605,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  Widget _buildBiomarkerTile(String title, String value, String subtitle, IconData icon) {
+  Widget _buildBiomarkerTile(
+    String title,
+    String value,
+    String subtitle,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -441,12 +625,24 @@ class _ResultsScreenState extends State<ResultsScreen> {
             children: [
               Icon(icon, size: 16, color: const Color(0xFF1A56DB)),
               const SizedBox(width: 4),
-              Expanded(child: Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54), overflow: TextOverflow.ellipsis)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.black45)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            subtitle,
+            style: const TextStyle(fontSize: 10, color: Colors.black45),
+          ),
         ],
       ),
     );

@@ -28,10 +28,26 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
   String _selectedAssetImage = 'assets/images/scenario_1_good.jpg';
 
   final List<Map<String, String>> _sampleImages = [
-    {'name': 'Clear Fundus (Good)', 'path': 'assets/images/scenario_1_good.jpg', 'quality': 'pass'},
-    {'name': 'Motion Blur / Defocused (Bad)', 'path': 'assets/images/scenario_2_bad.jpg', 'quality': 'fail'},
-    {'name': 'Marginal Illumination (Borderline)', 'path': 'assets/images/scenario_3_borderline.jpg', 'quality': 'borderline'},
-    {'name': 'Severe NPDR (Referral)', 'path': 'assets/images/3_severe_eye_referral.jpg', 'quality': 'pass'},
+    {
+      'name': 'Clear Fundus (Good)',
+      'path': 'assets/images/scenario_1_good.jpg',
+      'quality': 'pass',
+    },
+    {
+      'name': 'Motion Blur / Defocused (Bad)',
+      'path': 'assets/images/scenario_2_bad.jpg',
+      'quality': 'fail',
+    },
+    {
+      'name': 'Marginal Illumination (Borderline)',
+      'path': 'assets/images/scenario_3_borderline.jpg',
+      'quality': 'borderline',
+    },
+    {
+      'name': 'Severe NPDR (Referral)',
+      'path': 'assets/images/3_severe_eye_referral.jpg',
+      'quality': 'pass',
+    },
   ];
 
   Future<void> _runQualityCheck(String assetPath) async {
@@ -44,17 +60,29 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
     try {
       final byteData = await rootBundle.load(assetPath);
       final bytes = byteData.buffer.asUint8List();
-      final result = await _apiService.assessQuality(bytes, cameraProfile: _cameraPreset);
+      final result = await _apiService.assessQuality(
+        bytes,
+        cameraProfile: _cameraPreset,
+      );
 
       if (!mounted) return;
       final grade = (result['quality_grade'] ?? 'BAD').toString();
-      final reasonsList = (result['rejection_reasons'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final reasonsList =
+          (result['rejection_reasons'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
       final reasons = reasonsList.join(' ');
       final operatorAction = (result['operator_action'] ?? '').toString();
       final hindiTip = (result['audio_guidance_hindi'] ?? '').toString();
-      final detail = [reasons, operatorAction].where((s) => s.isNotEmpty).join(' ');
+      final detail = [
+        reasons,
+        operatorAction,
+      ].where((s) => s.isNotEmpty).join(' ');
       final score = (result['quality_score'] as num?)?.toDouble();
-      final scoreTxt = score != null ? ' (Score: ${(score * 100).toInt()}%)' : '';
+      final scoreTxt = score != null
+          ? ' (Score: ${(score * 100).toInt()}%)'
+          : '';
       setState(() {
         _isAssessing = false;
         _isQualityChecked = true;
@@ -66,16 +94,19 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
         } else if (grade == 'BORDERLINE') {
           _qualityPassed = true;
           _isOfflinePending = false;
-          _qualityMessage = 'Borderline quality$scoreTxt — proceeding under reassessment. $detail'
+          _qualityMessage =
+              'Borderline quality$scoreTxt — proceeding under reassessment. $detail'
               '${hindiTip.isNotEmpty ? "\nहिंदी: $hindiTip" : ""}';
         } else if (grade == 'PENDING_SYNC') {
           _qualityPassed = false;
           _isOfflinePending = true;
-          _qualityMessage = 'Offline — image queued; server quality gate runs on sync. $detail';
+          _qualityMessage =
+              'Offline — image queued; server quality gate runs on sync. $detail';
         } else {
           _qualityPassed = false;
           _isOfflinePending = false;
-          _qualityMessage = 'Retake Required$scoreTxt. $detail'
+          _qualityMessage =
+              'Retake Required$scoreTxt. $detail'
               '${hindiTip.isNotEmpty ? "\nहिंदी: $hindiTip" : ""}';
         }
       });
@@ -105,7 +136,10 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Retinal Viewfinder ($_selectedEye)', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        title: Text(
+          'Retinal Viewfinder ($_selectedEye)',
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -121,12 +155,31 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                       initialValue: _cameraPreset,
                       decoration: InputDecoration(
                         labelText: 'Hardware Camera Preset',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                      items: ['Forus 3nethra Classic', 'Remidio FOP', 'Volk iNview', 'Generic Fundus Camera']
-                          .map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 13))))
-                          .toList(),
+                      items:
+                          [
+                                'Forus 3nethra Classic',
+                                'Remidio FOP',
+                                'Volk iNview',
+                                'Generic Fundus Camera',
+                              ]
+                              .map(
+                                (c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(
+                                    c,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              )
+                              .toList(),
                       onChanged: (v) {
                         setState(() {
                           _cameraPreset = v ?? _cameraPreset;
@@ -144,7 +197,8 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                       ButtonSegment(value: 'OS', label: Text('OS (L)')),
                     ],
                     selected: {_selectedEye},
-                    onSelectionChanged: (s) => setState(() => _selectedEye = s.first),
+                    onSelectionChanged: (s) =>
+                        setState(() => _selectedEye = s.first),
                   ),
                 ],
               ),
@@ -163,19 +217,28 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                         color: Colors.black,
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, spreadRadius: 2),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
                         ],
                       ),
                       child: ClipOval(
                         child: Image.asset(
                           _selectedAssetImage,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            color: Colors.grey.shade900,
-                            child: const Center(
-                              child: Icon(Icons.remove_red_eye, color: Colors.white54, size: 60),
-                            ),
-                          ),
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                color: Colors.grey.shade900,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.remove_red_eye,
+                                    color: Colors.white54,
+                                    size: 60,
+                                  ),
+                                ),
+                              ),
                         ),
                       ),
                     ),
@@ -187,7 +250,9 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _qualityPassed ? Colors.greenAccent : Colors.amberAccent,
+                          color: _qualityPassed
+                              ? Colors.greenAccent
+                              : Colors.amberAccent,
                           width: 2.5,
                         ),
                       ),
@@ -208,7 +273,10 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                     Positioned(
                       bottom: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black87,
                           borderRadius: BorderRadius.circular(14),
@@ -217,16 +285,24 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              _qualityPassed ? Icons.check_circle : Icons.warning_amber,
+                              _qualityPassed
+                                  ? Icons.check_circle
+                                  : Icons.warning_amber,
                               size: 14,
-                              color: _qualityPassed ? Colors.greenAccent : Colors.amber,
+                              color: _qualityPassed
+                                  ? Colors.greenAccent
+                                  : Colors.amber,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               !_isQualityChecked || _isAssessing
                                   ? 'Assessing…'
                                   : 'Server verdict: $_qualityGrade',
-                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
@@ -239,14 +315,29 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
 
               // Image Selector for Live Testing / Demo
               Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.photo_library, size: 20, color: Color(0xFF1A56DB)),
+                      const Icon(
+                        Icons.photo_library,
+                        size: 20,
+                        color: Color(0xFF1A56DB),
+                      ),
                       const SizedBox(width: 8),
-                      const Text('Test Image:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text(
+                        'Test Image:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButton<String>(
@@ -256,7 +347,10 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                           items: _sampleImages.map((s) {
                             return DropdownMenuItem(
                               value: s['path']!,
-                              child: Text(s['name']!, style: const TextStyle(fontSize: 12)),
+                              child: Text(
+                                s['name']!,
+                                style: const TextStyle(fontSize: 12),
+                              ),
                             );
                           }).toList(),
                           onChanged: (path) {
@@ -274,7 +368,12 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
 
               // Quality Assessment Verdict Banner
               if (_isAssessing || !_isQualityChecked)
-                const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
               else if (_isOfflinePending) ...[
                 // OFFLINE: no server verdict exists. Proceeding queues the
                 // capture without a quality check — explicit override only.
@@ -290,12 +389,20 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.cloud_off, color: Color(0xFF1A56DB), size: 24),
+                          const Icon(
+                            Icons.cloud_off,
+                            color: Color(0xFF1A56DB),
+                            size: 24,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _qualityMessage,
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E40AF), fontSize: 13),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E40AF),
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ],
@@ -314,11 +421,15 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                     backgroundColor: const Color(0xFF1A56DB),
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(52),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   icon: const Icon(Icons.cloud_upload_outlined),
-                  label: const Text('Queue Without Quality Check (offline override) →',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Queue Without Quality Check (offline override) →',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -347,22 +458,45 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.warning, color: Color(0xFFB45309), size: 24),
+                          const Icon(
+                            Icons.warning,
+                            color: Color(0xFFB45309),
+                            size: 24,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _qualityMessage,
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E), fontSize: 13),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF92400E),
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ],
                       ),
                       const Divider(height: 16),
-                      const Text('ASHA Alignment Protocol:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      const Text(
+                        'ASHA Alignment Protocol:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      const Text('1. Move camera 2 cm closer to pupil.', style: TextStyle(fontSize: 12)),
-                      const Text('2. Instruct patient to fixate directly on green internal LED target.', style: TextStyle(fontSize: 12)),
-                      const Text('3. Dim room light to achieve natural non-mydriatic dilation.', style: TextStyle(fontSize: 12)),
+                      const Text(
+                        '1. Move camera 2 cm closer to pupil.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      const Text(
+                        '2. Instruct patient to fixate directly on green internal LED target.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      const Text(
+                        '3. Dim room light to achieve natural non-mydriatic dilation.',
+                        style: TextStyle(fontSize: 12),
+                      ),
                       const SizedBox(height: 10),
 
                       // Vernacular Audio Pill
@@ -374,10 +508,17 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                           side: const BorderSide(color: Color(0xFFD97706)),
                         ),
                         icon: const Icon(Icons.volume_up, size: 18),
-                        label: const Text('📋 Hindi guidance script: "कृपया कैमरा 2 सेमी पास लाएं"', style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          '📋 Hindi guidance script (Demo): "कृपया कैमरा 2 सेमी पास लाएं"',
+                          style: TextStyle(fontSize: 12),
+                        ),
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Demo: audio playback not wired — read the script above to the patient.')),
+                            const SnackBar(
+                              content: Text(
+                                'Demo: audio playback not wired — read the script above to the patient.',
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -392,10 +533,15 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                     backgroundColor: const Color(0xFFD97706),
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   icon: const Icon(Icons.refresh),
-                  label: const Text('🔄 Retake Photograph (Safe Abstention)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    '🔄 Retake Photograph (Safe Abstention)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   onPressed: () => _runQualityCheck(_selectedAssetImage),
                 ),
               ] else ...[
@@ -409,12 +555,20 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 26),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 26,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _qualityMessage,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ],
@@ -428,10 +582,15 @@ class _QualityGateScreenState extends State<QualityGateScreen> {
                     backgroundColor: const Color(0xFF1A56DB),
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(52),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   icon: const Icon(Icons.arrow_forward),
-                  label: const Text('Run AI Diagnostic Triage →', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Run AI Diagnostic Triage →',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
                   onPressed: () {
                     Navigator.push(
                       context,

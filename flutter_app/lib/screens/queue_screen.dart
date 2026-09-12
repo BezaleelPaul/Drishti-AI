@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/lang_scope.dart';
 import '../services/api_service.dart';
 
 class QueueScreen extends StatefulWidget {
@@ -26,8 +27,12 @@ class _QueueScreenState extends State<QueueScreen> {
     final err = res['error']?.toString();
     final synced = (res['total_synced'] as num?)?.toInt() ?? 0;
     final received = (res['total_received'] as num?)?.toInt() ?? 0;
-    final failed = res['failed_items'] is List ? (res['failed_items'] as List).length : 0;
-    final failedPatients = res['failed_patients'] is List ? (res['failed_patients'] as List).length : 0;
+    final failed = res['failed_items'] is List
+        ? (res['failed_items'] as List).length
+        : 0;
+    final failedPatients = res['failed_patients'] is List
+        ? (res['failed_patients'] as List).length
+        : 0;
     final dropped = (res['dropped_corrupt'] as num?)?.toInt() ?? 0;
     setState(() {
       _isSyncing = false;
@@ -43,9 +48,10 @@ class _QueueScreenState extends State<QueueScreen> {
             '${dropped > 0 ? ' $dropped corrupt entr(y/ies) discarded.' : ''}';
       } else {
         _syncFailed = failed > 0 || failedPatients > 0;
-        _syncMessage = (res['message'] ??
-                'Nothing uploaded. ${failed > 0 ? "$failed item(s) rejected — kept in queue." : "Check connectivity and retry."}')
-            .toString();
+        _syncMessage =
+            (res['message'] ??
+                    'Nothing uploaded. ${failed > 0 ? "$failed item(s) rejected — kept in queue." : "Check connectivity and retry."}')
+                .toString();
       }
     });
   }
@@ -58,7 +64,10 @@ class _QueueScreenState extends State<QueueScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Offline Field Sync Queue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: Text(
+          context.tr('offline_title'),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SafeArea(
         child: Padding(
@@ -70,15 +79,23 @@ class _QueueScreenState extends State<QueueScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: !hasPending ? Colors.green.shade50 : Colors.orange.shade50,
+                  color: !hasPending
+                      ? Colors.green.shade50
+                      : Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: !hasPending ? Colors.green.shade300 : Colors.orange.shade300),
+                  border: Border.all(
+                    color: !hasPending
+                        ? Colors.green.shade300
+                        : Colors.orange.shade300,
+                  ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       !hasPending ? Icons.cloud_done : Icons.cloud_queue,
-                      color: !hasPending ? Colors.green : Colors.orange.shade800,
+                      color: !hasPending
+                          ? Colors.green
+                          : Colors.orange.shade800,
                       size: 28,
                     ),
                     const SizedBox(width: 12),
@@ -88,18 +105,23 @@ class _QueueScreenState extends State<QueueScreen> {
                         children: [
                           Text(
                             !hasPending
-                                ? 'All Records Synchronized'
-                                : '${queue.length} Pending Offline Scan(s)${pendingPatients > 0 ? ' + $pendingPatients Pending Patient(s)' : ''}',
+                                ? context.tr('sync_complete')
+                                : '${queue.length} ${context.tr('cases_waiting')}${pendingPatients > 0 ? ' + $pendingPatients' : ''}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: !hasPending ? Colors.green.shade800 : Colors.orange.shade900,
+                              color: !hasPending
+                                  ? Colors.green.shade800
+                                  : Colors.orange.shade900,
                             ),
                           ),
                           Text(
                             !hasPending
-                                ? 'No unsent data. Device is fully up-to-date.'
-                                : 'Captured without internet. Click sync to upload to doctor portal.',
-                            style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                ? context.tr('sync1')
+                                : context.tr('offline_subtitle'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
                           ),
                         ],
                       ),
@@ -113,20 +135,26 @@ class _QueueScreenState extends State<QueueScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _syncFailed ? Colors.red.shade50 : Colors.blue.shade50,
+                    color: _syncFailed
+                        ? Colors.red.shade50
+                        : Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                        color: _syncFailed
-                            ? Colors.red.shade300
-                            : Colors.blue.shade300),
+                      color: _syncFailed
+                          ? Colors.red.shade300
+                          : Colors.blue.shade300,
+                    ),
                   ),
-                  child: Text(_syncMessage!,
-                      style: TextStyle(
-                          color: _syncFailed
-                              ? Colors.red.shade900
-                              : const Color(0xFF1A56DB),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13)),
+                  child: Text(
+                    _syncMessage!,
+                    style: TextStyle(
+                      color: _syncFailed
+                          ? Colors.red.shade900
+                          : const Color(0xFF1A56DB),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -138,10 +166,26 @@ class _QueueScreenState extends State<QueueScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(Icons.check_circle_outline, size: 60, color: Colors.green),
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 60,
+                              color: Colors.green,
+                            ),
                             SizedBox(height: 8),
-                            Text('Queue is Empty', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                            Text('All rural field scans have been safely stored.', style: TextStyle(color: Colors.black45, fontSize: 13)),
+                            Text(
+                              'Queue is Empty',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Text(
+                              'All rural field scans have been safely stored.',
+                              style: TextStyle(
+                                color: Colors.black45,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                       )
@@ -154,10 +198,23 @@ class _QueueScreenState extends State<QueueScreen> {
                             child: ListTile(
                               leading: const CircleAvatar(
                                 backgroundColor: Color(0xFF1A56DB),
-                                child: Icon(Icons.remove_red_eye, color: Colors.white, size: 20),
+                                child: Icon(
+                                  Icons.remove_red_eye,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
-                              title: Text('${item['patient_id']} • ${item['eye_side']} Eye', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              subtitle: Text("Preset: ${item['camera_profile']}\nCaptured: ${item['timestamp'] ?? item['captured_at'] ?? '-'}", style: const TextStyle(fontSize: 11)),
+                              title: Text(
+                                '${item['patient_id']} • ${item['eye_side']} Eye',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: Text(
+                                "Preset: ${item['camera_profile']}\nCaptured: ${item['timestamp'] ?? item['captured_at'] ?? '-'}",
+                                style: const TextStyle(fontSize: 11),
+                              ),
                               isThreeLine: true,
                             ),
                           );
@@ -171,13 +228,22 @@ class _QueueScreenState extends State<QueueScreen> {
                   backgroundColor: const Color(0xFF1A56DB),
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 icon: _isSyncing
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Icon(Icons.sync),
                 label: Text(
-                  _isSyncing ? 'Syncing with Server...' : 'Sync All with District Server (POST /sync)',
+                  _isSyncing ? context.tr('syncing') : context.tr('btn_sync'),
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 onPressed: _isSyncing || !hasPending ? null : _handleSync,

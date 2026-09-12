@@ -83,7 +83,14 @@ jobs:
       run: flutter test
 
     - name: Build web (release)
-      run: flutter build web --release --base-href /Drishti-AI/ --no-wasm-dry-run
+      # DRISHTI_BASE_URL bakes the backend origin into the web bundle.
+      # Set repo Settings -> Secrets and variables -> Actions -> Variables ->
+      # DRISHTI_BASE_URL (e.g. https://your-backend.onrender.com) for the live
+      # demo; unset keeps localhost:8000 for local judging with a local server.
+      run: |
+        BASE_URL="${{ vars.DRISHTI_BASE_URL }}"
+        if [ -z "$BASE_URL" ]; then BASE_URL="http://localhost:8000"; fi
+        flutter build web --release --base-href /Drishti-AI/ --no-wasm-dry-run --dart-define=DRISHTI_BASE_URL=$BASE_URL
 
     - name: Upload web bundle (downloadable preview per run)
       uses: actions/upload-artifact@v4
@@ -93,11 +100,11 @@ jobs:
         retention-days: 7
 
   deploy-pages:
-    # Live preview: every master push that passes the flutter job
+    # Live preview: every master/main push that passes the flutter job
     # is published to https://bezaleelpaul.github.io/Drishti-AI/
     # (repo Settings -> Pages -> Source must be "GitHub Actions").
     needs: flutter
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       pages: write

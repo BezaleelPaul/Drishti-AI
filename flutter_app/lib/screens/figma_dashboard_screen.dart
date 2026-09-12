@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../l10n/lang_scope.dart';
 import '../theme/figma_theme.dart';
+import '../widgets/figma_drawer.dart';
 import '../widgets/status_badge.dart';
-import 'checkin_screen.dart';
+import 'flow/flow_register_screen.dart';
 import 'figma_history_screen.dart';
 import 'queue_screen.dart';
 
@@ -56,7 +57,7 @@ class FigmaDashboardScreen extends StatelessWidget {
   void _startScreening(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const CheckInScreen()),
+      MaterialPageRoute(builder: (_) => const FlowRegisterScreen()),
     );
   }
 
@@ -78,6 +79,7 @@ class FigmaDashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: FigmaColors.surface,
+      drawer: const FigmaDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: FigmaColors.primaryDark,

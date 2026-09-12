@@ -7,6 +7,16 @@ import '../models/patient.dart';
 import '../models/screening.dart';
 import '../models/screening_models.dart' as ui;
 
+/// Thrown when the review queue rejects the configured API key.
+/// Callers must surface this (demo-data banner), never render it as "empty".
+class ReviewAuthException implements Exception {
+  final String message;
+  const ReviewAuthException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class ApiService {
   static const String defaultBaseUrl = String.fromEnvironment(
     'DRISHTI_BASE_URL',
@@ -273,11 +283,29 @@ class ApiService {
       }
       throw Exception('Risk assessment failed: ${response.statusCode}');
     } on SocketException {
-      return _offlineRiskFallback(age, bmi, familyHistory, knownDiabetesYears, hba1c);
+      return _offlineRiskFallback(
+        age,
+        bmi,
+        familyHistory,
+        knownDiabetesYears,
+        hba1c,
+      );
     } on http.ClientException {
-      return _offlineRiskFallback(age, bmi, familyHistory, knownDiabetesYears, hba1c);
+      return _offlineRiskFallback(
+        age,
+        bmi,
+        familyHistory,
+        knownDiabetesYears,
+        hba1c,
+      );
     } on TimeoutException {
-      return _offlineRiskFallback(age, bmi, familyHistory, knownDiabetesYears, hba1c);
+      return _offlineRiskFallback(
+        age,
+        bmi,
+        familyHistory,
+        knownDiabetesYears,
+        hba1c,
+      );
     }
   }
 
@@ -288,36 +316,38 @@ class ApiService {
     double? knownDiabetesYears,
     double? hba1c,
   ) {
-      // Offline heuristic — never presented as a diagnosis.
-      double score = 20;
-      if (age >= 45) score += 15;
-      if (age >= 60) score += 10;
-      if (bmi >= 25) score += 15;
-      if (bmi >= 30) score += 10;
-      if (familyHistory) score += 10;
-      if ((knownDiabetesYears ?? 0) >= 5) score += 15;
-      if (hba1c != null && hba1c >= 6.5) score += 20;
-      if (score > 100) score = 100;
-      final level = score >= 60 ? 'HIGH' : (score >= 35 ? 'MODERATE' : 'LOW');
-      return ui.DiabetesRiskModel(
-        riskScore: score,
-        riskLevel: level,
-        pathway: 'OFFLINE_HEURISTIC',
-        riskSource: 'heuristic',
-        clinicalRationale: const [
-          'Offline estimate — confirm with lab HbA1c and server risk engine.',
-        ],
-        actionRecommendation: level == 'HIGH'
-            ? 'Retinal imaging indicated for Diabetic Retinopathy screening.'
-            : 'Routine monitoring; repeat screening annually.',
-        patientFriendlyGuidance: level == 'HIGH'
-            ? 'Some risk factors were noted. An eye check and sugar test are advised.'
-            : 'Risk looks low today. Keep up healthy habits and recheck yearly.',
-      );
+    // Offline heuristic — never presented as a diagnosis.
+    double score = 20;
+    if (age >= 45) score += 15;
+    if (age >= 60) score += 10;
+    if (bmi >= 25) score += 15;
+    if (bmi >= 30) score += 10;
+    if (familyHistory) score += 10;
+    if ((knownDiabetesYears ?? 0) >= 5) score += 15;
+    if (hba1c != null && hba1c >= 6.5) score += 20;
+    if (score > 100) score = 100;
+    final level = score >= 60 ? 'HIGH' : (score >= 35 ? 'MODERATE' : 'LOW');
+    return ui.DiabetesRiskModel(
+      riskScore: score,
+      riskLevel: level,
+      pathway: 'OFFLINE_HEURISTIC',
+      riskSource: 'heuristic',
+      clinicalRationale: const [
+        'Offline estimate — confirm with lab HbA1c and server risk engine.',
+      ],
+      actionRecommendation: level == 'HIGH'
+          ? 'Retinal imaging indicated for Diabetic Retinopathy screening.'
+          : 'Routine monitoring; repeat screening annually.',
+      patientFriendlyGuidance: level == 'HIGH'
+          ? 'Some risk factors were noted. An eye check and sugar test are advised.'
+          : 'Risk looks low today. Keep up healthy habits and recheck yearly.',
+    );
   }
 
   /// Doctor review queue (GET /review/pending). Returns [] when offline
-  /// or unauthorized so callers fall back to demo data.
+  /// or on unexpected responses so callers fall back to demo data.
+  /// Throws [ReviewAuthException] on 401/403: the endpoint requires a
+  /// doctor/admin key, and an operator key must NOT look like an empty queue.
   Future<List<Map<String, dynamic>>> getPendingReviews({
     int limit = 100,
   }) async {
@@ -328,6 +358,12 @@ class ApiService {
             headers: _headers,
           )
           .timeout(_shortTimeout);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw ReviewAuthException(
+          'Doctor API key required (server: ${response.statusCode}). '
+          'Showing demo cases — not live queue data.',
+        );
+      }
       if (response.statusCode == 200) {
         final body = json.decode(response.body) as Map<String, dynamic>;
         final items = body['items'];
@@ -336,6 +372,8 @@ class ApiService {
         }
       }
       return [];
+    } on ReviewAuthException {
+      rethrow;
     } catch (_) {
       return [];
     }
@@ -482,7 +520,8 @@ class ApiService {
       );
       final grade = result.drGrade;
       final isOffline = result.qualityGrade == 'PENDING_SYNC';
-      final isFromFallback = result.modelBackend == 'simulated' ||
+      final isFromFallback =
+          result.modelBackend == 'simulated' ||
           result.microaneurysmCount == null ||
           result.vesselDensityPct == null ||
           result.csmeRisk == null ||
