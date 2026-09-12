@@ -307,6 +307,14 @@ def get_screening_engine(cam_type: str, profile_mode: str):
     risk_model = DiabetesRiskModel()
     enhancer = AdaptiveQualityEnhancer()
     segmenter = RetinalStructureSegmenter()
+    # One-time warmup (this fn is @st.cache_resource: runs once per session).
+    # Pays TF init + first-trace cost at page load so the first "Run AI Triage"
+    # click grades in seconds instead of tens of seconds on Cloud CPU.
+    try:
+        _warm = (np.random.RandomState(0).rand(64, 64, 3) * 255).astype(np.uint8)
+        router.dr_classifier.predict(_warm)
+    except Exception:
+        pass
     return risk_model, router, enhancer, segmenter
 
 
@@ -531,21 +539,30 @@ with tab_clinical:
         record = st.session_state.get("_record")
         seg_res = st.session_state.get("_seg_res")
     elif img_np is not None:
-        try:
-            record = router.process_image(
-                image_input=img_np,
-                recapture_attempt_count=int(recapture_attempt_count),
-                output_dir=os.path.join(PROJECT_ROOT, "results"),
-            )
-        except Exception as e:
-            st.error(f"Screening pipeline failed on this capture: {e}")
-            record = None
-        if record is not None and enable_segmentation and record.quality_grade != QualityGrade.BAD:
+        import time as _time
+
+        _t0 = _time.perf_counter()
+        with st.spinner("🔬 AI triage running — quality gate → DR grade → Grad-CAM…"):
             try:
-                seg_res = segmenter.segment_structures(img_np)
+                record = router.process_image(
+                    image_input=img_np,
+                    recapture_attempt_count=int(recapture_attempt_count),
+                    output_dir=os.path.join(PROJECT_ROOT, "results"),
+                )
             except Exception as e:
-                st.warning(f"Structure segmentation unavailable for this capture: {e}")
-                seg_res = None
+                st.error(f"Screening pipeline failed on this capture: {e}")
+                record = None
+            if (
+                record is not None
+                and enable_segmentation
+                and record.quality_grade != QualityGrade.BAD
+            ):
+                try:
+                    seg_res = segmenter.segment_structures(img_np)
+                except Exception as e:
+                    st.warning(f"Structure segmentation unavailable for this capture: {e}")
+                    seg_res = None
+        st.session_state._last_infer_s = _time.perf_counter() - _t0
         st.session_state._inf_key = _inf_key
         st.session_state._record = record
         st.session_state._seg_res = seg_res
@@ -810,6 +827,11 @@ with tab_clinical:
         st.caption(
             "Explainable severity classification, retinal structure segmentation, and <30s Grad-CAM heatmap."
         )
+        _last_s = st.session_state.get("_last_infer_s")
+        if _last_s is not None:
+            st.caption(
+                f"⏱ Last grading took {_last_s:.1f}s on Cloud CPU (real EfficientNetB0 + Grad-CAM++)."
+            )
 
         # Executive Severity Verdict
         if record is not None and record.dr_prediction is not None:
