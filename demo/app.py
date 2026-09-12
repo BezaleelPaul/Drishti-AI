@@ -555,16 +555,6 @@ with tab_clinical:
             except Exception as e:
                 st.error(f"Screening pipeline failed on this capture: {e}")
                 record = None
-            if (
-                record is not None
-                and enable_segmentation
-                and record.quality_grade != QualityGrade.BAD
-            ):
-                try:
-                    seg_res = segmenter.segment_structures(img_np)
-                except Exception as e:
-                    st.warning(f"Structure segmentation unavailable for this capture: {e}")
-                    seg_res = None
         st.session_state._last_infer_s = _time.perf_counter() - _t0
         st.session_state._inf_key = _inf_key
         st.session_state._record = record
@@ -865,6 +855,28 @@ with tab_clinical:
         else:
             dr_val = None
             st.info("Disease prediction suppressed for ungradable scan.")
+
+        # Lazy anatomy segmentation: display-only (overlay viewport,
+        # biomarkers, PDF figure). Never affects grade/quality decisions,
+        # so it runs on first view of this screen instead of at grade time.
+        if (
+            enable_segmentation
+            and img_np is not None
+            and record is not None
+            and record.quality_grade != QualityGrade.BAD
+            and (
+                seg_res is None
+                or st.session_state.get("_seg_key") != st.session_state.get("_inf_key")
+            )
+        ):
+            try:
+                with st.spinner("🧬 Extracting retinal structures (OD, fovea, vessels)…"):
+                    seg_res = segmenter.segment_structures(img_np)
+                st.session_state._seg_res = seg_res
+                st.session_state._seg_key = st.session_state.get("_inf_key")
+            except Exception as e:
+                st.warning(f"Structure segmentation unavailable for this capture: {e}")
+                seg_res = None
 
         # 3-Panel Inspection Viewport
         st.markdown("### 🔬 Multimodal Retinal Inspection Viewport")
