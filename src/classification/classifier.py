@@ -43,6 +43,7 @@ class DRClassifier:
         self.keras_model_path = keras_model_path
         self.pytorch_model_path = pytorch_model_path
         self.model_backend = "mock"
+        self.load_error: Optional[str] = None
         self._keras_model = None
         self._torch_model = None
 
@@ -61,34 +62,52 @@ class DRClassifier:
         self._initialize_model()
 
     def _initialize_model(self):
+        import logging
+
         # 1. Try loading Keras model if available
         if self.keras_model_path and os.path.exists(self.keras_model_path):
             try:
                 import keras
+
                 self._keras_model = keras.saving.load_model(self.keras_model_path)
                 self.model_backend = "keras"
+                self.load_error = None
                 return
-            except Exception:
-                # Fallback gracefully
-                pass
+            except Exception as e:
+                # Fail LOUD in logs: Cloud log shows the exact cause
+                # (missing tensorflow/keras vs corrupt weights vs bad path).
+                self.load_error = (
+                    f"keras load failed ({self.keras_model_path}): {type(e).__name__}: {e}"
+                )
+                logging.getLogger(__name__).warning(self.load_error)
 
         # 2. Try loading PyTorch model
         if self.pytorch_model_path and os.path.exists(self.pytorch_model_path):
             try:
                 import torch
+
                 try:
-                    self._torch_model = torch.load(self.pytorch_model_path, map_location=self.device, weights_only=True)
+                    self._torch_model = torch.load(
+                        self.pytorch_model_path, map_location=self.device, weights_only=True
+                    )
                 except TypeError:
                     # Older torch without weights_only
-                    self._torch_model = torch.load(self.pytorch_model_path, map_location=self.device)
+                    self._torch_model = torch.load(
+                        self.pytorch_model_path, map_location=self.device
+                    )
                 self._torch_model.eval()
                 self.model_backend = "pytorch"
+                self.load_error = None
                 return
-            except Exception:
-                pass
+            except Exception as e:
+                self.load_error = (
+                    f"torch load failed ({self.pytorch_model_path}): {type(e).__name__}: {e}"
+                )
+                logging.getLogger(__name__).warning(self.load_error)
 
         # 3. Deterministic simulation mode for testing / pipeline verification
         import logging
+
         logging.getLogger(__name__).warning(
             "DRClassifier: no DL weights loaded, using simulated backend. "
             "Do NOT use for clinical diagnosis without real model."
@@ -129,9 +148,12 @@ class DRClassifier:
     def _load_as_pil(self, image_input: Union[str, np.ndarray, Image.Image]) -> Image.Image:
         try:
             from src.image_io import to_rgb_uint8
+
             if isinstance(image_input, str):
                 # Shared funnel: dimension cap applies to file paths too.
-                return Image.fromarray(to_rgb_uint8(np.array(Image.open(image_input).convert("RGB"))))
+                return Image.fromarray(
+                    to_rgb_uint8(np.array(Image.open(image_input).convert("RGB")))
+                )
             elif isinstance(image_input, np.ndarray):
                 # Single shared loader (float scale, NaN fail-closed, 2D/RGBA
                 # handled). See src/image_io.
@@ -159,11 +181,14 @@ class DRClassifier:
     def _predict_pytorch(self, pil_img: Image.Image) -> DRClassificationResult:
         import torch
         from torchvision import transforms
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+
+        transform = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
         # Validate device, fallback to cpu if cuda unavailable
         try:
             dev = str(self.device)
@@ -197,7 +222,7 @@ class DRClassifier:
         g_mean = float(np.mean(arr[:, :, 1]))
         b_mean = float(np.mean(arr[:, :, 2]))
         image_hash = int((r_mean * 10000 + g_mean * 100 + b_mean * 100 + r_std) % 100000)
-        
+
         # Pseudo-deterministic distribution from image features
         rng = np.random.RandomState(image_hash)
         raw = rng.dirichlet(alpha=[2.0, 1.0, 1.0, 0.5, 0.5])

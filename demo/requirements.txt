@@ -5,17 +5,20 @@
 # Set "Main file path" to demo/app.py in the Cloud dashboard; deploys and
 # re-deploys automatically on every push to the tracked branch.
 #
+# This file is the AUTHORITATIVE Cloud dependency list (self-contained).
+# Root requirements.txt / pyproject.toml are for local CI / Docker / API
+# backend and are intentionally NOT used by Cloud for this entrypoint.
+#
 # Lean by design: demo/app.py's import closure (src.clinical_risk,
 # src.pipeline.router, src.quality, src.segmentation, src.simulation,
-# src.reporting) needs NO web-server stack and NO DL backend at import time:
-#   - tensorflow / keras / torch / torchvision are lazy imports inside
-#     functions that only run when model weights exist. Weights
-#     (*.keras, *.pt) are gitignored, so Cloud runs the deterministic
-#     "simulated" classifier backend — UI + pipeline preview, not clinical
-#     inference.
+# src.reporting) needs NO web-server stack and NO PyTorch at import time:
+#   - tensorflow / keras load final_model.keras (33MB, tracked in git at
+#     repo root). Do NOT remove: without them DRClassifier silently falls
+#     back to the simulated backend ("no DL weights loaded").
 #   - fastapi / uvicorn / pydantic / httpx / requests serve the API backend
-#     (api/), which the Streamlit demo never imports.
-# Pins mirror the proven requirements-runtime.txt combination.
+#     (api/), which the Streamlit demo never imports — kept out on purpose.
+# Pins mirror the proven requirements-runtime.txt + requirements-keras.txt
+# combination.
 numpy==2.4.6
 pandas==3.0.5
 scikit-learn==1.9.0
@@ -24,8 +27,17 @@ Pillow==12.3.0
 opencv-python-headless==5.0.0.93
 joblib==1.6.0
 
+# Real DR inference backend (Model 2 EfficientNetB0). Required — without
+# these, the app boots but runs simulated predictions, not real screening.
+tensorflow==2.21.0
+keras==3.15.1
+
 # Clinical Reporting (PDF + FHIR export in demo/app.py)
 reportlab==5.0.1
+
+# Streamlit pins pyarrow>=25 to a segfaulting wheel; Cloud auto-downgrades
+# to 24.0.0. Pin explicitly to keep the environment deterministic.
+pyarrow==24.0.0
 
 # Validation Dashboard
 streamlit==1.63.0
