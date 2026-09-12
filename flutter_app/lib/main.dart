@@ -1,40 +1,27 @@
 import 'package:flutter/material.dart';
-import 'screens/checkin_screen.dart';
+import 'l10n/lang_scope.dart';
+import 'screens/figma_dashboard_screen.dart';
+import 'theme/figma_theme.dart';
 
 void main() {
-  runApp(const NetraAiApp());
+  runApp(NetraAiApp(langController: LangController()));
 }
 
 class NetraAiApp extends StatelessWidget {
-  const NetraAiApp({super.key});
+  final LangController langController;
+
+  const NetraAiApp({super.key, required this.langController});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Netra-AI Rural Health Screening',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1A56DB),
-          primary: const Color(0xFF1A56DB),
-          secondary: const Color(0xFF0D9488),
-          surface: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1A56DB),
-          foregroundColor: Colors.white,
-          elevation: 2,
-          centerTitle: false,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        ),
+    return LangScope(
+      notifier: langController,
+      child: MaterialApp(
+        title: 'Netra-AI Rural Health Screening',
+        debugShowCheckedModeBanner: false,
+        theme: buildFigmaTheme(),
+        home: const FigmaDashboardScreen(),
       ),
-      home: const CheckInScreen(),
     );
   }
 }
