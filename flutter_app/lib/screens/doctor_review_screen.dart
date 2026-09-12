@@ -45,13 +45,14 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
         _isLoading = false;
         if (remoteCases.isNotEmpty) {
           _pendingCases = remoteCases.map((item) {
-            final rawGrade = item['dr_grade'];
+            final rawGrade = item['dr_grade_num'];
             final int? parsedGrade = rawGrade == null
                 ? null
                 : (rawGrade is int
-                      ? rawGrade
-                      : int.tryParse(rawGrade.toString()));
-            final rawConf = item['confidence'];
+                : (rawGrade is int
+                    ? rawGrade
+                    : int.tryParse(rawGrade.toString()));
+            final rawConf = item['dr_confidence'];
             final String confidenceStr = rawConf != null
                 ? '${(rawConf * 100).toStringAsFixed(1)}%'
                 : 'N/A';
@@ -62,12 +63,11 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
               'screening_id': item['screening_id'] ?? 'Unknown',
               'eye_side': item['eye_side'] ?? 'Unknown',
               'dr_grade': parsedGrade,
-              'dr_label': item['dr_label'] ?? 'Unknown',
-              'reason': item['reason'] ?? 'No reason provided by AI backend.',
+              'dr_label': item['dr_grade_label'] ?? 'Unknown',
+              'reason': item['human_review_reason'] ?? 'No reason provided by AI backend.',
               'confidence': confidenceStr,
               'priority': item['priority'] ?? 'Review Required',
-              'is_signed_off':
-                  item['status'] == 'APPROVED' || item['status'] == 'COMPLETED',
+              'is_signed_off': item['status'] != 'PENDING',
             };
           }).toList();
         } else {

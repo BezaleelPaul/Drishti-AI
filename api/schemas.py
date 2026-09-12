@@ -168,6 +168,7 @@ class DoctorReviewItem(BaseModel):
     patient_age: int
     patient_gender: str
     village: Optional[str]
+    abha_id: Optional[str] = None
     eye_side: str
     quality_grade: str
     dr_grade_num: Optional[int]

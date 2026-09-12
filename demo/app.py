@@ -9,6 +9,14 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+# ---------------------------------------------------------------------------
+# TensorFlow GPU configuration — MUST run before any src import that may
+# lazily load keras/tensorflow.  Disables GPU by default to avoid screen
+# flickering on low-end field PCs; opt-in via DRISHTI_USE_GPU=1.
+# ---------------------------------------------------------------------------
+from src.tf_config import configure_tensorflow
+configure_tensorflow()
+
 from src.clinical_risk import (
     DiabetesRiskModel,
     PatientClinicalProfile,
@@ -83,13 +91,20 @@ st.markdown(
         border-radius: 50%;
         margin-right: 6px;
         box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-        animation: pulse-radar 2s infinite cubic-bezier(0.66, 0, 0, 1);
+        animation: none;
         vertical-align: middle;
     }
     @keyframes pulse-radar {
         0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8); }
         70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
         100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Keep the retinal capture stable while Streamlit refreshes widgets. */
+    [data-testid="stImage"] img,
+    [data-testid="stImage"] {
+        animation: none !important;
+        transition: none !important;
     }
 
     /* 5. Adaptive Navigation Tabs (Dark/Light mode compliant) */
@@ -679,17 +694,18 @@ with tab_clinical:
 
         col_input_type, col_source = st.columns([1, 2])
         with col_input_type:
-            st.session_state.input_mode = st.radio(
+            st.radio(
                 "Fundus Ingestion Mode",
                 ["Curated Field Test Pack", "Upload Custom Capture"],
                 index=["Curated Field Test Pack", "Upload Custom Capture"].index(
                     st.session_state.input_mode
                 ),
+                key="input_mode",
             )
 
         with col_source:
             if st.session_state.input_mode == "Curated Field Test Pack":
-                st.session_state.chosen_case = st.selectbox(
+                st.selectbox(
                     "Select Curated Field Case",
                     [
                         "Case 1: Clean Diagnostic Quality (Patient 1 — Hospital data)",
@@ -705,18 +721,47 @@ with tab_clinical:
                         "Case 4: Severe Retinal Lesions (High-Risk Proliferative Signs)",
                         "Case 5: Adversarial Non-Fundus Input (Negative Control)",
                     ].index(st.session_state.chosen_case),
+                    key="chosen_case",
                 )
             else:
                 uploaded_file = st.file_uploader(
-                    "Upload Retinal Photograph", type=["jpg", "jpeg", "png"]
+                    "Upload Retinal Photograph",
+                    type=["jpg", "jpeg", "png"],
+                    key="custom_upload",
                 )
                 if uploaded_file:
                     try:
-                        st.session_state.uploaded_img = Image.open(uploaded_file).convert("RGB")
+                        st.session_state.uploaded_img = Image.open(uploaded_file).convert(
+                            "RGB"
+                        )
+                        uploaded_np = np.array(st.session_state.uploaded_img)
+                        uploaded_hash = _hashlib.sha256(
+                            np.ascontiguousarray(uploaded_np).tobytes()
+                        ).hexdigest()
+                        uploaded_key = (
+                            uploaded_hash,
+                            camera_hardware,
+                            threshold_profile,
+                            int(recapture_attempt_count),
+                            bool(enable_segmentation),
+                        )
+                        uploaded_record = router.process_image(
+                            image_input=uploaded_np,
+                            recapture_attempt_count=int(recapture_attempt_count),
+                            output_dir=os.path.join(PROJECT_ROOT, "results"),
+                        )
+                        uploaded_seg_res = None
+                        if (
+                            enable_segmentation
+                            and uploaded_record.quality_grade != QualityGrade.BAD
+                        ):
+                            uploaded_seg_res = segmenter.segment_structures(uploaded_np)
+                        st.session_state._inf_key = uploaded_key
+                        st.session_state._record = uploaded_record
+                        st.session_state._seg_res = uploaded_seg_res
                     except Exception as e:
                         st.error(f"Uploaded file is not a decodable image: {e}")
                         st.session_state.uploaded_img = None
-                    st.rerun()
 
         # Viewport + Quality Gate Assessment
         st.divider()

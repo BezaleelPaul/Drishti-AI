@@ -6,6 +6,10 @@ from typing import Any, Optional, Tuple, Union
 import numpy as np
 from PIL import Image
 
+# Configure TensorFlow env vars BEFORE tensorflow is lazily imported below.
+from src.tf_config import configure_tensorflow
+configure_tensorflow()
+
 try:
     import cv2
     HAS_OPENCV = True

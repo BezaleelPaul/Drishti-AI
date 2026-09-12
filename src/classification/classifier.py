@@ -5,6 +5,10 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 from PIL import Image
 
+# Configure TensorFlow env vars BEFORE keras is lazily imported below.
+from src.tf_config import configure_tensorflow
+configure_tensorflow()
+
 from src.pipeline.schema import DRClassificationResult, DRGrade
 
 

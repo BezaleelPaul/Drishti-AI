@@ -56,7 +56,7 @@ def get_pending_reviews(
             r.review_id, r.screening_id, r.patient_id, r.status, r.doctor_name,
             r.doctor_decision, r.clinical_notes, r.referral_urgency, r.follow_up_days,
             r.created_at, r.reviewed_at,
-            p.name as patient_name, p.age as patient_age, p.gender as patient_gender, p.village,
+            p.name as patient_name, p.age as patient_age, p.gender as patient_gender, p.village, p.abha_id,
             s.eye_side, s.quality_grade, s.dr_grade_num, s.dr_grade_label, s.dr_confidence,
             s.is_referable, s.requires_human_review, s.human_review_type, s.human_review_reason,
             s.original_image_path, s.gradcam_overlay_path
@@ -79,6 +79,7 @@ def get_pending_reviews(
             patient_age=r["patient_age"],
             patient_gender=r["patient_gender"],
             village=r["village"],
+            abha_id=r["abha_id"],
             eye_side=r["eye_side"],
             quality_grade=r["quality_grade"],
             dr_grade_num=r["dr_grade_num"],

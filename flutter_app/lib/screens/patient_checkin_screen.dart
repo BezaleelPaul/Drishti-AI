@@ -357,8 +357,9 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                             prefixIcon: Icon(Icons.badge_outlined),
                             border: OutlineInputBorder(),
                           ),
-                          validator: (v) =>
-                              v!.isEmpty ? 'Name is required' : null,
+                          validator: (v) => (v == null || v.isEmpty)
+                              ? 'Name is required'
+                              : null,
                         ),
                         const SizedBox(height: 14),
 

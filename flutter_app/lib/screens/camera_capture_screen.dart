@@ -117,7 +117,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png'],
       );
-      if (files.isNotEmpty) {
+      if (files != null && files.isNotEmpty) {
         final picked = files.first;
         final bytes = await picked.readAsBytes();
         setState(() {
