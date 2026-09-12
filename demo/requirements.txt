@@ -29,7 +29,11 @@ joblib==1.6.0
 
 # Real DR inference backend (Model 2 EfficientNetB0). Required — without
 # these, the app boots but runs simulated predictions, not real screening.
-tensorflow==2.21.0
+# NOTE: tensorflow-cpu, NOT tensorflow. Cloud boxes have 1GB RAM and no GPU:
+# the full tensorflow wheel (572MB Linux) gets pip OOM-killed during install
+# ("installer returned a non-zero exit code"), while tensorflow-cpu (274MB)
+# is the identical API with CPU-only kernels. Verified on PyPI for 2.21.0.
+tensorflow-cpu==2.21.0
 keras==3.15.1
 
 # Clinical Reporting (PDF + FHIR export in demo/app.py)
