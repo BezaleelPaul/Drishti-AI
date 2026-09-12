@@ -542,12 +542,15 @@ with tab_clinical:
         import time as _time
 
         _t0 = _time.perf_counter()
-        with st.spinner("🔬 AI triage running — quality gate → DR grade → Grad-CAM…"):
+        with st.spinner("⚡ Grading retinal capture (quality gate → DR grade)…"):
             try:
+                # Fast path: Grad-CAM heatmap is deferred (skip_gradcam) and
+                # generated on demand when the Step 3 audit screen renders.
                 record = router.process_image(
                     image_input=img_np,
                     recapture_attempt_count=int(recapture_attempt_count),
                     output_dir=os.path.join(PROJECT_ROOT, "results"),
+                    skip_gradcam=True,
                 )
             except Exception as e:
                 st.error(f"Screening pipeline failed on this capture: {e}")
@@ -903,17 +906,41 @@ with tab_clinical:
                 st.info("Structure segmentation suppressed for ungradable capture.")
 
         with v_col3:
-            if record and record.gradcam_result and record.gradcam_result.heatmap_generated:
+            # Lazy Grad-CAM: the heatmap was deferred at grade time for speed
+            # and is generated on first view of this audit screen, then cached
+            # per (image, gate config) alongside the screening record.
+            _gc_key = st.session_state.get("_inf_key")
+            _gc = st.session_state.get("_gradcam")
+            if _gc is None or st.session_state.get("_gradcam_key") != _gc_key:
+                _gc = None
+                if record is not None and record.dr_prediction is not None and img_np is not None:
+                    try:
+                        with st.spinner(
+                            "🔥 Generating Grad-CAM explainability (one-time per capture)…"
+                        ):
+                            _gc = router.gradcam_explainer.generate_heatmap(
+                                image_input=img_np,
+                                target_grade=record.dr_prediction.predicted_grade,
+                                classifier=router.dr_classifier,
+                            )
+                        st.session_state._gradcam = _gc
+                        st.session_state._gradcam_key = _gc_key
+                    except Exception as e:
+                        st.warning(f"Grad-CAM unavailable for this capture: {e}")
+                        _gc = None
+            if _gc is not None and _gc.heatmap_generated:
                 st.image(
-                    record.gradcam_result.heatmap_array,
+                    _gc.heatmap_array,
                     caption="Grad-CAM Activation Heatmap (Req 4)",
                     width="stretch",
                 )
                 st.caption(
-                    f"Gradient backpropagation on `{record.gradcam_result.target_layer}` (MathWorks constraint: <30s)."
+                    f"Gradient backpropagation on `{_gc.target_layer}` (MathWorks constraint: <30s)."
                 )
-            else:
+            elif record is None or record.dr_prediction is None:
                 st.info("Grad-CAM suppressed on ungradable capture.")
+            else:
+                st.info("Grad-CAM deferred — revisit this screen to generate it.")
 
         # Quantitative Biomarkers
         if seg_res and record and record.quality_grade != QualityGrade.BAD:
@@ -1112,6 +1139,13 @@ with tab_clinical:
                     and record.gradcam_result.heatmap_array is not None
                 ):
                     Image.fromarray(record.gradcam_result.heatmap_array).save(annot_cache_path)
+                elif (
+                    st.session_state.get("_gradcam_key") == st.session_state.get("_inf_key")
+                    and st.session_state.get("_gradcam") is not None
+                    and st.session_state._gradcam.heatmap_array is not None
+                ):
+                    # Heatmap was generated on demand on the Step 3 audit screen.
+                    Image.fromarray(st.session_state._gradcam.heatmap_array).save(annot_cache_path)
                 else:
                     annot_cache_path = None
             except Exception:

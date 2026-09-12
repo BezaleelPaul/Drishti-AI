@@ -40,7 +40,9 @@ class ScreeningPipelineRouter:
     ):
         self.quality_checker = quality_checker or ImageQualityChecker()
         self.dr_classifier = dr_classifier or DRClassifier()
-        self.gradcam_explainer = gradcam_explainer or GradCAMExplainer(classifier_backend=self.dr_classifier)
+        self.gradcam_explainer = gradcam_explainer or GradCAMExplainer(
+            classifier_backend=self.dr_classifier
+        )
         self.confidence_evaluator = confidence_evaluator or ConfidenceEvaluator()
         self.structure_segmenter = structure_segmenter or RetinalStructureSegmenter()
 
@@ -49,6 +51,7 @@ class ScreeningPipelineRouter:
         image_input: Union[str, np.ndarray, Image.Image],
         recapture_attempt_count: int = 0,
         output_dir: Optional[str] = None,
+        skip_gradcam: bool = False,
     ) -> ScreeningRecord:
         """
         Executes Node 1 to Node 11 of the approved decision flow.
@@ -57,6 +60,12 @@ class ScreeningPipelineRouter:
             image_input: File path, numpy array, or PIL Image.
             recapture_attempt_count: Number of previous recapture attempts for this patient session.
             output_dir: Directory to save generated Grad-CAM overlays or reports.
+            skip_gradcam: When True, Node 9 heatmap generation is deferred
+                (gradcam_result.heatmap_generated is False). The caller is
+                expected to generate it on demand via
+                ``gradcam_explainer.generate_heatmap`` — e.g. only when the
+                audit screen is actually viewed. A deliberate skip is NOT a
+                failure and never forces human review by itself.
         """
         image_path = image_input if isinstance(image_input, str) else "in_memory_capture.jpg"
 
@@ -159,11 +168,14 @@ class ScreeningPipelineRouter:
                     # OD floor scales with resolution (min 2px): a 32px capture
                     # has a proportionally correct ~2px OD that must stay reachable.
                     _min_od_r = max(2, int(0.02 * min(_rh, _rw)))
-                    has_od = struct_res.optic_disc_radius >= _min_od_r and (struct_res.optic_disc_center[0] > 0 and struct_res.optic_disc_center[1] > 0)
+                    has_od = struct_res.optic_disc_radius >= _min_od_r and (
+                        struct_res.optic_disc_center[0] > 0 and struct_res.optic_disc_center[1] > 0
+                    )
                     has_fovea = struct_res.fovea_center[0] > 0 and struct_res.fovea_center[1] > 0
                     has_vessels = False
                     if struct_res.vessel_mask is not None:
                         from src.image_io import retinal_mask as _rm, rgb_to_gray as _to_gray
+
                         # Shared luma conversion (NOT mean(axis=2)): the mask
                         # must use the same denominator as vessel_density_pct.
                         _gray = _to_gray(np_img)
@@ -244,7 +256,11 @@ class ScreeningPipelineRouter:
         # Convergence point for 3a (Good) and 5-No (Cleared Borderline).
         # Holds original, unmodified pixel data (Section 20).
         # -------------------------------------------------------------
-        quality_status = "Reliable" if reassessment_outcome != ReassessmentOutcome.CLEARED else "Reliable (Cleared by Reassessment)"
+        quality_status = (
+            "Reliable"
+            if reassessment_outcome != ReassessmentOutcome.CLEARED
+            else "Reliable (Cleared by Reassessment)"
+        )
 
         # -------------------------------------------------------------
         # Node 7: DR CLASSIFICATION (Model 2 runs)
@@ -258,30 +274,40 @@ class ScreeningPipelineRouter:
 
         # -------------------------------------------------------------
         # Node 9: GRAD-CAM EXPLAINABILITY
-        # Generated for all images reaching this node per Section 8
+        # Generated for all images reaching this node per Section 8, unless
+        # the caller defers it (skip_gradcam) for on-demand generation on
+        # the audit screen. A deliberate skip is not a failure.
         # -------------------------------------------------------------
         overlay_save_path = None
-        if output_dir:
+        if output_dir and not skip_gradcam:
             os.makedirs(output_dir, exist_ok=True)
             overlay_save_path = os.path.join(output_dir, f"gradcam_{uuid.uuid4().hex[:8]}.png")
 
         gradcam_failed = False
         gradcam_error = ""
-        try:
-            gradcam_res = self.gradcam_explainer.generate_heatmap(
-                image_input=stage_input,
-                target_grade=dr_result.predicted_grade,
-                save_path=overlay_save_path,
-                classifier=self.dr_classifier,
-            )
-        except Exception as e:
-            gradcam_failed = True
-            gradcam_error = str(e)
+        if skip_gradcam:
             gradcam_res = GradCAMResult(
                 heatmap_generated=False,
                 heatmap_array=None,
-                overlay_path=overlay_save_path,
+                overlay_path=None,
+                target_layer="deferred (on-demand)",
             )
+        else:
+            try:
+                gradcam_res = self.gradcam_explainer.generate_heatmap(
+                    image_input=stage_input,
+                    target_grade=dr_result.predicted_grade,
+                    save_path=overlay_save_path,
+                    classifier=self.dr_classifier,
+                )
+            except Exception as e:
+                gradcam_failed = True
+                gradcam_error = str(e)
+                gradcam_res = GradCAMResult(
+                    heatmap_generated=False,
+                    heatmap_array=None,
+                    overlay_path=overlay_save_path,
+                )
 
         # -------------------------------------------------------------
         # Node 10 & 11: SCREENING RESULT & HUMAN REVIEW ROUTING
@@ -290,13 +316,19 @@ class ScreeningPipelineRouter:
         # classifier is confident: a confident model must never silently
         # finalize a referral-grade diagnosis without a human in the loop.
         referable_review = bool(dr_result.predicted_grade.is_referable)
-        human_review_req = bool(confidence_result.requires_human_review or gradcam_failed or referable_review)
+        human_review_req = bool(
+            confidence_result.requires_human_review or gradcam_failed or referable_review
+        )
         review_type = HumanReviewType.CLINICAL_LEVEL if human_review_req else HumanReviewType.NONE
         flags = list(confidence_result.flags) if confidence_result.flags else []
         if referable_review and not confidence_result.requires_human_review:
-            flags.append(f"Referable {dr_result.predicted_grade.label} requires clinician confirmation per triage protocol")
+            flags.append(
+                f"Referable {dr_result.predicted_grade.label} requires clinician confirmation per triage protocol"
+            )
         if gradcam_failed:
-            flags.append(f"Grad-CAM explainability failed ({gradcam_error or 'unknown error'}): mandatory human review")
+            flags.append(
+                f"Grad-CAM explainability failed ({gradcam_error or 'unknown error'}): mandatory human review"
+            )
         review_reason = " | ".join(flags) if human_review_req else None
 
         if dr_result.predicted_grade.value == 0:
@@ -306,7 +338,9 @@ class ScreeningPipelineRouter:
                 action_text = "Routine screening: No DR detected. Rescreen in 12 months."
         elif dr_result.predicted_grade.value == 1:
             if human_review_req:
-                action_text = "Mild NPDR flagged for clinician over-read. Follow-up per clinical guidelines."
+                action_text = (
+                    "Mild NPDR flagged for clinician over-read. Follow-up per clinical guidelines."
+                )
             else:
                 action_text = "Mild NPDR detected. Routine 6-12 month follow-up recommended."
         else:
@@ -339,6 +373,7 @@ class ScreeningPipelineRouter:
         # Prefer a public loader if the checker ever exposes one (backward compat).
         try:
             from src.image_io import to_rgb_uint8
+
             if isinstance(image_input, str):
                 if not os.path.exists(image_input):
                     return None
