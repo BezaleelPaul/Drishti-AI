@@ -48,9 +48,9 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
             final rawGrade = item['dr_grade_num'];
             final int? parsedGrade = rawGrade == null
                 ? null
-              : rawGrade is int
-              ? rawGrade
-              : int.tryParse(rawGrade.toString());
+                : rawGrade is int
+                ? rawGrade
+                : int.tryParse(rawGrade.toString());
             final rawConf = item['dr_confidence'];
             final String confidenceStr = rawConf != null
                 ? '${(rawConf * 100).toStringAsFixed(1)}%'
@@ -63,7 +63,9 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
               'eye_side': item['eye_side'] ?? 'Unknown',
               'dr_grade': parsedGrade,
               'dr_label': item['dr_grade_label'] ?? 'Unknown',
-              'reason': item['human_review_reason'] ?? 'No reason provided by AI backend.',
+              'reason':
+                  item['human_review_reason'] ??
+                  'No reason provided by AI backend.',
               'confidence': confidenceStr,
               'priority': item['priority'] ?? 'Review Required',
               'is_signed_off': item['status'] != 'PENDING',
@@ -88,7 +90,10 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
       _pendingCases[index]['is_signed_off'] = true;
     });
 
-    await widget.apiService.submitDoctorDecision(
+    // A verdict is only real when the SERVER accepts it: an operator key
+    // gets 401/403 here, and claiming success would forge a clinical
+    // sign-off the backend never recorded. Revert + say so on failure.
+    final result = await widget.apiService.submitDoctorDecision(
       reviewId: revId,
       doctorName: 'Dr. Sharma (MS Ophth)',
       decision: 'CONFIRMED',
@@ -96,13 +101,30 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
           'Specialist tele-ophthalmology audit approved for referral.',
     );
 
-    if (mounted) {
+    if (!mounted) return;
+    if (result['ok'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             '✅ Case $revId successfully signed off by Ophthalmologist.',
           ),
           backgroundColor: const Color(0xFF047857),
+        ),
+      );
+    } else {
+      setState(() {
+        _pendingCases[index]['is_signed_off'] = false;
+      });
+      final status = result['status'];
+      final denied = status == 401 || status == 403;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            denied
+                ? '⛔ Sign-off rejected (doctor key required). Case stays in queue.'
+                : '⚠️ Sign-off failed (${result['error'] ?? 'server $status'}). Case stays in queue.',
+          ),
+          backgroundColor: const Color(0xFFDC2626),
         ),
       );
     }

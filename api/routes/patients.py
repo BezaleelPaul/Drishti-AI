@@ -6,7 +6,7 @@ import sqlite3
 import uuid
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
-from api.auth import ApiPrincipal, require_auth
+from api.auth import ApiPrincipal, audit_action, require_auth
 
 
 from api.database import get_db
@@ -28,37 +28,44 @@ def register_patient(payload: PatientCreate, _principal: ApiPrincipal = Depends(
         # not 500 on an uncaught IntegrityError.
         cursor.execute("SELECT patient_id FROM patients WHERE patient_id = ?", (patient_id,))
         if cursor.fetchone():
-            raise HTTPException(status_code=409, detail=f"Patient ID {patient_id} already registered.")
+            raise HTTPException(
+                status_code=409, detail=f"Patient ID {patient_id} already registered."
+            )
 
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
         INSERT INTO patients (
             patient_id, abha_id, name, age, gender, phone, village, screening_centre,
             known_diabetes, diabetes_duration_years, hba1c, fasting_glucose, blood_pressure,
             bmi, family_history, physical_activity, symptoms, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            patient_id,
-            payload.abha_id,
-            payload.name,
-            payload.age,
-            payload.gender,
-            payload.phone,
-            payload.village,
-            payload.screening_centre,
-            payload.known_diabetes,
-            payload.diabetes_duration_years,
-            payload.hba1c,
-            payload.fasting_glucose,
-            payload.blood_pressure,
-            payload.bmi,
-            1 if payload.family_history else 0,
-            payload.physical_activity,
-            json.dumps(payload.symptoms),
-            now,
-        ))
+        """,
+                (
+                    patient_id,
+                    payload.abha_id,
+                    payload.name,
+                    payload.age,
+                    payload.gender,
+                    payload.phone,
+                    payload.village,
+                    payload.screening_centre,
+                    payload.known_diabetes,
+                    payload.diabetes_duration_years,
+                    payload.hba1c,
+                    payload.fasting_glucose,
+                    payload.blood_pressure,
+                    payload.bmi,
+                    1 if payload.family_history else 0,
+                    payload.physical_activity,
+                    json.dumps(payload.symptoms),
+                    now,
+                ),
+            )
         except sqlite3.IntegrityError:
-            raise HTTPException(status_code=409, detail=f"Patient ID {patient_id} already registered.")
+            raise HTTPException(
+                status_code=409, detail=f"Patient ID {patient_id} already registered."
+            )
         conn.commit()
 
     return PatientResponse(
@@ -110,52 +117,69 @@ def list_patients(
             # Escape LIKE wildcards so '%'/'_' are literal, and cap length.
             escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             pattern = f"%{escaped}%"
-            cursor.execute("""
+            cursor.execute(
+                """
             SELECT * FROM patients
             WHERE name LIKE ? ESCAPE '\\' OR patient_id LIKE ? ESCAPE '\\'
                OR abha_id LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\'
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
-            """, (pattern, pattern, pattern, pattern, limit, offset))
+            """,
+                (pattern, pattern, pattern, pattern, limit, offset),
+            )
         else:
-            cursor.execute("SELECT * FROM patients ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+            cursor.execute(
+                "SELECT * FROM patients ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+            )
 
         rows = cursor.fetchall()
         # Total across ALL pages with the same filter (not len(page)), or
         # client pagination ("showing X of Y") can never advance.
         if search:
-            cursor.execute("""
+            cursor.execute(
+                """
             SELECT COUNT(*) as total FROM patients
             WHERE name LIKE ? ESCAPE '\\' OR patient_id LIKE ? ESCAPE '\\'
                OR abha_id LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\'
-            """, (pattern, pattern, pattern, pattern))
+            """,
+                (pattern, pattern, pattern, pattern),
+            )
         else:
             cursor.execute("SELECT COUNT(*) as total FROM patients")
         total = cursor.fetchone()["total"]
 
     patients = []
     for r in rows:
-        patients.append(PatientResponse(
-            patient_id=r["patient_id"],
-            name=r["name"],
-            age=r["age"],
-            gender=r["gender"],
-            phone=r["phone"],
-            abha_id=r["abha_id"],
-            village=r["village"],
-            screening_centre=r["screening_centre"],
-            known_diabetes=r["known_diabetes"],
-            diabetes_duration_years=r["diabetes_duration_years"],
-            hba1c=r["hba1c"],
-            fasting_glucose=r["fasting_glucose"],
-            blood_pressure=r["blood_pressure"],
-            bmi=r["bmi"],
-            family_history=bool(r["family_history"]),
-            physical_activity=r["physical_activity"],
-            symptoms=_safe_symptoms(r["symptoms"]),
-            created_at=r["created_at"],
-        ))
+        patients.append(
+            PatientResponse(
+                patient_id=r["patient_id"],
+                name=r["name"],
+                age=r["age"],
+                gender=r["gender"],
+                phone=r["phone"],
+                abha_id=r["abha_id"],
+                village=r["village"],
+                screening_centre=r["screening_centre"],
+                known_diabetes=r["known_diabetes"],
+                diabetes_duration_years=r["diabetes_duration_years"],
+                hba1c=r["hba1c"],
+                fasting_glucose=r["fasting_glucose"],
+                blood_pressure=r["blood_pressure"],
+                bmi=r["bmi"],
+                family_history=bool(r["family_history"]),
+                physical_activity=r["physical_activity"],
+                symptoms=_safe_symptoms(r["symptoms"]),
+                created_at=r["created_at"],
+            )
+        )
 
+    # One audit row per LIST call (never per row): the compliance trail
+    # records who enumerated PHI without flooding the log.
+    audit_action(
+        _principal,
+        "patient_list",
+        f"search={'set' if search else '-'} returned={len(patients)} total={total}",
+    )
     return PatientListResponse(total=total, patients=patients)
 
 
@@ -168,6 +192,8 @@ def get_patient(patient_id: str, _principal: ApiPrincipal = Depends(require_auth
 
     if not r:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found.")
+
+    audit_action(_principal, "patient_read", patient_id)
 
     return PatientResponse(
         patient_id=r["patient_id"],
