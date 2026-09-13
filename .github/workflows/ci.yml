@@ -89,7 +89,10 @@ jobs:
       # Set repo Settings -> Secrets and variables -> Actions -> Variables ->
       # DRISHTI_BASE_URL (e.g. https://your-backend.onrender.com) for the live
       # demo; unset keeps localhost:8000 for local judging with a local server.
+      # Always wipe build/web first: flutter does not clean the output dir,
+      # so stale assets (e.g. removed images) would otherwise keep shipping.
       run: |
+        rm -rf build/web
         BASE_URL="${{ vars.DRISHTI_BASE_URL }}"
         if [ -z "$BASE_URL" ]; then BASE_URL="http://localhost:8000"; fi
         flutter build web --release --base-href /Drishti-AI/ --no-wasm-dry-run --dart-define=DRISHTI_BASE_URL=$BASE_URL
@@ -101,55 +104,11 @@ jobs:
         path: flutter_app/build/web
         retention-days: 7
 
-  macos:
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: flutter_app
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        channel: stable
-        key: 'macos-build'
-
-    - name: Install dependencies
-      run: flutter pub get
-
-    - name: Build macOS (release)
-      run: |
-        BASE_URL="${{ vars.DRISHTI_BASE_URL }}"
-        if [ -z "$BASE_URL" ]; then BASE_URL="http://localhost:8000"; fi
-        flutter build macos --release --dart-define=DRISHTI_BASE_URL=$BASE_URL
-
-    - name: Package macOS .app
-      run: |
-        APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" -type d | head -1)
-        APP_NAME=$(basename "$APP_PATH")
-        echo "Found app: $APP_NAME"
-        mkdir -p ./artifacts
-        cp -R "$APP_PATH" ./artifacts/
-        # Also create a zip for convenience
-        cd build/macos/Build/Products/Release
-        zip -r "../../../../${APP_NAME%.*}.zip" "$APP_NAME"
-
-    - name: Upload macOS app
-      uses: actions/upload-artifact@v4
-      with:
-        name: drishti-macos-${{ github.sha }}
-        path: |
-          flutter_app/artifacts/*.app
-          flutter_app/*.zip
-        retention-days: 30
-
   deploy-pages:
     # Live preview: every master/main push that passes the flutter job
     # is published to https://bezaleelpaul.github.io/Drishti-AI/
     # (repo Settings -> Pages -> Source must be "GitHub Actions").
-    needs: [flutter, macos]
+    needs: flutter
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
