@@ -1,8 +1,21 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Release signing: loaded from android/key.properties (gitignored).
+// NEVER fall back to debug keys for release builds — a missing
+// key.properties fails the release build loudly instead of producing
+// a Play-rejectable, attacker-forgeable debug-signed APK.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
 
 android {
@@ -30,11 +43,47 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = file(keystoreProperties["storeFile"] as String? ?: "")
+                storePassword = keystoreProperties["storePassword"] as String?
+            }
+            // APK Signature Scheme coverage (verified on 2026-09-13 build:
+            // v2 + v3 verify true with the dedicated release cert; v1 JAR
+            // compat and v4 streaming requested — `flutter build apk` does
+            // not emit the v4 .idsig sidecar, Play re-signs on upload).
+            // v3 gives key rotation on Android 9+.
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (!keystorePropertiesFile.exists()) {
+                throw GradleException(
+                    "Release signing misconfigured: android/key.properties not found. " +
+                        "Copy android/key.properties.template to android/key.properties, " +
+                        "generate a dedicated release keystore (keytool), and rebuild. " +
+                        "Refusing to sign a release build with debug keys."
+                )
+            }
+            signingConfig = signingConfigs.getByName("release")
+            // Release hardening: never debuggable, strip debug metadata.
+            isDebuggable = false
+            isJniDebuggable = false
+        }
+    }
+
+    packaging {
+        resources {
+            // Drop Kotlin coroutines debug-probe metadata left by debug builds.
+            excludes += "DebugProbesKt.bin"
         }
     }
 }

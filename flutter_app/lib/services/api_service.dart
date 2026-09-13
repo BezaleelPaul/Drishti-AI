@@ -18,9 +18,15 @@ class ReviewAuthException implements Exception {
 }
 
 class ApiService {
+  /// Production base URL. Override per deployment via
+  /// `--dart-define=DRISHTI_BASE_URL=https://api.example.com`.
+  /// HTTPS-only: plaintext http is rejected (see [_requireHttps]),
+  /// matching android:usesCleartextTraffic="false" + Network Security
+  /// Config. The old `http://localhost:8000` dev default was removed
+  /// because scanners flag any plaintext endpoint in the package.
   static const String defaultBaseUrl = String.fromEnvironment(
     'DRISHTI_BASE_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'https://api.drishti-ai.in',
   );
 
   /// API key for the Drishti-AI backend (X-API-Key header).
@@ -43,7 +49,36 @@ class ApiService {
   static final List<Map<String, dynamic>> offlineQueue = [];
   static final List<Map<String, dynamic>> offlinePatients = [];
 
-  ApiService({this.baseUrl = defaultBaseUrl, this.key = apiKey});
+  ApiService({this.baseUrl = defaultBaseUrl, this.key = apiKey}) {
+    _requireHttps(baseUrl);
+  }
+
+  /// Fail closed on plaintext endpoints. Only `https` (or wss-derived
+  /// https) is allowed. Emulator loopback for local dev must be an
+  /// explicit opt-in: `--dart-define=DRISHTI_ALLOW_HTTP_LOOPBACK=true`
+  /// plus a debug-only Network Security Config overlay — never in release.
+  static void _requireHttps(String url) {
+    const allowLoopback = bool.fromEnvironment(
+      'DRISHTI_ALLOW_HTTP_LOOPBACK',
+      defaultValue: false,
+    );
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.scheme.toLowerCase() != 'https') {
+      final isLoopback =
+          uri != null &&
+          (uri.host == 'localhost' ||
+              uri.host == '127.0.0.1' ||
+              uri.host == '10.0.2.2');
+      if (!(allowLoopback && isLoopback)) {
+        throw ArgumentError.value(
+          url,
+          'baseUrl',
+          'HTTPS-only: configure DRISHTI_BASE_URL with an https:// URL. '
+              'Plaintext http is blocked by the Network Security Config.',
+        );
+      }
+    }
+  }
 
   Map<String, String> get _headers => {'X-API-Key': key};
 

@@ -63,16 +63,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
       'asset': 'assets/images/3_severe_eye_referral.jpg',
       'filename': '3_severe_eye_referral.jpg',
     },
-    {
-      'title': '🔍 Real Patient Clinical Scan 1',
-      'asset': 'assets/images/real_clinical_fundus_patient1.jpg',
-      'filename': 'real_clinical_fundus_patient1.jpg',
-    },
-    {
-      'title': '🔍 Real Patient Clinical Scan 2',
-      'asset': 'assets/images/real_clinical_fundus_patient2.jpg',
-      'filename': 'real_clinical_fundus_patient2.jpg',
-    },
+    // NOTE (privacy): real patient fundus scans must NEVER be bundled into
+    // the app package (HIPAA/GDPR/DPDP). Use synthetic/scenario samples
+    // below plus on-device capture / file-picker for real images.
     {
       'title': '📊 Scenario 1 (Good Quality Pass)',
       'asset': 'assets/images/scenario_1_good.jpg',
