@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 import numpy as np
@@ -15,6 +16,7 @@ if PROJECT_ROOT not in sys.path:
 # flickering on low-end field PCs; opt-in via DRISHTI_USE_GPU=1.
 # ---------------------------------------------------------------------------
 from src.tf_config import configure_tensorflow
+
 configure_tensorflow()
 
 from src.clinical_risk import (
@@ -752,40 +754,75 @@ with tab_clinical:
                     type=["jpg", "jpeg", "png"],
                     key="custom_upload",
                 )
-                if uploaded_file:
+                # NOTE: image_to_process/record were already computed from
+                # session state EARLIER in this run (Streamlit executes
+                # top-to-bottom), so a new/cleared upload must st.rerun()
+                # for the viewport + verdict above to reflect it at once.
+                # Reruns are guarded by hash comparison: no state change
+                # means no rerun, so this can never loop.
+                if uploaded_file is not None:
                     try:
-                        st.session_state.uploaded_img = Image.open(uploaded_file).convert(
-                            "RGB"
-                        )
-                        uploaded_np = np.array(st.session_state.uploaded_img)
-                        uploaded_hash = _hashlib.sha256(
-                            np.ascontiguousarray(uploaded_np).tobytes()
-                        ).hexdigest()
-                        uploaded_key = (
-                            uploaded_hash,
-                            camera_hardware,
-                            threshold_profile,
-                            int(recapture_attempt_count),
-                            bool(enable_segmentation),
-                        )
-                        uploaded_record = router.process_image(
-                            image_input=uploaded_np,
-                            recapture_attempt_count=int(recapture_attempt_count),
-                            output_dir=os.path.join(PROJECT_ROOT, "results"),
-                            skip_gradcam=True,
-                        )
-                        uploaded_seg_res = None
-                        if (
-                            enable_segmentation
-                            and uploaded_record.quality_grade != QualityGrade.BAD
-                        ):
-                            uploaded_seg_res = segmenter.segment_structures(uploaded_np)
-                        st.session_state._inf_key = uploaded_key
-                        st.session_state._record = uploaded_record
-                        st.session_state._seg_res = uploaded_seg_res
+                        # getvalue() bytes (not the stream): the uploader's
+                        # read position is unreliable across reruns and a
+                        # second Image.open on the same stream can fail.
+                        new_img = Image.open(io.BytesIO(uploaded_file.getvalue())).convert("RGB")
                     except Exception as e:
                         st.error(f"Uploaded file is not a decodable image: {e}")
+                        if st.session_state.get("uploaded_img") is not None:
+                            st.session_state.uploaded_img = None
+                            st.session_state.uploaded_hash = None
+                            st.session_state._record = None
+                            st.session_state._seg_res = None
+                            st.rerun()
                         st.session_state.uploaded_img = None
+                        st.session_state.uploaded_hash = None
+                    else:
+                        new_np = np.array(new_img)
+                        new_hash = _hashlib.sha256(
+                            np.ascontiguousarray(new_np).tobytes()
+                        ).hexdigest()
+                        if st.session_state.get("uploaded_hash") != new_hash:
+                            try:
+                                uploaded_key = (
+                                    new_hash,
+                                    camera_hardware,
+                                    threshold_profile,
+                                    int(recapture_attempt_count),
+                                    bool(enable_segmentation),
+                                )
+                                uploaded_record = router.process_image(
+                                    image_input=new_np,
+                                    recapture_attempt_count=int(recapture_attempt_count),
+                                    output_dir=os.path.join(PROJECT_ROOT, "results"),
+                                    skip_gradcam=True,
+                                )
+                                uploaded_seg_res = None
+                                if (
+                                    enable_segmentation
+                                    and uploaded_record.quality_grade != QualityGrade.BAD
+                                ):
+                                    uploaded_seg_res = segmenter.segment_structures(new_np)
+                                # Pre-warm the memo cache: after the rerun
+                                # below, the top block recomputes the same key
+                                # and hits this record instead of re-running TF.
+                                st.session_state.uploaded_img = new_img
+                                st.session_state.uploaded_hash = new_hash
+                                st.session_state._inf_key = uploaded_key
+                                st.session_state._record = uploaded_record
+                                st.session_state._seg_res = uploaded_seg_res
+                            except Exception as e:
+                                st.error(f"Uploaded file is not a decodable image: {e}")
+                                st.session_state.uploaded_img = None
+                                st.session_state.uploaded_hash = None
+                            st.rerun()
+                elif st.session_state.get("uploaded_img") is not None:
+                    # Uploader cleared (X) but a ghost image lingered in
+                    # state: drop it so the viewport falls back cleanly.
+                    st.session_state.uploaded_img = None
+                    st.session_state.uploaded_hash = None
+                    st.session_state._record = None
+                    st.session_state._seg_res = None
+                    st.rerun()
 
         # Viewport + Quality Gate Assessment
         st.divider()
