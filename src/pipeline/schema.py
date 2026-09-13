@@ -152,6 +152,13 @@ class ScreeningRecord:
     # over the same pixels. Never rendered; excluded from reports/exports.
     reassessment_structures: Optional[Any] = None
 
+    # Traceability: which model backend produced the DR grade, and how long
+    # the pipeline took. model_backend follows the DRClassifier backend
+    # ('keras' | 'pytorch' | 'simulated'). None when unset (legacy or
+    # ungradable rows).
+    model_backend: Optional[str] = None
+    inference_time_ms: Optional[float] = None
+
     def format_report_text(self) -> str:
         """Formats the official screening report per Section 25."""
         if self.quality_grade != QualityGrade.GOOD or self.dr_prediction is None:

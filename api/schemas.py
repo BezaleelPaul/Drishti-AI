@@ -124,6 +124,8 @@ class RetinalAnalysisResponse(BaseModel):
     # None (unknown, e.g. history rows written before this field existed).
     # Clients MUST treat 'simulated' as non-diagnostic.
     model_backend: Optional[str] = Field(None, json_schema_extra={"example": "keras"})
+    # Wall-clock duration of the screening pipeline (ms).
+    inference_time_ms: Optional[float] = Field(None, json_schema_extra={"example": 1250.0})
 
     # Segmentation biomarkers (None when ungradable — never estimated)
     vessel_density_pct: Optional[float] = Field(None, json_schema_extra={"example": 14.2})

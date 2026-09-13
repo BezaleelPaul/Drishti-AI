@@ -9,8 +9,10 @@ Binds FastAPI HTTP requests directly to the validated Python AI models:
 from __future__ import annotations
 
 import io
+import logging
 import os
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, Union
@@ -33,6 +35,8 @@ from src.pipeline.schema import DRGrade, QualityGrade, ScreeningRecord
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _RESULTS_DIR = os.path.join(_PROJECT_ROOT, "results", "api_screenings")
 os.makedirs(_RESULTS_DIR, exist_ok=True)
+
+_logger = logging.getLogger("NetraAI.AIBridge")
 
 
 def _confidence_flags_with_ood(base_flags, probs) -> list:
@@ -207,11 +211,13 @@ class AIBridge:
         # Run pipeline router. output_dir=None: the router would otherwise write
         # a second Grad-CAM PNG (gradcam_<uuid>.png) that nothing references —
         # the single served overlay is saved below from heatmap_array.
+        _t0 = time.perf_counter()
         record: ScreeningRecord = self.router.process_image(
             image_input=orig_path,
             recapture_attempt_count=0,
             output_dir=None,
         )
+        inference_time_ms = round((time.perf_counter() - _t0) * 1000.0, 1)
 
         # URLs relative to static server
         orig_url = f"/results/{screening_id}/{orig_filename}"
@@ -302,6 +308,7 @@ class AIBridge:
             "probabilities": probs,
             "is_referable": is_ref,
             "model_backend": self.dr_classifier.get_backend(),
+            "inference_time_ms": inference_time_ms,
             "requires_human_review": record.human_review_required,
             "human_review_type": record.human_review_type.value,
             "human_review_reason": record.human_review_reason,

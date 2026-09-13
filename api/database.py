@@ -87,8 +87,9 @@ def save_screening_record(conn: sqlite3.Connection, analysis: Dict[str, Any]) ->
         original_image_path, gradcam_overlay_path, target_layer,
         action_recommendation, screening_status, created_at,
         probabilities, vessel_density_pct, microaneurysm_count, csme_risk,
-        min_fovea_distance_px, confidence_flags, patient_summary, captured_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        min_fovea_distance_px, confidence_flags, patient_summary, captured_at,
+        model_backend, inference_time_ms
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         analysis["screening_id"],
         analysis["patient_id"],
@@ -119,6 +120,8 @@ def save_screening_record(conn: sqlite3.Connection, analysis: Dict[str, Any]) ->
         json.dumps(analysis.get("confidence_flags", [])),
         analysis.get("patient_plain_language_summary"),
         analysis.get("captured_at"),
+        analysis.get("model_backend", "unknown"),
+        analysis.get("inference_time_ms"),
     ))
 
     # If human review required, create pending doctor review queue item.
@@ -203,8 +206,10 @@ def init_db():
             original_image_path TEXT,
             gradcam_overlay_path TEXT,
             target_layer TEXT,
-            action_recommendation TEXT,
-            screening_status TEXT DEFAULT 'Completed',
+             action_recommendation TEXT,
+             screening_status TEXT DEFAULT 'Completed',
+            model_backend TEXT DEFAULT 'unknown',
+            inference_time_ms REAL,
             created_at TEXT NOT NULL,
             FOREIGN KEY(patient_id) REFERENCES patients(patient_id)
         )
@@ -303,6 +308,8 @@ def _ensure_screening_columns(cursor: sqlite3.Cursor) -> None:
         ("confidence_flags", "TEXT"),
         ("patient_summary", "TEXT"),
         ("captured_at", "TEXT"),
+        ("model_backend", "TEXT"),
+        ("inference_time_ms", "REAL"),
     ):
         if name not in existing:
             cursor.execute(f"ALTER TABLE screenings ADD COLUMN {name} {ddl}")

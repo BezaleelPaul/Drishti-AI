@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 import uuid
 from typing import Optional, Union
 import numpy as np
@@ -19,6 +20,8 @@ from src.pipeline.schema import (
     ReassessmentOutcome,
     ScreeningRecord,
 )
+
+_logger = logging.getLogger("NetraAI.PipelineRouter")
 
 
 class ScreeningPipelineRouter:
@@ -303,6 +306,7 @@ class ScreeningPipelineRouter:
             except Exception as e:
                 gradcam_failed = True
                 gradcam_error = str(e)
+                _logger.warning("Grad-CAM generation failed: %s", gradcam_error)
                 gradcam_res = GradCAMResult(
                     heatmap_generated=False,
                     heatmap_array=None,
@@ -363,6 +367,7 @@ class ScreeningPipelineRouter:
             action=action_text,
             quality_metrics=quality_res.metrics,
             reassessment_structures=reassessment_struct,
+            model_backend=self.dr_classifier.get_backend(),
         )
 
     @staticmethod

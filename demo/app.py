@@ -23,6 +23,8 @@ from src.clinical_risk import (
     ScreeningPathway,
 )
 from src.pipeline.router import ScreeningPipelineRouter
+from src.classification.classifier import DRClassifier
+from src.classification.gradcam import GradCAMExplainer
 from src.pipeline.schema import (
     HumanReviewType,
     QualityGrade,
@@ -281,6 +283,20 @@ tab_clinical, tab_bilateral, tab_simulink, tab_specs = st.tabs(
 
 # Cache engines
 @st.cache_resource
+def _get_shared_classifier():
+    """Loads the DRClassifier once per session, independent of camera or
+    threshold-profile selection. Without this, changing camera_hardware or
+    threshold_profile would invalidate get_screening_engine's cache and
+    force a fresh Keras model load — a multi-second cost on CPU."""
+    classifier = DRClassifier()
+    gradcam_explainer = GradCAMExplainer(
+        classifier_backend=classifier,
+        use_gradcam_plus_plus=True,
+    )
+    return classifier, gradcam_explainer
+
+
+@st.cache_resource
 def get_screening_engine(cam_type: str, profile_mode: str):
     from dataclasses import replace as _dc_replace
 
@@ -318,7 +334,14 @@ def get_screening_engine(cam_type: str, profile_mode: str):
         )
 
     checker = ImageQualityChecker(thresholds=th)
-    router = ScreeningPipelineRouter(quality_checker=checker)
+    # Reuse the session-cached classifier + Grad-CAM explainer so only the
+    # quality-checker thresholds change when camera/profile are adjusted.
+    classifier, gradcam_explainer = _get_shared_classifier()
+    router = ScreeningPipelineRouter(
+        quality_checker=checker,
+        dr_classifier=classifier,
+        gradcam_explainer=gradcam_explainer,
+    )
     risk_model = DiabetesRiskModel()
     enhancer = AdaptiveQualityEnhancer()
     segmenter = RetinalStructureSegmenter()
@@ -749,6 +772,7 @@ with tab_clinical:
                             image_input=uploaded_np,
                             recapture_attempt_count=int(recapture_attempt_count),
                             output_dir=os.path.join(PROJECT_ROOT, "results"),
+                            skip_gradcam=True,
                         )
                         uploaded_seg_res = None
                         if (

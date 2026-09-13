@@ -171,9 +171,10 @@ def get_patient_screenings(
             dr_label=r["dr_grade_label"],
             prediction_score=r["dr_confidence"],
             probabilities=_safe_json_list(r["probabilities"]) or None,
-            # Backend is not persisted for history rows: None = unknown,
-            # never silently claimed as a real model.
-            model_backend=None,
+            # Backend that produced this grade: 'keras' | 'pytorch' | 'simulated' |
+            # None (unknown, e.g. history rows written before this field existed).
+            # Clients MUST treat 'simulated' as non-diagnostic.
+            model_backend=r["model_backend"] if "model_backend" in r.keys() else None,
             # NULL in DB = ungradable: must stay None, never False (healthy).
             is_referable=None if ref is None else bool(ref),
             vessel_density_pct=r["vessel_density_pct"],
@@ -195,8 +196,9 @@ def get_patient_screenings(
                 or ("Screening completed. No gradable result; recapture advised."
                     if r["dr_grade_num"] is None else "Screening completed.")
             ),
-            created_at=r["created_at"],
+             created_at=r["created_at"],
             captured_at=r["captured_at"] if "captured_at" in r.keys() else None,
+            inference_time_ms=r["inference_time_ms"] if "inference_time_ms" in r.keys() else None,
         ))
 
     return results

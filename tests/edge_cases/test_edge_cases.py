@@ -64,6 +64,9 @@ class TestEdgeCases(unittest.TestCase):
                     is_referable=True,
                 )
 
+            def get_backend(self):
+                return "keras"
+
         router = ScreeningPipelineRouter(dr_classifier=MockHighRiskClassifier())
         good_img = create_synthetic_fundus_image()
         record = router.process_image(good_img)
