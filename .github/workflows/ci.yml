@@ -89,7 +89,10 @@ jobs:
       # Set repo Settings -> Secrets and variables -> Actions -> Variables ->
       # DRISHTI_BASE_URL (e.g. https://your-backend.onrender.com) for the live
       # demo; unset keeps localhost:8000 for local judging with a local server.
+      # Always wipe build/web first: flutter does not clean the output dir,
+      # so stale assets (e.g. removed images) would otherwise keep shipping.
       run: |
+        rm -rf build/web
         BASE_URL="${{ vars.DRISHTI_BASE_URL }}"
         if [ -z "$BASE_URL" ]; then BASE_URL="http://localhost:8000"; fi
         flutter build web --release --base-href /Drishti-AI/ --no-wasm-dry-run --dart-define=DRISHTI_BASE_URL=$BASE_URL
