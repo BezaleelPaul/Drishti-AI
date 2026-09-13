@@ -105,6 +105,9 @@ jobs:
         retention-days: 7
 
   macos:
+    # Gated like build-macos below: macOS runners bill 10x minutes, so only
+    # tags/manual dispatch — never every push.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     defaults:
       run:
@@ -131,17 +134,18 @@ jobs:
     - name: Package macOS .app
       run: |
         mkdir -p ./artifacts
-        cp -R build/macos/Build/Products/Release/Drishti.app ./artifacts/
+        # PRODUCT_NAME is netra_ai_mobile (macos/Runner/Configs/AppInfo.xcconfig)
+        cp -R build/macos/Build/Products/Release/netra_ai_mobile.app ./artifacts/
         # Also create a zip for convenience
         cd build/macos/Build/Products/Release
-        zip -r ../../../../Drishti-macOS.zip Drishti.app
+        zip -r ../../../../Drishti-macOS.zip netra_ai_mobile.app
 
     - name: Upload macOS app
       uses: actions/upload-artifact@v4
       with:
         name: drishti-macos-${{ github.sha }}
         path: |
-          flutter_app/artifacts/Drishti.app
+          flutter_app/artifacts/netra_ai_mobile.app
           flutter_app/Drishti-macOS.zip
         retention-days: 30
 
