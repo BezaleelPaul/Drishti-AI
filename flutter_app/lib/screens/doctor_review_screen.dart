@@ -48,10 +48,9 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
             final rawGrade = item['dr_grade_num'];
             final int? parsedGrade = rawGrade == null
                 ? null
-                : (rawGrade is int
-                : (rawGrade is int
-                    ? rawGrade
-                    : int.tryParse(rawGrade.toString()));
+              : rawGrade is int
+              ? rawGrade
+              : int.tryParse(rawGrade.toString());
             final rawConf = item['dr_confidence'];
             final String confidenceStr = rawConf != null
                 ? '${(rawConf * 100).toStringAsFixed(1)}%'
