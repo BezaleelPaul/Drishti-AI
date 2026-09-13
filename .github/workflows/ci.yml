@@ -127,19 +127,22 @@ jobs:
 
     - name: Package macOS .app
       run: |
+        APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" -type d | head -1)
+        APP_NAME=$(basename "$APP_PATH")
+        echo "Found app: $APP_NAME"
         mkdir -p ./artifacts
-        cp -R build/macos/Build/Products/Release/Drishti.app ./artifacts/
+        cp -R "$APP_PATH" ./artifacts/
         # Also create a zip for convenience
         cd build/macos/Build/Products/Release
-        zip -r ../../../../Drishti-macOS.zip Drishti.app
+        zip -r "../../../../${APP_NAME%.*}.zip" "$APP_NAME"
 
     - name: Upload macOS app
       uses: actions/upload-artifact@v4
       with:
         name: drishti-macos-${{ github.sha }}
         path: |
-          flutter_app/artifacts/Drishti.app
-          flutter_app/Drishti-macOS.zip
+          flutter_app/artifacts/*.app
+          flutter_app/*.zip
         retention-days: 30
 
   deploy-pages:
