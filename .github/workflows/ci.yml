@@ -99,11 +99,52 @@ jobs:
         path: flutter_app/build/web
         retention-days: 7
 
+  macos:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        key: 'macos-build'
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Build macOS (release)
+      run: |
+        BASE_URL="${{ vars.DRISHTI_BASE_URL }}"
+        if [ -z "$BASE_URL" ]; then BASE_URL="http://localhost:8000"; fi
+        flutter build macos --release --dart-define=DRISHTI_BASE_URL=$BASE_URL
+
+    - name: Package macOS .app
+      run: |
+        mkdir -p ./artifacts
+        cp -R build/macos/Build/Products/Release/Drishti.app ./artifacts/
+        # Also create a zip for convenience
+        cd build/macos/Build/Products/Release
+        zip -r ../../../../Drishti-macOS.zip Drishti.app
+
+    - name: Upload macOS app
+      uses: actions/upload-artifact@v4
+      with:
+        name: drishti-macos-${{ github.sha }}
+        path: |
+          flutter_app/artifacts/Drishti.app
+          flutter_app/Drishti-macOS.zip
+        retention-days: 30
+
   deploy-pages:
     # Live preview: every master/main push that passes the flutter job
     # is published to https://bezaleelpaul.github.io/Drishti-AI/
     # (repo Settings -> Pages -> Source must be "GitHub Actions").
-    needs: flutter
+    needs: [flutter, macos]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
