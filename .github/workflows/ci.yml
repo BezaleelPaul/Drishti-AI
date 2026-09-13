@@ -3,8 +3,10 @@ name: Drishti-AI CI Pipeline
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -174,3 +176,92 @@ jobs:
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
+
+  # ---------------------------------------------------------------------------
+  # Cloud-Mac builds (macOS runners are 10x billed minutes: run these ONLY on
+  # tags (v*) or manual dispatch — never on every push).
+  # macOS .app is unsigned: judges right-click -> Open to bypass Gatekeeper.
+  # iOS is --no-codesign (unsigned): validates compilation only. Installing on
+  # a real iPhone requires an Apple Developer account ($99/yr), which no free
+  # tier can bypass.
+  # Required repo secret: DRISHTI_API_KEY (operator key). Optional repo
+  # variable: DRISHTI_BASE_URL (defaults to the Render backend below).
+  # ---------------------------------------------------------------------------
+  build-macos:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+        shell: bash
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Build macOS (release)
+      run: |
+        BASE_URL="${{ vars.DRISHTI_BASE_URL }}"
+        if [ -z "$BASE_URL" ]; then BASE_URL="https://drishti-ai-xg6w.onrender.com"; fi
+        flutter build macos --release \
+          --dart-define=DRISHTI_BASE_URL=$BASE_URL \
+          --dart-define=DRISHTI_API_KEY=${{ secrets.DRISHTI_API_KEY }}
+
+    - name: Zip .app bundle
+      run: |
+        ditto -c -k --sequesterRsrc --keepParent \
+          build/macos/Build/Products/Release/netra_ai_mobile.app \
+          netra_ai_macos.zip
+
+    - name: Upload macOS bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: netra-ai-macos-${{ github.sha }}
+        path: flutter_app/netra_ai_macos.zip
+        retention-days: 14
+
+  build-ios:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+        shell: bash
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Build iOS (release, unsigned)
+      run: |
+        BASE_URL="${{ vars.DRISHTI_BASE_URL }}"
+        if [ -z "$BASE_URL" ]; then BASE_URL="https://drishti-ai-xg6w.onrender.com"; fi
+        flutter build ios --release --no-codesign \
+          --dart-define=DRISHTI_BASE_URL=$BASE_URL \
+          --dart-define=DRISHTI_API_KEY=${{ secrets.DRISHTI_API_KEY }}
+
+    - name: Zip unsigned Runner.app
+      run: |
+        cd build/ios/iphoneos
+        zip -r ../../../netra_ai_ios_unsigned.zip Runner.app
+
+    - name: Upload iOS bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: netra-ai-ios-unsigned-${{ github.sha }}
+        path: flutter_app/netra_ai_ios_unsigned.zip
+        retention-days: 14
