@@ -310,6 +310,17 @@ class ApiService {
         knownDiabetesYears,
         hba1c,
       );
+    } catch (e) {
+      // Server rejection (HTTP 500, 401, 422, etc.): fall back to the
+      // on-device heuristic so the intake flow degrades gracefully instead
+      // of crashing. The risk model's pathway will flag it as OFFLINE_HEURISTIC.
+      return _offlineRiskFallback(
+        age,
+        bmi,
+        familyHistory,
+        knownDiabetesYears,
+        hba1c,
+      );
     }
   }
 

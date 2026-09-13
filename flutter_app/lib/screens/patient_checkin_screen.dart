@@ -401,8 +401,10 @@ class _PatientCheckinScreenState extends State<PatientCheckinScreen> {
                                   ),
                                 ],
                                 onChanged: (v) {
-                                  setState(() => _gender = v!);
-                                  _evaluateRisk();
+                                  if (v != null) {
+                                    setState(() => _gender = v);
+                                    _evaluateRisk();
+                                  }
                                 },
                               ),
                             ),

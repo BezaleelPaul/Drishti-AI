@@ -58,7 +58,7 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png'],
       );
-      if (files.isNotEmpty && mounted) {
+      if (files != null && files.isNotEmpty && mounted) {
         final picked = files.first;
         final bytes = await picked.readAsBytes();
         setState(() {

@@ -398,8 +398,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                         ),
                       ],
                       onChanged: (v) {
-                        setState(() => _selectedCamera = v!);
-                        _runQualityCheck();
+                        if (v != null) {
+                          setState(() => _selectedCamera = v);
+                          _runQualityCheck();
+                        }
                       },
                     ),
                   ),
