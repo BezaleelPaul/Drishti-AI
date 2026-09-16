@@ -55,20 +55,35 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
   Future<void> _upload() async {
     try {
       final files = await FilePicker.pickFiles(
+        dialogTitle: 'Select a fundus photo',
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png'],
       );
-      if (files.isNotEmpty && mounted) {
-        final picked = files.first;
-        final bytes = await picked.readAsBytes();
-        setState(() {
-          widget.state.imageBytes = bytes;
-          widget.state.filename = picked.name;
-          widget.state.quality = null;
-        });
-        unawaited(_runQuality());
+      if (files.isEmpty) return; // user cancelled the picker
+      if (!mounted) return;
+      final picked = files.first;
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not read that photo (empty file).'),
+          ),
+        );
+        return;
       }
-    } catch (_) {}
+      setState(() {
+        widget.state.imageBytes = bytes;
+        widget.state.filename = picked.name;
+        widget.state.quality = null;
+      });
+      unawaited(_runQuality());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open photo: $e')),
+      );
+    }
   }
 
   Future<void> _runQuality() async {

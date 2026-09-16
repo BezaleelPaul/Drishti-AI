@@ -107,19 +107,29 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   Future<void> _pickCustomImage() async {
     try {
       final files = await FilePicker.pickFiles(
+        dialogTitle: 'Select a fundus photo',
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png'],
       );
-      if (files.isNotEmpty) {
-        final picked = files.first;
-        final bytes = await picked.readAsBytes();
-        setState(() {
-          _imageBytes = bytes;
-          _currentSampleAsset = 'custom_upload';
-          _currentSampleName = picked.name;
-        });
-        await _runQualityCheck();
+      if (files.isEmpty) return; // user cancelled the picker
+      if (!mounted) return;
+      final picked = files.first;
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not read that photo (empty file).'),
+          ),
+        );
+        return;
       }
+      setState(() {
+        _imageBytes = bytes;
+        _currentSampleAsset = 'custom_upload';
+        _currentSampleName = picked.name;
+      });
+      await _runQualityCheck();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
