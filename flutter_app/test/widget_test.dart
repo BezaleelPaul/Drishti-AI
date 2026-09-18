@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:netra_ai_mobile/l10n/lang_scope.dart';
@@ -14,5 +15,13 @@ void main() {
     expect(find.text('PHC Dashboard'), findsOneWidget);
     expect(find.text('+ Start New Screening'), findsOneWidget);
     expect(find.text('Recent Screenings'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.language));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('हिन्दी'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('PHC Dashboard'), findsNothing);
+    expect(find.text('PHC डैशबोर्ड'), findsOneWidget);
   });
 }

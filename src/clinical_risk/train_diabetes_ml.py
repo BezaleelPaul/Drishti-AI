@@ -7,14 +7,12 @@ Outputs:
 """
 
 import os
+
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import classification_report, roc_auc_score, brier_score_loss
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, cross_val_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 
 
 def generate_epidemiological_cohort(n_samples: int = 5000, seed: int = 42) -> pd.DataFrame:

@@ -1,20 +1,20 @@
 """
 Upstream Diabetes Risk Stratification and Clinical Protocol Module.
 """
+from src.clinical_risk.risk_model import DiabetesRiskModel
 from src.clinical_risk.schema import (
+    DiabetesRiskAssessment,
     DiabetesStatus,
+    PatientClinicalProfile,
     RiskLevel,
     ScreeningPathway,
-    PatientClinicalProfile,
-    DiabetesRiskAssessment,
 )
-from src.clinical_risk.risk_model import DiabetesRiskModel
 
 __all__ = [
-    "DiabetesStatus",
-    "RiskLevel",
-    "ScreeningPathway",
-    "PatientClinicalProfile",
     "DiabetesRiskAssessment",
     "DiabetesRiskModel",
+    "DiabetesStatus",
+    "PatientClinicalProfile",
+    "RiskLevel",
+    "ScreeningPathway",
 ]

@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
 
 import numpy as np
 
 from src.pipeline.schema import (
     ConfidenceAssessment,
     DRClassificationResult,
-    DRGrade,
 )
 
 
@@ -41,7 +39,7 @@ class ConfidenceEvaluator:
         """
         Evaluates confidence, ambiguity, and clinical risk rules.
         """
-        flags: List[str] = []
+        flags: list[str] = []
         is_confident = True
         is_ambiguous = False
         is_high_risk = False
@@ -71,7 +69,7 @@ class ConfidenceEvaluator:
                     flags.append(
                         f"Confidence mismatch (confidence {dr_result.confidence:.4f} != max(probs) {max_prob:.4f}): mandatory human review"
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001 - invalid confidence must require review
                 is_confident = False
                 requires_review = True
                 flags.append("Invalid confidence inputs (could not validate probabilities): mandatory human review")

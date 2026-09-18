@@ -24,9 +24,9 @@ from api.database import ensure_db
 from api.ratelimit import RateLimiter
 from api.routes.patients import router as patients_router
 from api.routes.results import router as results_router
-from api.routes.risk import router as risk_router
 from api.routes.retinal import router as retinal_router
 from api.routes.review import router as review_router
+from api.routes.risk import router as risk_router
 from api.routes.sync import router as sync_router
 from api.routes.system import router as system_router
 
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
             conn.commit()
         finally:
             conn.close()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - shutdown checkpoint must not block exit
         logger.warning("WAL checkpoint on shutdown failed: %s", e)
 
 

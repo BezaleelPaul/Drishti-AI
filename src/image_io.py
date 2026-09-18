@@ -18,8 +18,6 @@ denominators cannot disagree on dim border pixels.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
 
 #: Grayscale value above which a pixel counts as retinal tissue (not border).
@@ -37,7 +35,7 @@ def to_rgb_uint8(arr: np.ndarray) -> np.ndarray:
             unsupported shapes/dtypes.
     """
     if not isinstance(arr, np.ndarray):
-        raise ValueError(f"Expected numpy array, got {type(arr)}.")
+        raise TypeError(f"Expected numpy array, got {type(arr)}.")
     if arr.size == 0:
         raise ValueError("Empty image array.")
     if arr.ndim == 2:

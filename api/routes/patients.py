@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 import sqlite3
 import uuid
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, Depends
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from api.auth import ApiPrincipal, audit_action, require_auth
-
-
 from api.database import get_db
 from api.schemas import PatientCreate, PatientListResponse, PatientResponse
 
@@ -105,7 +104,7 @@ def _safe_symptoms(value) -> list:
 
 @router.get("", response_model=PatientListResponse)
 def list_patients(
-    search: Optional[str] = Query(None, max_length=64, description="Search by name, ID, or ABHA"),
+    search: str | None = Query(None, max_length=64, description="Search by name, ID, or ABHA"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     _principal: ApiPrincipal = Depends(require_auth),

@@ -3,9 +3,8 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+
 import numpy as np
-from PIL import Image
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _TOOLBOX_PATH = os.path.join(_PROJECT_ROOT, "external", "fundus_image_toolbox")
@@ -21,16 +20,16 @@ except ImportError:
 
 @dataclass
 class RetinalStructuresResult:
-    optic_disc_center: Tuple[int, int]           # (x, y) coordinates
+    optic_disc_center: tuple[int, int]           # (x, y) coordinates
     optic_disc_radius: int
-    fovea_center: Tuple[int, int]                # (x, y) coordinates
+    fovea_center: tuple[int, int]                # (x, y) coordinates
     vessel_mask: np.ndarray                      # 2D binary uint8 mask (255 for vessel, 0 background)
-    microaneurysm_candidates: List[Tuple[int, int, int]] = field(default_factory=list) # (x, y, radius)
-    exudate_mask: Optional[np.ndarray] = None    # 2D binary uint8 mask of bright lesions
-    annotated_overlay: Optional[np.ndarray] = None # RGB image with clinical annotations
+    microaneurysm_candidates: list[tuple[int, int, int]] = field(default_factory=list) # (x, y, radius)
+    exudate_mask: np.ndarray | None = None    # 2D binary uint8 mask of bright lesions
+    annotated_overlay: np.ndarray | None = None # RGB image with clinical annotations
     vessel_density_pct: float = 0.0              # % of retinal area occupied by vessels (1-decimal display)
     vessel_density_raw: float = 0.0            # unrounded density for gate comparisons (avoids 0.751->0.8 flips)
-    min_fovea_distance_px: Optional[float] = None  # distance from closest lesion to fovea center; None if no lesions (healthy)
+    min_fovea_distance_px: float | None = None  # distance from closest lesion to fovea center; None if no lesions (healthy)
     csme_risk: str = "LOW"                       # Clinically Significant Macular Edema risk
 
 
@@ -56,7 +55,7 @@ class RetinalStructureSegmenter:
         try:
             import fundus_image_toolbox as fit
             self._fovea_od_dl_model, _ = fit.load_fovea_od_model(device="cpu")
-        except Exception:
+        except Exception:  # noqa: BLE001 - optional toolbox model uses geometric fallback
             self._fovea_od_dl_model = None
 
     def segment_structures(self, img_rgb: np.ndarray) -> RetinalStructuresResult:
@@ -108,8 +107,7 @@ class RetinalStructureSegmenter:
         min_dist = 999.0
         for cx, cy, _ in ma_candidates:
             d = float(np.sqrt((cx - fx) ** 2 + (cy - fy) ** 2))
-            if d < min_dist:
-                min_dist = d
+            min_dist = min(min_dist, d)
 
         # Check exudates if any
         if exudate_mask is not None and HAS_OPENCV:
@@ -118,8 +116,7 @@ class RetinalStructureSegmenter:
                 # ex_pts is (y, x)
                 dists = np.sqrt((ex_pts[:, 1] - fx) ** 2 + (ex_pts[:, 0] - fy) ** 2)
                 min_ex_dist = float(np.min(dists))
-                if min_ex_dist < min_dist:
-                    min_dist = min_ex_dist
+                min_dist = min(min_dist, min_ex_dist)
 
         # CSME Risk: Macular encroachment within 1.5x OD radius (~500-1500 microns)
         has_lesions = (len(ma_candidates) > 0) or (exudate_mask is not None and bool(np.count_nonzero(exudate_mask) > 0))
@@ -146,7 +143,7 @@ class RetinalStructureSegmenter:
 
     def _localize_od_and_fovea(
         self, img_rgb: np.ndarray, green: np.float32, retinal_mask: np.ndarray
-    ) -> Tuple[Tuple[int, int], int, Tuple[int, int]]:
+    ) -> tuple[tuple[int, int], int, tuple[int, int]]:
         h, w, _ = img_rgb.shape
         cy, cx = h // 2, w // 2
         approx_radius = int(min(h, w) * 0.08)
@@ -157,8 +154,9 @@ class RetinalStructureSegmenter:
                 coords = self._fovea_od_dl_model.predict([img_rgb])[0] # [fovea_x, fovea_y, od_x, od_y]
                 fx, fy, od_x, od_y = int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])
                 return (od_x, od_y), approx_radius, (fx, fy)
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - invalid model output uses fallback
+                import logging
+                logging.getLogger(__name__).debug("Fovea/optic-disc model failed: %s", exc)
 
         # 2. Robust morphological fallback
         if HAS_OPENCV:
@@ -177,7 +175,7 @@ class RetinalStructureSegmenter:
             blurred[retinal_mask == 0] = 0
             
             # Find brightest centroid
-            min_v, max_v, min_l, max_l = cv2.minMaxLoc(blurred)
+            _, _, _, max_l = cv2.minMaxLoc(blurred)
             od_x, od_y = int(max_l[0]), int(max_l[1])
 
             # Fovea is roughly 2.5 disc diameters temporal to optic disc
@@ -203,8 +201,8 @@ class RetinalStructureSegmenter:
         # across 256px thumbnails and high-res captures without breaking tests.
         scale = max(0.5, min(2.0, min(h, w) / 512.0))
 
-        def _odd(n: int, lo: int = 3) -> int:
-            n = max(lo, int(round(n)))
+        def _odd(n: float, lo: int = 3) -> int:
+            n = max(lo, round(n))
             return n if (n % 2 == 1) else n + 1
 
         # Enhance green channel contrast using CLAHE
@@ -222,7 +220,7 @@ class RetinalStructureSegmenter:
         vessels[retinal_mask == 0] = 0
 
         # Remove small isolated speckles (area scaled by resolution)
-        min_vessel_area = max(8, int(round(20 * scale * scale)))
+        min_vessel_area = max(8, round(20 * scale * scale))
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(vessels)
         cleaned_vessels = np.zeros_like(vessels)
         for i in range(1, num_labels):
@@ -232,7 +230,7 @@ class RetinalStructureSegmenter:
         return cleaned_vessels
 
     def _segment_exudates(
-        self, img_rgb: np.ndarray, od_center: Tuple[int, int], od_radius: int, retinal_mask: np.ndarray
+        self, img_rgb: np.ndarray, od_center: tuple[int, int], od_radius: int, retinal_mask: np.ndarray
     ) -> np.ndarray:
         h, w, _ = img_rgb.shape
         if not HAS_OPENCV:
@@ -256,7 +254,7 @@ class RetinalStructureSegmenter:
         if np.max(exudate_metric) > 160:
             _, ex_thresh = cv2.threshold(exudate_metric, 175, 255, cv2.THRESH_BINARY)
             # Retain only focal clusters (kernel scaled to resolution)
-            ex_k = max(3, int(round(3 * max(0.5, min(2.0, min(h, w) / 512.0)))))
+            ex_k = max(3, round(3 * max(0.5, min(2.0, min(h, w) / 512.0))))
             if ex_k % 2 == 0:
                 ex_k += 1
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ex_k, ex_k))
@@ -266,7 +264,7 @@ class RetinalStructureSegmenter:
 
     def _detect_microaneurysm_candidates(
         self, green: np.float32, vessel_mask: np.ndarray, retinal_mask: np.ndarray
-    ) -> List[Tuple[int, int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Microaneurysms: Small isolated focal dark spots (< 15 px diameter).
         """
@@ -280,7 +278,7 @@ class RetinalStructureSegmenter:
         scale = max(0.5, min(2.0, min(h, w) / 512.0))
 
         def _odd(n: float, lo: int = 3) -> int:
-            n = max(lo, int(round(n)))
+            n = max(lo, round(n))
             return n if (n % 2 == 1) else n + 1
 
         # Bottom-hat transform highlights dark circular objects smaller than kernel
@@ -299,8 +297,8 @@ class RetinalStructureSegmenter:
         _cnt = cv2.findContours(ma_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = _cnt[0] if len(_cnt) == 2 else _cnt[1]
 
-        ma_min_area = max(2, int(round(3 * scale * scale)))
-        ma_max_area = int(round(65 * scale * scale))
+        ma_min_area = max(2, round(3 * scale * scale))
+        ma_max_area = round(65 * scale * scale)
         candidates = []
         for cnt in contours:
             area = cv2.contourArea(cnt)
@@ -313,12 +311,12 @@ class RetinalStructureSegmenter:
     def _create_annotated_overlay(
         self,
         orig_rgb: np.ndarray,
-        od_center: Tuple[int, int],
+        od_center: tuple[int, int],
         od_radius: int,
-        fovea_center: Tuple[int, int],
+        fovea_center: tuple[int, int],
         vessel_mask: np.ndarray,
         exudate_mask: np.ndarray,
-        ma_candidates: List[Tuple[int, int, int]],
+        ma_candidates: list[tuple[int, int, int]],
     ) -> np.ndarray:
         """
         Blends all anatomical landmarks and lesion indicators onto original image
@@ -330,9 +328,11 @@ class RetinalStructureSegmenter:
 
         # 1. Overlay Blood Vessels in light cyan tint
         vessel_pixels = vessel_mask == 255
-        overlay[vessel_pixels, 0] = np.uint8(overlay[vessel_pixels, 0] * 0.4 + 40)
-        overlay[vessel_pixels, 1] = np.uint8(overlay[vessel_pixels, 1] * 0.5 + 180)
-        overlay[vessel_pixels, 2] = np.uint8(overlay[vessel_pixels, 2] * 0.5 + 230)
+        # np.clip before uint8: arithmetic can exceed 255 and uint8 wraps
+        # (e.g. 255*0.5+180=307.5 -> 51 instead of 255), corrupting the cyan tint.
+        overlay[vessel_pixels, 0] = np.uint8(np.clip(overlay[vessel_pixels, 0] * 0.4 + 40, 0, 255))
+        overlay[vessel_pixels, 1] = np.uint8(np.clip(overlay[vessel_pixels, 1] * 0.5 + 180, 0, 255))
+        overlay[vessel_pixels, 2] = np.uint8(np.clip(overlay[vessel_pixels, 2] * 0.5 + 230, 0, 255))
 
         # 2. Draw Optic Disc (yellow circle) & Fovea (blue crosshair)
         cv2.circle(overlay, od_center, od_radius, (255, 230, 0), 2)

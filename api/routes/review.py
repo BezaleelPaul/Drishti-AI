@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from api.auth import ApiPrincipal, require_doctor
-
-
 from api.database import get_db
 from api.schemas import (
     DoctorDecisionRequest,
@@ -193,6 +192,7 @@ def submit_doctor_decision(review_id: str, payload: DoctorDecisionRequest, _prin
                 dr_grade_label = ?,
                 is_referable = ?,
                 requires_human_review = 0,
+                human_review_type = 'NONE',
                 screening_status = ?,
                 action_recommendation = COALESCE(action_recommendation, '') || ?
             WHERE screening_id = ?
@@ -208,6 +208,7 @@ def submit_doctor_decision(review_id: str, payload: DoctorDecisionRequest, _prin
             cursor.execute("""
             UPDATE screenings
             SET requires_human_review = 0,
+                human_review_type = 'NONE',
                 screening_status = ?,
                 action_recommendation = COALESCE(action_recommendation, '') || ?
             WHERE screening_id = ?

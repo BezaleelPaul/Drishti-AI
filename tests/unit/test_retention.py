@@ -58,6 +58,26 @@ class TestRetention(unittest.TestCase):
         with self.assertRaises(ValueError):
             purge_expired_screenings(0)
 
+    def test_invalid_timestamps_are_reported_and_not_purged(self):
+        with tempfile.TemporaryDirectory() as td:
+            dbp = os.path.join(td, "t.db")
+            _make_db(dbp, [400])
+            conn = sqlite3.connect(dbp)
+            try:
+                conn.execute(
+                    "INSERT INTO screenings "
+                    "(screening_id, patient_id, eye_side, quality_grade, created_at) "
+                    "VALUES ('SCR-BAD', 'PT-T1', 'Right', 'GOOD', 'not-a-timestamp')"
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            report = purge_expired_screenings(365, db_path=dbp, dry_run=True)
+
+            self.assertEqual(report["screenings"], ["SCR-T0"])
+            self.assertEqual(report["invalid_timestamps"], ["SCR-BAD"])
+
     def test_dry_run_deletes_nothing(self):
         with tempfile.TemporaryDirectory() as td:
             dbp = os.path.join(td, "t.db")

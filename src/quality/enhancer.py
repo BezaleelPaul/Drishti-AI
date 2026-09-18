@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Optional, Tuple, Union
+
 import numpy as np
 from PIL import Image
 
@@ -21,7 +21,7 @@ except ImportError:
 try:
     from fundus_image_toolbox import crop as fit_circle_crop
     HAS_TOOLBOX_CROP = True
-except Exception:
+except Exception:  # noqa: BLE001 - optional toolbox crop uses OpenCV fallback
     HAS_TOOLBOX_CROP = False
 
 
@@ -55,7 +55,7 @@ class AdaptiveQualityEnhancer:
         img_rgb: np.ndarray,
         size: int = 512,
         return_mask: bool = False
-    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
         """
         Applies automated contour-based circular cropping.
         Removes dark boundary edges and camera frame margins dynamically.
@@ -76,8 +76,9 @@ class AdaptiveQualityEnhancer:
                 if return_mask:
                     return cropped, mask
                 return cropped
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - optional crop uses OpenCV fallback
+                import logging
+                logging.getLogger(__name__).debug("Toolbox circle crop failed: %s", exc)
 
         # Robust OpenCV fallback contour crop
         if HAS_OPENCV:

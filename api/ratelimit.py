@@ -11,11 +11,11 @@ import os
 import threading
 import time
 from collections import deque
-from typing import Deque, Dict, Tuple
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
 
 def _int_env(name: str, default: int) -> int:
     try:
@@ -52,7 +52,7 @@ class RateLimiter(BaseHTTPMiddleware):
         self.general = general
         self.inference = inference
         self._lock = threading.Lock()
-        self._hits: Dict[Tuple[str, str], Deque[float]] = {}
+        self._hits: dict[tuple[str, str], deque[float]] = {}
         self._last_sweep = 0.0
 
     def _identity(self, request: Request) -> str:
@@ -70,7 +70,7 @@ class RateLimiter(BaseHTTPMiddleware):
         for k in stale:
             del self._hits[k]
 
-    def _allowed(self, bucket: str, limit: int, now: float, window: float = 60.0) -> Tuple[bool, float]:
+    def _allowed(self, bucket: str, limit: int, now: float, window: float = 60.0) -> tuple[bool, float]:
         with self._lock:
             # Amortized sweep (at most every 5s): sweeping the full dict on
             # every at-cap insert held the lock over an O(20k) scan per

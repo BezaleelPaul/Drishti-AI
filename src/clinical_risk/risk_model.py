@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 import math
 import os
-from typing import List, Optional
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +32,7 @@ class DiabetesRiskModel:
      directed toward laboratory testing (HbA1c/FPG) for physician confirmation.'
     """
 
-    def __init__(self, model_path: Optional[str] = None):
+    def __init__(self, model_path: str | None = None):
         self.model_path = model_path or os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "diabetes_ml_model.joblib"
         )
@@ -50,11 +48,11 @@ class DiabetesRiskModel:
                 self.ml_model = payload["model"]
                 self.feature_cols = payload.get("feature_cols", [])
                 self.importances = payload.get("importances", {})
-            except Exception:
+            except Exception:  # noqa: BLE001 - heuristic risk fallback is intentional
                 self.ml_model = None
 
     def evaluate(self, profile: PatientClinicalProfile) -> DiabetesRiskAssessment:
-        rationale: List[str] = []
+        rationale: list[str] = []
         # Work on a copy: clamping below must never mutate the caller's object
         # (keeps evaluate() idempotent and side-effect free).
         import dataclasses as _dc
@@ -75,6 +73,9 @@ class DiabetesRiskModel:
             if not math.isfinite(v):
                 rationale.append(f"Invalid {name} ({val!r}); scored as 0 (missing data).")
                 return 0
+            if v < 0:
+                rationale.append(f"Invalid negative {name} ({v}) clamped to 0 for risk estimation.")
+                return 0.0
             return v
 
         def _num_or_none(name: str, val):
@@ -94,26 +95,22 @@ class DiabetesRiskModel:
         profile.age = _num("Age", profile.age)
         profile.bmi = _num("BMI", profile.bmi)
         profile.hba1c_pct = _num_or_none("HbA1c", profile.hba1c_pct)
+        if profile.hba1c_pct is not None and profile.hba1c_pct > 20.0:
+            rationale.append(f"HbA1c {profile.hba1c_pct:.1f}% outside physiological range (>20%); clamped to 20%.")
+            profile.hba1c_pct = 20.0
         profile.fasting_glucose_mg_dl = _num_or_none("Fasting glucose", profile.fasting_glucose_mg_dl)
+        if profile.fasting_glucose_mg_dl is not None and profile.fasting_glucose_mg_dl > 600.0:
+            rationale.append(
+                f"Fasting glucose {profile.fasting_glucose_mg_dl:.0f} mg/dL outside physiological range (>600); clamped."
+            )
+            profile.fasting_glucose_mg_dl = 600.0
         profile.random_glucose_mg_dl = _num_or_none("Random glucose", profile.random_glucose_mg_dl)
+        if profile.random_glucose_mg_dl is not None and profile.random_glucose_mg_dl > 800.0:
+            rationale.append(
+                f"Random glucose {profile.random_glucose_mg_dl:.0f} mg/dL outside physiological range (>800); clamped."
+            )
+            profile.random_glucose_mg_dl = 800.0
         profile.known_diabetes_years = _num_or_none("Diabetes duration", profile.known_diabetes_years)
-        for _neg_name, _neg_val in (
-            ("age", profile.age), ("BMI", profile.bmi),
-        ):
-            if _neg_val < 0:
-                rationale.append(f"Invalid negative {_neg_name} ({_neg_val}) clamped to 0 for risk estimation.")
-        profile.age = max(0.0, profile.age)
-        profile.bmi = max(0.0, profile.bmi)
-        for _neg_name, _neg_attr in (
-            ("HbA1c", "hba1c_pct"), ("fasting glucose", "fasting_glucose_mg_dl"),
-            ("random glucose", "random_glucose_mg_dl"),
-        ):
-            _v = getattr(profile, _neg_attr)
-            if _v is not None and _v < 0:
-                rationale.append(
-                    f"Invalid negative {_neg_name} ({_v}) clamped to 0 for risk estimation."
-                )
-                setattr(profile, _neg_attr, 0.0)
         if profile.known_diabetes_years is not None and profile.known_diabetes_years < 0:
             rationale.append(
                 f"Invalid negative diabetes duration ({profile.known_diabetes_years}) ignored; "
@@ -244,7 +241,7 @@ class DiabetesRiskModel:
                     ml_prob = float(self.ml_model.predict_proba(features)[0, 1])
                     score = round(ml_prob * 100.0, 1)
                     rationale.append(f"Random Forest ML risk probability: {ml_prob:.1%}")
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - invalid ML output uses rules
                     logger.warning("ML prediction failed (%s); falling back to heuristic estimate.", exc)
                     rationale.append(
                         "ML prediction unavailable; using heuristic fallback risk estimate."

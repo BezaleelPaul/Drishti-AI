@@ -4,7 +4,8 @@ import logging
 import os
 import shutil
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from api.auth import ApiPrincipal, require_auth
@@ -38,7 +39,7 @@ def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
 
             cursor.execute("SELECT COUNT(*) as count FROM doctor_reviews WHERE status = 'PENDING'")
             pending_reviews = cursor.fetchone()["count"]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - status endpoint reports degraded state
         db_ok = False
         logger.warning("health DB probe failed: %s", e)
 
@@ -63,7 +64,7 @@ def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
             runtime_issues.append(
                 f"Model 2 runtime backend is {classifier_backend}; clinical weights are unavailable"
             )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - optional camera probe is best effort
         logger.warning("Model runtime probe failed: %s", exc)
         runtime_issues.append("Model 2 runtime probe failed")
 
@@ -107,7 +108,7 @@ def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
 
 
 @router.get("/cameras")
-def get_camera_profiles() -> List[Dict[str, Any]]:
+def get_camera_profiles() -> list[dict[str, Any]]:
     """Conceptual camera profiles demonstrating manufacturer-agnostic image compatibility."""
     return [
         {
@@ -146,7 +147,7 @@ def get_camera_profiles() -> List[Dict[str, Any]]:
 
 
 @router.get("/samples")
-def get_sample_test_cases() -> List[Dict[str, Any]]:
+def get_sample_test_cases() -> list[dict[str, Any]]:
     """Curated field test pack demonstrating multi-camera and multi-condition compatibility."""
     return [
         {

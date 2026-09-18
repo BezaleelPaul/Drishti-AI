@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
 
 
 class DiabetesStatus(str, Enum):
@@ -32,13 +31,13 @@ class PatientClinicalProfile:
     bmi: float                            # kg/m^2
     family_history_diabetes: bool         # Parents/siblings with diabetes
     physical_activity: str                # "Sedentary", "Moderate", "Vigorous"
-    symptoms: List[str] = field(default_factory=list) # e.g. ["Polyuria", "Polydipsia", "Blurry Vision"]
+    symptoms: list[str] = field(default_factory=list) # e.g. ["Polyuria", "Polydipsia", "Blurry Vision"]
     
     # Clinical Biomarkers (if available at camp / clinic)
-    fasting_glucose_mg_dl: Optional[float] = None
-    random_glucose_mg_dl: Optional[float] = None
-    hba1c_pct: Optional[float] = None
-    known_diabetes_years: Optional[float] = None
+    fasting_glucose_mg_dl: float | None = None
+    random_glucose_mg_dl: float | None = None
+    hba1c_pct: float | None = None
+    known_diabetes_years: float | None = None
 
 
 @dataclass
@@ -47,7 +46,7 @@ class DiabetesRiskAssessment:
     risk_score: float                     # 0 - 100 standardized risk index
     diabetes_status: DiabetesStatus
     pathway: ScreeningPathway
-    clinical_rationale: List[str] = field(default_factory=list)
+    clinical_rationale: list[str] = field(default_factory=list)
     action_recommendation: str = ""
     risk_source: str = "heuristic"           # clinical_rule, ml, or heuristic
 

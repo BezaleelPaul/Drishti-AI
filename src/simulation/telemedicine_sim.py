@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, Any
+
 import numpy as np
 
 
@@ -120,13 +120,12 @@ class TelemedicineSimulinkEngine:
         # Rural connection: 384 kbps = 48 KB/s
         transfer_speed_kb_s = p.rural_bandwidth_kbps / 8.0
         cloud_upload_latency_sec = (p.raw_image_size_mb * 1024.0) / transfer_speed_kb_s # ~96 seconds per image!
-        edge_upload_latency_sec = p.compressed_dossier_kb / transfer_speed_kb_s          # ~5.2 seconds
 
         # Total on-site patient wait time.
         # quality_rejection_rate: fraction blocked/recaptured locally on-site.
         # Recaptures consume extra edge passes but never reach the specialist
         # queue, so model them as expected overhead on edge turnaround.
-        recaptured_daily = int(round(daily_patients * p.quality_rejection_rate))
+        recaptured_daily = round(daily_patients * p.quality_rejection_rate)
         avg_turnaround_edge = (p.edge_quality_check_sec + p.edge_dr_inference_sec + 0.8) * (1.0 + p.quality_rejection_rate) # <2 seconds!
         avg_turnaround_cloud = (cloud_upload_latency_sec + 15.0) / 60.0                 # ~1.8 minutes per patient
 

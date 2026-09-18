@@ -16,6 +16,7 @@ extension AppLangMeta on AppLang {
 /// Held by [NetraAiApp], read via [BuildContext.tr].
 class LangController extends ValueNotifier<AppLang> {
   static const _prefsKey = 'drishti_lang';
+  bool _userChangedLanguage = false;
 
   LangController() : super(AppLang.en) {
     _restore();
@@ -24,14 +25,22 @@ class LangController extends ValueNotifier<AppLang> {
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     final code = prefs.getString(_prefsKey);
-    if (code == null) return;
+    if (code == null || _userChangedLanguage) return;
     final match = AppLang.values.where((l) => l.code == code);
-    if (match.isNotEmpty) value = match.first;
+    if (match.isNotEmpty && !_userChangedLanguage) {
+      super.value = match.first;
+    }
   }
 
   @override
   set value(AppLang next) {
-    if (value == next) return;
+    _userChangedLanguage = true;
+    if (value == next) {
+      SharedPreferences.getInstance().then(
+        (prefs) => prefs.setString(_prefsKey, next.code),
+      );
+      return;
+    }
     super.value = next;
     SharedPreferences.getInstance().then(
       (prefs) => prefs.setString(_prefsKey, next.code),

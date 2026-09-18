@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional, Tuple, Union
+from typing import Any
+
 import numpy as np
 from PIL import Image
 
 # Configure TensorFlow env vars BEFORE tensorflow is lazily imported below.
 from src.tf_config import configure_tensorflow
+
 configure_tensorflow()
 
 try:
@@ -58,16 +60,16 @@ class GradCAMExplainer:
         from src.image_io import RETINAL_BG_THRESHOLD
         return RETINAL_BG_THRESHOLD
 
-    def __init__(self, classifier_backend: Optional[Any] = None, use_gradcam_plus_plus: bool = True):
+    def __init__(self, classifier_backend: Any | None = None, use_gradcam_plus_plus: bool = True):
         self.classifier_backend = classifier_backend
         self.use_gradcam_plus_plus = use_gradcam_plus_plus
 
     def generate_heatmap(
         self,
-        image_input: Union[str, np.ndarray, Image.Image],
+        image_input: str | np.ndarray | Image.Image,
         target_grade: DRGrade,
-        save_path: Optional[str] = None,
-        classifier: Optional[Any] = None,
+        save_path: str | None = None,
+        classifier: Any | None = None,
     ) -> GradCAMResult:
         """
         Computes Grad-CAM attention heatmap overlaid onto the original fundus image.
@@ -75,12 +77,10 @@ class GradCAMExplainer:
         active_classifier = classifier or self.classifier_backend
         pil_img = self._load_image(image_input)
         orig_np = np.array(pil_img)
-        h, w, _ = orig_np.shape
 
         # 1. Attempt Real Gradient Backpropagation through DL Model
         attention_map = None
         layer_name = "final_convolutional_block"
-        is_fallback = True
 
         if active_classifier is not None:
             # 1a. Keras / TensorFlow Gradient Tape Backpropagation
@@ -90,8 +90,7 @@ class GradCAMExplainer:
                     attention_map, layer_name = self._compute_keras_gradcam(
                         keras_model, orig_np, target_grade.value, use_pp=self.use_gradcam_plus_plus
                     )
-                    is_fallback = False
-                except Exception:
+                except Exception:  # noqa: BLE001 - try saliency fallback
                     attention_map = None
 
             # 1b. PyTorch Forward/Backward Hook Backpropagation
@@ -102,8 +101,7 @@ class GradCAMExplainer:
                     attention_map, layer_name = self._compute_pytorch_gradcam(
                         torch_model, orig_np, target_grade.value, device=device, use_pp=self.use_gradcam_plus_plus
                     )
-                    is_fallback = False
-                except Exception:
+                except Exception:  # noqa: BLE001 - try saliency fallback
                     attention_map = None
 
         # 2. Fallback to Multi-Scale Morphological & Vascular Saliency if no DL weights loaded
@@ -111,7 +109,6 @@ class GradCAMExplainer:
         if attention_map is None:
             attention_map = self._compute_synthetic_attention_map(orig_np, target_grade)
             layer_name = self.FALLBACK_LAYER_NAME
-            is_fallback = True
             disclaimer = self.EXPLAINABILITY_DISCLAIMER + self.FALLBACK_NOTE
             logging.getLogger("NetraAI.GradCAM").warning(
                 "No DL weights available; using multi-scale vascular saliency fallback. "
@@ -135,7 +132,7 @@ class GradCAMExplainer:
 
     def _compute_keras_gradcam(
         self, keras_model: Any, img_rgb: np.ndarray, class_idx: int, use_pp: bool = True
-    ) -> Tuple[Optional[np.ndarray], str]:
+    ) -> tuple[np.ndarray | None, str]:
         """
         Computes exact Grad-CAM / Grad-CAM++ gradients from Keras convolutional layers.
         """
@@ -225,7 +222,7 @@ class GradCAMExplainer:
 
     def _compute_pytorch_gradcam(
         self, torch_model: Any, img_rgb: np.ndarray, class_idx: int, device: str = "cpu", use_pp: bool = True
-    ) -> Tuple[np.ndarray, str]:
+    ) -> tuple[np.ndarray, str]:
         """
         Computes exact Grad-CAM / Grad-CAM++ using PyTorch backward hooks.
         """
@@ -311,7 +308,6 @@ class GradCAMExplainer:
         Deterministic multi-scale structural saliency map for offline testing.
         Highlights vessel bifurcation points and contrast focal points.
         """
-        h, w, _ = img_np.shape
         green = img_np[:, :, 1].astype(np.float32)
 
         # Retinal boundary mask (unified threshold with overlay blending).
@@ -386,7 +382,7 @@ class GradCAMExplainer:
 
         return overlaid
 
-    def _load_image(self, image_input: Union[str, np.ndarray, Image.Image]) -> Image.Image:
+    def _load_image(self, image_input: str | np.ndarray | Image.Image) -> Image.Image:
         from src.image_io import to_rgb_uint8
         if isinstance(image_input, str):
             # Shared funnel: dimension cap applies to file paths too.
@@ -397,4 +393,4 @@ class GradCAMExplainer:
         elif isinstance(image_input, Image.Image):
             return image_input.convert("RGB")
         else:
-            raise ValueError(f"Unsupported image input: {type(image_input)}")
+            raise TypeError(f"Unsupported image input: {type(image_input)}")

@@ -1,25 +1,24 @@
 from __future__ import annotations
 
-import os
 import logging
+import os
 import uuid
-from typing import Optional, Union
+
 import numpy as np
 from PIL import Image
 
-from src.quality.checker import ImageQualityChecker
 from src.classification.classifier import DRClassifier
 from src.classification.gradcam import GradCAMExplainer
 from src.pipeline.confidence import ConfidenceEvaluator
-from src.segmentation.structure_segmenter import RetinalStructureSegmenter
 from src.pipeline.schema import (
-    DRGrade,
     GradCAMResult,
     HumanReviewType,
     QualityGrade,
     ReassessmentOutcome,
     ScreeningRecord,
 )
+from src.quality.checker import ImageQualityChecker
+from src.segmentation.structure_segmenter import RetinalStructureSegmenter
 
 _logger = logging.getLogger("NetraAI.PipelineRouter")
 
@@ -35,11 +34,11 @@ class ScreeningPipelineRouter:
 
     def __init__(
         self,
-        quality_checker: Optional[ImageQualityChecker] = None,
-        dr_classifier: Optional[DRClassifier] = None,
-        gradcam_explainer: Optional[GradCAMExplainer] = None,
-        confidence_evaluator: Optional[ConfidenceEvaluator] = None,
-        structure_segmenter: Optional[RetinalStructureSegmenter] = None,
+        quality_checker: ImageQualityChecker | None = None,
+        dr_classifier: DRClassifier | None = None,
+        gradcam_explainer: GradCAMExplainer | None = None,
+        confidence_evaluator: ConfidenceEvaluator | None = None,
+        structure_segmenter: RetinalStructureSegmenter | None = None,
     ):
         self.quality_checker = quality_checker or ImageQualityChecker()
         self.dr_classifier = dr_classifier or DRClassifier()
@@ -51,9 +50,9 @@ class ScreeningPipelineRouter:
 
     def process_image(
         self,
-        image_input: Union[str, np.ndarray, Image.Image],
+        image_input: str | np.ndarray | Image.Image,
         recapture_attempt_count: int = 0,
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
         skip_gradcam: bool = False,
     ) -> ScreeningRecord:
         """
@@ -77,8 +76,7 @@ class ScreeningPipelineRouter:
             recapture_attempt_count = int(recapture_attempt_count)
         except (TypeError, ValueError):
             recapture_attempt_count = 0
-        if recapture_attempt_count < 0:
-            recapture_attempt_count = 0
+        recapture_attempt_count = max(recapture_attempt_count, 0)
 
         # -------------------------------------------------------------
         # Node 1: FUNDUS IMAGE (Raw retinal photograph enters the system)
@@ -177,7 +175,8 @@ class ScreeningPipelineRouter:
                     has_fovea = struct_res.fovea_center[0] > 0 and struct_res.fovea_center[1] > 0
                     has_vessels = False
                     if struct_res.vessel_mask is not None:
-                        from src.image_io import retinal_mask as _rm, rgb_to_gray as _to_gray
+                        from src.image_io import retinal_mask as _rm
+                        from src.image_io import rgb_to_gray as _to_gray
 
                         # Shared luma conversion (NOT mean(axis=2)): the mask
                         # must use the same denominator as vessel_density_pct.
@@ -194,7 +193,7 @@ class ScreeningPipelineRouter:
                         )
                     if has_od and has_fovea and has_vessels:
                         anatomical_visible = True
-                except Exception:
+                except Exception:  # noqa: BLE001 - continue with deterministic fallback
                     anatomical_visible = False
 
             # Node 5: STILL UNRELIABLE?
@@ -303,7 +302,7 @@ class ScreeningPipelineRouter:
                     save_path=overlay_save_path,
                     classifier=self.dr_classifier,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - preserve screening record on fallback
                 gradcam_failed = True
                 gradcam_error = str(e)
                 _logger.warning("Grad-CAM generation failed: %s", gradcam_error)
@@ -372,8 +371,8 @@ class ScreeningPipelineRouter:
 
     @staticmethod
     def _load_rgb_for_reassessment(
-        image_input: Union[str, np.ndarray, Image.Image],
-    ) -> Optional[np.ndarray]:
+        image_input: str | np.ndarray | Image.Image,
+    ) -> np.ndarray | None:
         """Minimal public image loader (PIL/numpy) for reassessment; avoids private checker API."""
         # Prefer a public loader if the checker ever exposes one (backward compat).
         try:
@@ -391,5 +390,5 @@ class ScreeningPipelineRouter:
                 # strip, int clip). See src/image_io.
                 return to_rgb_uint8(image_input)
             return None
-        except Exception:
+        except Exception:  # noqa: BLE001 - failure routes to human review
             return None

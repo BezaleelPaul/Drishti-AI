@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
-from typing import List, Optional, Tuple, Union
+
 import numpy as np
 from PIL import Image
 
 # Configure TensorFlow env vars BEFORE keras is lazily imported below.
 from src.tf_config import configure_tensorflow
+
 configure_tensorflow()
 
 from src.pipeline.schema import DRClassificationResult, DRGrade
@@ -29,25 +30,25 @@ class DRClassifier:
     Referable DR: Grade >= 2
     """
 
-    CLASS_LABELS = [
+    CLASS_LABELS = (
         "No DR",
         "Mild NPDR",
         "Moderate NPDR",
         "Severe NPDR",
         "Proliferative DR",
-    ]
+    )
 
     def __init__(
         self,
-        keras_model_path: Optional[str] = None,
-        pytorch_model_path: Optional[str] = None,
+        keras_model_path: str | None = None,
+        pytorch_model_path: str | None = None,
         device: str = "cpu",
     ):
         self.device = device
         self.keras_model_path = keras_model_path
         self.pytorch_model_path = pytorch_model_path
         self.model_backend = "mock"
-        self.load_error: Optional[str] = None
+        self.load_error: str | None = None
         self._keras_model = None
         self._torch_model = None
 
@@ -77,7 +78,7 @@ class DRClassifier:
                 self.model_backend = "keras"
                 self.load_error = None
                 return
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - try the next available backend
                 # Fail LOUD in logs: Cloud log shows the exact cause
                 # (missing tensorflow/keras vs corrupt weights vs bad path).
                 self.load_error = (
@@ -103,7 +104,7 @@ class DRClassifier:
                 self.model_backend = "pytorch"
                 self.load_error = None
                 return
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - simulation remains available
                 self.load_error = (
                     f"torch load failed ({self.pytorch_model_path}): {type(e).__name__}: {e}"
                 )
@@ -134,7 +135,7 @@ class DRClassifier:
     def get_backend(self) -> str:
         return self.model_backend
 
-    def predict(self, image_input: Union[str, np.ndarray, Image.Image]) -> DRClassificationResult:
+    def predict(self, image_input: str | np.ndarray | Image.Image) -> DRClassificationResult:
         """
         Runs DR classification on a certified Reliable Original Image.
         Returns full 5-class probability distribution, top-1 confidence, and top2 margin.
@@ -149,7 +150,7 @@ class DRClassifier:
         else:
             return self._predict_simulated(pil_img)
 
-    def _load_as_pil(self, image_input: Union[str, np.ndarray, Image.Image]) -> Image.Image:
+    def _load_as_pil(self, image_input: str | np.ndarray | Image.Image) -> Image.Image:
         try:
             from src.image_io import to_rgb_uint8
 
@@ -166,12 +167,12 @@ class DRClassifier:
             elif isinstance(image_input, Image.Image):
                 return Image.fromarray(to_rgb_uint8(np.array(image_input.convert("RGB"))))
             else:
-                raise ValueError(f"Unsupported image type: {type(image_input)}")
+                raise TypeError(f"Unsupported image type: {type(image_input)}")
         except FileNotFoundError:
             raise ValueError(f"Image file not found: {image_input}")
         except (OSError, ValueError):
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - normalize decoder failures
             raise ValueError(f"Could not decode image input: {e}")
 
     def _predict_keras(self, pil_img: Image.Image) -> DRClassificationResult:
@@ -198,12 +199,12 @@ class DRClassifier:
             dev = str(self.device)
             if dev.startswith("cuda") and not torch.cuda.is_available():
                 dev = "cpu"
-        except Exception:
+        except Exception:  # noqa: BLE001 - invalid accelerator falls back to CPU
             dev = "cpu"
         try:
             self._torch_model.eval()
             self._torch_model.to(dev)
-        except Exception:
+        except Exception:  # noqa: BLE001 - invalid model device falls back to CPU
             dev = "cpu"
         tensor = transform(pil_img).unsqueeze(0).to(dev)
         with torch.no_grad():
@@ -225,7 +226,7 @@ class DRClassifier:
         # Add hash of all channels to make distribution more unique
         g_mean = float(np.mean(arr[:, :, 1]))
         b_mean = float(np.mean(arr[:, :, 2]))
-        image_hash = int((r_mean * 10000 + g_mean * 100 + b_mean * 100 + r_std) % 100000)
+        image_hash = int((r_mean * 10000 + g_mean * 100 + b_mean * 10 + r_std) % 100000)
 
         # Pseudo-deterministic distribution from image features
         rng = np.random.RandomState(image_hash)
@@ -234,7 +235,7 @@ class DRClassifier:
 
         return self._build_result(probs)
 
-    def _build_result(self, probs: List[float]) -> DRClassificationResult:
+    def _build_result(self, probs: list[float]) -> DRClassificationResult:
         probs = list(probs)
         if len(probs) != 5:
             raise ValueError(f"Expected 5-class probability vector, got {len(probs)}")

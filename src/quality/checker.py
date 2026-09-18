@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+
 import numpy as np
 from PIL import Image
 
@@ -22,11 +22,11 @@ except ImportError:
 # Native toolbox integration
 try:
     from fundus_image_toolbox import (
-        load_quality_ensemble,
         ensemble_predict_quality,
+        load_quality_ensemble,
     )
     HAS_TOOLBOX = True
-except Exception:
+except Exception:  # noqa: BLE001 - optional third-party toolbox must fail closed
     HAS_TOOLBOX = False
 
 from src.pipeline.schema import (
@@ -149,7 +149,7 @@ class ImageQualityChecker:
 
     def __init__(
         self,
-        thresholds: Optional[QualityThresholds] = None,
+        thresholds: QualityThresholds | None = None,
         use_dl_toolbox: bool = True,
         device: str = "cpu",
     ):
@@ -166,13 +166,13 @@ class ImageQualityChecker:
         """Attempts to load the deep 10-model quality ensemble from fundus_image_toolbox."""
         try:
             self._dl_ensemble = load_quality_ensemble(device=self.device)
-        except Exception:
+        except Exception:  # noqa: BLE001 - missing optional weights use deterministic fallback
             # Offline or weights not downloaded yet; fallback to multi-scale adaptive fusion
             self._dl_ensemble = None
 
     def assess_image(
         self,
-        image_input: Union[str, np.ndarray, Image.Image],
+        image_input: str | np.ndarray | Image.Image,
         strict_mode: bool = False,
     ) -> QualityAssessmentResult:
         """
@@ -311,8 +311,8 @@ class ImageQualityChecker:
         )
 
     def _load_image_as_rgb(
-        self, image_input: Union[str, np.ndarray, Image.Image]
-    ) -> Tuple[Optional[np.ndarray], Optional[str]]:
+        self, image_input: str | np.ndarray | Image.Image
+    ) -> tuple[np.ndarray | None, str | None]:
         try:
             from src.image_io import to_rgb_uint8
             if isinstance(image_input, str):
@@ -331,10 +331,10 @@ class ImageQualityChecker:
                 return to_rgb_uint8(image_input), None
             else:
                 return None, f"Unsupported image input type: {type(image_input)}"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - normalize all decoder failures for the API
             return None, str(e)
 
-    def _validate_fundus_characteristics(self, img_rgb: np.ndarray, th: QualityThresholds) -> Tuple[bool, str]:
+    def _validate_fundus_characteristics(self, img_rgb: np.ndarray, th: QualityThresholds) -> tuple[bool, str]:
         """
         Validates whether the image matches expected fundus characteristics:
         - Dominant red/orange retinal color spectrum
@@ -363,7 +363,7 @@ class ImageQualityChecker:
 
         return True, ""
 
-    def _extract_dynamic_retinal_mask(self, img_rgb: np.ndarray) -> Tuple[np.ndarray, float]:
+    def _extract_dynamic_retinal_mask(self, img_rgb: np.ndarray) -> tuple[np.ndarray, float]:
         """
         Extracts dynamic circular retinal mask using adaptive contour analysis
         or fundus_image_toolbox circle_crop.
@@ -400,7 +400,6 @@ class ImageQualityChecker:
         """
         Computes multi-scale photographic quality metrics and ML-driven quality score.
         """
-        h, w, _ = img_rgb.shape
         from src.image_io import rgb_to_gray as _to_gray
         gray = _to_gray(img_rgb)
 
@@ -441,7 +440,7 @@ class ImageQualityChecker:
                 )
                 ml_score = float(np.clip(dl_preds[0], 0.0, 1.0))
                 engine_used = "FIT_DeepEnsemble"
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - fallback when optional ensemble fails
                 import logging
                 logging.getLogger(__name__).debug(f"DL ensemble failed, using fusion fallback: {e}")
                 ml_score = None

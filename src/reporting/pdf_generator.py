@@ -2,28 +2,30 @@
 Hospital-Grade Clinical Screening PDF Report Generator.
 Complies with Indian Tele-Ophthalmology Guidelines and ABDM standards.
 """
-import os
 import io
-from datetime import datetime
-from typing import Optional, Dict, Any
+import logging
+import os
+from datetime import datetime, timezone
+from typing import Any
 
-from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
-    SimpleDocTemplate,
+    HRFlowable,
     Paragraph,
+    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
-    Image as RLImage,
-    KeepTogether,
-    HRFlowable,
 )
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import (
+    Image as RLImage,
+)
 
 _HINDI_FONT = 'Helvetica-Oblique'
 _DEVANAGARI_CANDIDATES = [
@@ -41,15 +43,16 @@ for _font_path in _DEVANAGARI_CANDIDATES:
             _HINDI_FONT = 'DevanagariFont'
             break
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Could not register Hindi font: %s", _font_path, exc_info=True)
+            continue
 
 
 def generate_clinical_screening_pdf(
-    patient_data: Dict[str, Any],
+    patient_data: dict[str, Any],
     screening_record: Any,
-    biomarkers: Dict[str, Any],
-    fundus_image_path: Optional[str] = None,
-    annotated_image_path: Optional[str] = None,
+    biomarkers: dict[str, Any],
+    fundus_image_path: str | None = None,
+    annotated_image_path: str | None = None,
     doctor_notes: str = "Screened via Drishti-AI Tele-Ophthalmology Triage.",
     doctor_signature_name: str = "Dr. S. Ramanathan, MD (Ophthal)",
     doctor_action: str = "Routine Annual Follow-up",
@@ -148,7 +151,7 @@ def generate_clinical_screening_pdf(
     except (TypeError, ValueError):
         risk_score = float("nan")
     risk_str = f"{risk_score:.0f}/100" if _math.isfinite(risk_score) else "N/A"
-    report_date = datetime.now().strftime("%d-%b-%Y %H:%M")
+    report_date = datetime.now(timezone.utc).strftime("%d-%b-%Y %H:%M UTC")
 
     demo_data = [
         [

@@ -11,26 +11,26 @@ from __future__ import annotations
 import io
 import logging
 import os
+import shutil
 import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
+
 import numpy as np
 from PIL import Image
 
+from src.classification.classifier import ClinicalModelUnavailableError, DRClassifier
+from src.classification.gradcam import GradCAMExplainer
 from src.clinical_risk import (
     DiabetesRiskModel,
     PatientClinicalProfile,
-    ScreeningPathway,
 )
+from src.pipeline.router import ScreeningPipelineRouter
+from src.pipeline.schema import QualityGrade, ScreeningRecord
 from src.quality.checker import ImageQualityChecker, QualityThresholds
 from src.quality.enhancer import AdaptiveQualityEnhancer
-from src.classification.classifier import DRClassifier
-from src.classification.classifier import ClinicalModelUnavailableError
-from src.classification.gradcam import GradCAMExplainer
-from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import DRGrade, QualityGrade, ScreeningRecord
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _RESULTS_DIR = os.path.join(_PROJECT_ROOT, "results", "api_screenings")
@@ -52,15 +52,15 @@ def _confidence_flags_with_ood(base_flags, probs) -> list:
             res = ood_score(probs)
             if res.is_suspect:
                 flags.append(f"OOD_SUSPECT (score {res.ood_score:.2f}): " + "; ".join(res.signals))
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - OOD is advisory and must not block grading
+        _logger.debug("OOD check failed: %s", exc)
     return flags
 
 
 class AIBridge:
     """Singleton bridge encapsulating loaded models and orchestrating inference."""
 
-    _instance: Optional[AIBridge] = None
+    _instance: AIBridge | None = None
     _lock = threading.Lock()
 
     def __init__(self):
@@ -98,7 +98,8 @@ class AIBridge:
         """Decode with an early dimension check (before convert/np.array).
         PIL opens lazily, so .size reads only the header — a gigapixel
         high-compression PNG is rejected before any pixel buffer exists."""
-        from PIL import Image as _PILImage, UnidentifiedImageError
+        from PIL import Image as _PILImage
+        from PIL import UnidentifiedImageError
         if not image_bytes or len(image_bytes) > 10 * 1024 * 1024:
             raise ValueError("Image too large or empty (max 10MB)")
         try:
@@ -115,7 +116,7 @@ class AIBridge:
     # -------------------------------------------------------------------------
     # 1. Image Quality Fast-Check (Standalone)
     # -------------------------------------------------------------------------
-    def assess_quality(self, image_bytes: bytes, camera_profile: str = "Generic") -> Dict[str, Any]:
+    def assess_quality(self, image_bytes: bytes, camera_profile: str = "Generic") -> dict[str, Any]:
         pil_img = self._open_image_capped(image_bytes)
         np_img = np.array(pil_img)
 
@@ -193,30 +194,38 @@ class AIBridge:
         patient_id: str,
         eye_side: str = "Right",
         camera_profile: str = "Generic Fundus Camera",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if self.dr_classifier.get_backend() == "simulated":
             raise ClinicalModelUnavailableError(
                 "Clinical DR model weights are unavailable; screening was not graded."
             )
 
+        pil_img = self._open_image_capped(image_bytes)
         screening_id = f"SCR-{uuid.uuid4().hex[:12].upper()}"
         screening_dir = os.path.join(_RESULTS_DIR, screening_id)
         os.makedirs(screening_dir, exist_ok=True)
 
-        pil_img = self._open_image_capped(image_bytes)
         orig_filename = f"{screening_id}_orig.jpg"
         orig_path = os.path.join(screening_dir, orig_filename)
-        pil_img.save(orig_path, quality=95)
+        try:
+            pil_img.save(orig_path, quality=95)
+        except Exception:
+            shutil.rmtree(screening_dir, ignore_errors=True)
+            raise
 
         # Run pipeline router. output_dir=None: the router would otherwise write
         # a second Grad-CAM PNG (gradcam_<uuid>.png) that nothing references —
         # the single served overlay is saved below from heatmap_array.
         _t0 = time.perf_counter()
-        record: ScreeningRecord = self.router.process_image(
-            image_input=orig_path,
-            recapture_attempt_count=0,
-            output_dir=None,
-        )
+        try:
+            record: ScreeningRecord = self.router.process_image(
+                image_input=orig_path,
+                recapture_attempt_count=0,
+                output_dir=None,
+            )
+        except Exception:
+            shutil.rmtree(screening_dir, ignore_errors=True)
+            raise
         inference_time_ms = round((time.perf_counter() - _t0) * 1000.0, 1)
 
         # URLs relative to static server
@@ -227,7 +236,11 @@ class AIBridge:
         if record.gradcam_result and record.gradcam_result.heatmap_generated:
             gradcam_filename = f"{screening_id}_gradcam.png"
             gradcam_path = os.path.join(screening_dir, gradcam_filename)
-            Image.fromarray(record.gradcam_result.heatmap_array).save(gradcam_path)
+            try:
+                Image.fromarray(record.gradcam_result.heatmap_array).save(gradcam_path)
+            except Exception:
+                shutil.rmtree(screening_dir, ignore_errors=True)
+                raise
             gradcam_url = f"/results/{screening_id}/{gradcam_filename}"
             target_layer = record.gradcam_result.target_layer
 
@@ -282,15 +295,16 @@ class AIBridge:
                     try:
                         _served = _PILImage.open(orig_path).convert("RGB")
                         seg = self.router.structure_segmenter.segment_structures(_np.array(_served))
-                    except Exception:
+                    except Exception as exc:  # noqa: BLE001 - retry segmentation on upload pixels
+                        _logger.debug("Served-image segmentation failed: %s", exc)
                         seg = self.router.structure_segmenter.segment_structures(_np.array(pil_img))
                 vessel_density_pct = round(float(seg.vessel_density_pct), 1)
                 microaneurysm_count = len(seg.microaneurysm_candidates)
                 csme_risk = seg.csme_risk
                 if seg.min_fovea_distance_px is not None:
                     min_fovea_distance_px = round(float(seg.min_fovea_distance_px), 1)
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - biomarkers are advisory, never block screening
+                _logger.warning("Biomarker extraction failed for %s: %s", screening_id, exc)
 
         return {
             "screening_id": screening_id,
@@ -331,7 +345,7 @@ class AIBridge:
     # -------------------------------------------------------------------------
     # 3. Upstream Diabetes Risk Screening
     # -------------------------------------------------------------------------
-    def evaluate_diabetes_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_diabetes_risk(self, data: dict[str, Any]) -> dict[str, Any]:
         if data.get("age") is None or data.get("bmi") is None or data.get("family_history") is None:
             raise ValueError("age, bmi and family_history are required for risk evaluation.")
         profile = PatientClinicalProfile(
@@ -344,6 +358,7 @@ class AIBridge:
             symptoms=data.get("symptoms", []),
             hba1c_pct=data.get("hba1c"),
             fasting_glucose_mg_dl=data.get("fasting_glucose"),
+            random_glucose_mg_dl=data.get("random_glucose"),
             known_diabetes_years=data.get("known_diabetes_years"),
         )
         assessment = self.risk_model.evaluate(profile)
@@ -375,10 +390,10 @@ class AIBridge:
             "patient_friendly_guidance": patient_guide,
         }
 
-    def _generate_plain_patient_summary(self, quality: QualityGrade, dr_grade: Optional[int], is_referable: bool) -> str:
+    def _generate_plain_patient_summary(self, quality: QualityGrade, dr_grade: int | None, is_referable: bool) -> str:
         if quality == QualityGrade.BAD:
             return "The photograph was not clear enough for the computer to examine your retina. Please take a new photograph."
-        if quality == QualityGrade.BORDERLINE:
+        if quality == QualityGrade.BORDERLINE and dr_grade is None:
             return "The photo quality is slightly marginal. A health worker or doctor will review this image."
         if dr_grade is None or dr_grade == 0:
             return "Normal screening result: No signs of diabetic damage in the retinal blood vessels. Rescreen in 12 months."

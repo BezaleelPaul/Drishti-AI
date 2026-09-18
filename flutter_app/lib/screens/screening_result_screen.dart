@@ -695,7 +695,7 @@ class _ScreeningResultScreenState extends State<ScreeningResultScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Screening Dossier & Referral'),
+        title: Text(context.tr('report_header')),
         backgroundColor: const Color(0xFF1E3A8A),
         foregroundColor: Colors.white,
         actions: [

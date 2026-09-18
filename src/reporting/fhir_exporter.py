@@ -2,10 +2,10 @@
 FHIR R4 DiagnosticReport & Observation Exporter for ABDM (Ayushman Bharat Digital Mission).
 Standardized clinical JSON schema for national tele-retinal health interoperability.
 """
-from datetime import datetime, timezone
 import re
 import uuid
-from typing import Any, Dict, Optional
+from datetime import datetime, timezone
+from typing import Any
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -23,12 +23,12 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 
 
 def export_abdm_fhir_diagnostic_report(
-    patient_data: Dict[str, Any],
+    patient_data: dict[str, Any],
     screening_record: Any,
-    biomarkers: Dict[str, Any],
+    biomarkers: dict[str, Any],
     doctor_name: str = "Dr. S. Ramanathan, MD (Ophthal)",
     doctor_action: str = "Routine Annual Rescreening",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generates an HL7 FHIR R4 compliant DiagnosticReport resource with embedded Observations.
     Conforms to Indian ABDM / Ayushman Bharat Digital Mission tele-ophthalmology guidelines.
@@ -90,7 +90,7 @@ def export_abdm_fhir_diagnostic_report(
             "display": "Unknown - ungradable image",
         }
 
-    def _absent_observation(obs_id: str, text: str) -> Dict[str, Any]:
+    def _absent_observation(obs_id: str, text: str) -> dict[str, Any]:
         return {
             "resourceType": "Observation",
             "id": obs_id,

@@ -21,7 +21,6 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader
@@ -37,7 +36,7 @@ VALID_ROLES = ("operator", "doctor", "admin")
 _ROLE_RANK = {"operator": 1, "doctor": 2, "admin": 3}
 
 # Dev-only fallback keys. Active ONLY when ENV != prod.
-_DEV_KEYS: Dict[str, str] = {
+_DEV_KEYS: dict[str, str] = {
     "dev-operator-key": "operator",
     "dev-doctor-key": "doctor",
     "dev-admin-key": "admin",
@@ -54,8 +53,8 @@ class ApiPrincipal:
     role: str
 
 
-def _parse_keys(raw: Optional[str]) -> Dict[str, str]:
-    keys: Dict[str, str] = {}
+def _parse_keys(raw: str | None) -> dict[str, str]:
+    keys: dict[str, str] = {}
     dropped = 0
     if not raw:
         return keys
@@ -82,7 +81,7 @@ def _parse_keys(raw: Optional[str]) -> Dict[str, str]:
     return keys
 
 
-def load_api_keys() -> Dict[str, str]:
+def load_api_keys() -> dict[str, str]:
     """Resolve the active key store. Raises in prod when unconfigured."""
     configured = _parse_keys(os.environ.get("DRISHTI_API_KEYS"))
     if configured:
@@ -101,7 +100,7 @@ def load_api_keys() -> Dict[str, str]:
     return dict(_DEV_KEYS)
 
 
-_API_KEYS: Dict[str, str] = load_api_keys()
+_API_KEYS: dict[str, str] = load_api_keys()
 
 
 def _fingerprint(key: str) -> str:
@@ -150,13 +149,13 @@ def _audit_row(actor: str, action: str, resource: str, detail: str = "") -> None
             conn.commit()
         finally:
             conn.close()
-    except Exception as e:  # audit must never break the request path
+    except Exception as e:  # noqa: BLE001 - audit logging must never break requests
         logger.warning("audit_log write failed: %s", e)
 
 
-def authenticate(request: Request, api_key: Optional[str] = Depends(_api_key_header)) -> ApiPrincipal:
+def authenticate(request: Request, api_key: str | None = Depends(_api_key_header)) -> ApiPrincipal:
     """Validate the API key using constant-time comparison. 401 on failure."""
-    role: Optional[str] = None
+    role: str | None = None
     if api_key and len(api_key) <= _MAX_PRESENTED_KEY_LEN:
         for known_key, known_role in _API_KEYS.items():
             if hmac.compare_digest(api_key, known_key):
@@ -234,7 +233,7 @@ def audit_action(
                 ),
             )
             conn.commit()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - audit logging must never break requests
         logger.warning("audit_log write failed: %s", e)
 
 
@@ -242,5 +241,5 @@ def active_key_count() -> int:
     return len(_API_KEYS)
 
 
-def list_roles() -> List[str]:
+def list_roles() -> list[str]:
     return list(VALID_ROLES)

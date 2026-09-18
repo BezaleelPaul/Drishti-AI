@@ -9,18 +9,16 @@ Deterministic for the default fundus path (no RNG); only the
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 import cv2
 import numpy as np
 
 
 def create_synthetic_fundus_image(
-    size: Tuple[int, int] = (256, 256),
+    size: tuple[int, int] = (256, 256),
     blur_level: float = 0.0,
     brightness_shift: float = 0.0,
     is_non_fundus: bool = False,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> np.ndarray:
     """Generates a synthetic circular retinal image for testing.
 

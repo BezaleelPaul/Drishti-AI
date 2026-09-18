@@ -19,7 +19,7 @@ import os
 import shutil
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 RETENTION_DAYS_ENV = "RETENTION_DAYS"
 
@@ -49,7 +49,7 @@ def purge_expired_screenings(
     db_path: str | None = None,
     results_dir: str | None = None,
     dry_run: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Purges screenings older than ``retention_days``. Returns a report dict."""
     if retention_days <= 0:
         raise ValueError("retention_days must be a positive integer.")
@@ -62,8 +62,9 @@ def purge_expired_screenings(
             "results", "api_screenings",
         )
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
-    removed_screenings: List[str] = []
-    removed_dirs: List[str] = []
+    removed_screenings: list[str] = []
+    removed_dirs: list[str] = []
+    invalid_timestamps: list[str] = []
     removed_reviews = 0
 
     conn = sqlite3.connect(db_path)
@@ -72,9 +73,13 @@ def purge_expired_screenings(
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(screenings)")}
         if "screening_id" not in cols or "created_at" not in cols:
             return {"cutoff": cutoff.isoformat(), "screenings": [], "reviews": 0,
-                    "dirs": [], "dry_run": dry_run, "note": "screenings table absent"}
+                    "dirs": [], "invalid_timestamps": [], "dry_run": dry_run,
+                    "note": "screenings table absent"}
         for row in conn.execute("SELECT screening_id, created_at FROM screenings"):
-            if (_parse_created(row["created_at"]) or cutoff) < cutoff:
+            created_at = _parse_created(row["created_at"])
+            if created_at is None:
+                invalid_timestamps.append(row["screening_id"])
+            elif created_at < cutoff:
                 removed_screenings.append(row["screening_id"])
         if not dry_run and removed_screenings:
             q = ",".join("?" for _ in removed_screenings)
@@ -84,9 +89,11 @@ def purge_expired_screenings(
             conn.execute(f"DELETE FROM screenings WHERE screening_id IN ({q})", removed_screenings)
             conn.commit()
         elif dry_run:
+            ph = ",".join("?" for _ in removed_screenings)
             cur = conn.execute(
-                "SELECT COUNT(*) FROM doctor_reviews WHERE screening_id IN (%s)" % ",".join(
-                    "?" for _ in removed_screenings), removed_screenings) if removed_screenings else None
+                f"SELECT COUNT(*) FROM doctor_reviews WHERE screening_id IN ({ph})",
+                removed_screenings,
+            ) if removed_screenings else None
             removed_reviews = cur.fetchone()[0] if cur else 0
     finally:
         conn.close()
@@ -99,7 +106,8 @@ def purge_expired_screenings(
                 shutil.rmtree(d, ignore_errors=True)
 
     return {"cutoff": cutoff.isoformat(), "screenings": removed_screenings,
-            "reviews": removed_reviews, "dirs": removed_dirs, "dry_run": dry_run}
+            "reviews": removed_reviews, "dirs": removed_dirs,
+            "invalid_timestamps": invalid_timestamps, "dry_run": dry_run}
 
 
 def main() -> int:
@@ -113,7 +121,8 @@ def main() -> int:
         return 0
     rep = purge_expired_screenings(args.days, dry_run=not args.apply)
     print(f"cutoff={rep['cutoff']} dry_run={rep['dry_run']} "
-          f"screenings={len(rep['screenings'])} reviews={rep['reviews']} dirs={len(rep['dirs'])}")
+            f"screenings={len(rep['screenings'])} reviews={rep['reviews']} "
+            f"dirs={len(rep['dirs'])} invalid_timestamps={len(rep['invalid_timestamps'])}")
     for sid in rep["screenings"][:20]:
         print(f"  {sid}")
     return 0

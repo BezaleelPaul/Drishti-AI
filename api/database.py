@@ -5,13 +5,14 @@ Fully offline-first and portable across platforms.
 """
 from __future__ import annotations
 
-import sqlite3
 import json
 import os
+import sqlite3
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 
 def _resolve_db_path(raw: str) -> str:
     """DRISHTI_DB_PATH accepts a directory (db file created inside) or a
@@ -61,14 +62,14 @@ def get_db():
     except Exception:
         try:
             conn.rollback()
-        except Exception:
+        except sqlite3.Error:
             pass
         raise
     finally:
         conn.close()
 
 
-def save_screening_record(conn: sqlite3.Connection, analysis: Dict[str, Any]) -> str:
+def save_screening_record(conn: sqlite3.Connection, analysis: dict[str, Any]) -> str:
     """
     Persists screening record and enrolls into doctor review queue if flagged.
     Guarantees zero data loss between direct API and offline batch sync.
@@ -287,7 +288,7 @@ def init_db():
     except Exception:
         try:
             conn.rollback()
-        except Exception:
+        except sqlite3.Error:
             pass
         raise
     finally:

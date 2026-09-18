@@ -17,8 +17,8 @@ its flags to the confidence-flags list so reviewers see them.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import List, Optional, Sequence
 
 NUM_CLASSES = 5
 
@@ -38,10 +38,10 @@ OOD_FLAG_THRESHOLD = 0.65
 class OODResult:
     ood_score: float
     is_suspect: bool
-    signals: List[str] = field(default_factory=list)
+    signals: list[str] = field(default_factory=list)
 
 
-def _validate_probs(probabilities: Sequence[float]) -> List[float]:
+def _validate_probs(probabilities: Sequence[float]) -> list[float]:
     probs = [float(p) for p in probabilities]
     if len(probs) != NUM_CLASSES:
         raise ValueError(f"Expected {NUM_CLASSES} class probabilities, got {len(probs)}.")
@@ -55,8 +55,8 @@ def _validate_probs(probabilities: Sequence[float]) -> List[float]:
 
 def ood_score(
     probabilities: Sequence[float],
-    brightness: Optional[float] = None,
-    contrast: Optional[float] = None,
+    brightness: float | None = None,
+    contrast: float | None = None,
 ) -> OODResult:
     """Scores how out-of-distribution a prediction looks.
 
@@ -69,7 +69,7 @@ def ood_score(
     deficit = 1.0 - max_p
     entropy = -sum(p * math.log(p) for p in probs if p > 0.0) / math.log(NUM_CLASSES)
 
-    signals: List[str] = []
+    signals: list[str] = []
     if deficit > 0.5:
         signals.append(f"low top-1 confidence ({max_p:.2f})")
     if entropy > 0.7:

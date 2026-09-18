@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from api.auth import ApiPrincipal, require_auth
 
+from api.auth import ApiPrincipal, require_auth
 from api.schemas import DiabetesRiskRequest, DiabetesRiskResponse
 from api.services.ai_bridge import AIBridge
 

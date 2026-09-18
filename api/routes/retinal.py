@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
-import uuid
-from typing import List, Optional
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, Depends
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
+
 from api.auth import ApiPrincipal, audit_action, require_auth
-
-
 from api.database import get_db, save_screening_record
 from api.schemas import RetinalAnalysisResponse, RetinalQualityResponse
 from api.services.ai_bridge import AIBridge
@@ -126,13 +123,13 @@ async def analyze_retinal_image(_principal: ApiPrincipal = Depends(require_auth)
     except sqlite3.IntegrityError:
         # Patient deleted between the existence check and the save (FK).
         raise HTTPException(status_code=409, detail=f"Patient {patient_id} no longer registered; re-register and retry.")
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=500, detail="Screening completed but persistence failed.")
 
     return RetinalAnalysisResponse(**analysis)
 
 
-@router.get("/screenings/{patient_id}", response_model=List[RetinalAnalysisResponse])
+@router.get("/screenings/{patient_id}", response_model=list[RetinalAnalysisResponse])
 def get_patient_screenings(
     patient_id: str,
     limit: int = Query(100, ge=1, le=500),
@@ -154,7 +151,7 @@ def get_patient_screenings(
     results = []
     for r in rows:
         ref = r["is_referable"]
-        stored_summary = r["patient_summary"] if "patient_summary" in r.keys() else None
+        stored_summary = r["patient_summary"] if "patient_summary" in r else None
         results.append(RetinalAnalysisResponse(
             screening_id=r["screening_id"],
             patient_id=r["patient_id"],
@@ -174,7 +171,7 @@ def get_patient_screenings(
             # Backend that produced this grade: 'keras' | 'pytorch' | 'simulated' |
             # None (unknown, e.g. history rows written before this field existed).
             # Clients MUST treat 'simulated' as non-diagnostic.
-            model_backend=r["model_backend"] if "model_backend" in r.keys() else None,
+            model_backend=r["model_backend"] if "model_backend" in r else None,
             # NULL in DB = ungradable: must stay None, never False (healthy).
             is_referable=None if ref is None else bool(ref),
             vessel_density_pct=r["vessel_density_pct"],
@@ -197,8 +194,8 @@ def get_patient_screenings(
                     if r["dr_grade_num"] is None else "Screening completed.")
             ),
              created_at=r["created_at"],
-            captured_at=r["captured_at"] if "captured_at" in r.keys() else None,
-            inference_time_ms=r["inference_time_ms"] if "inference_time_ms" in r.keys() else None,
+            captured_at=r["captured_at"] if "captured_at" in r else None,
+            inference_time_ms=r["inference_time_ms"] if "inference_time_ms" in r else None,
         ))
 
     return results

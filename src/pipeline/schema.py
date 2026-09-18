@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 
 class QualityGrade(str, Enum):
@@ -64,23 +64,23 @@ class QualityMetrics:
     mean_brightness: float = 0.0          # Average pixel luminance [0, 255]
     contrast_score: float = 0.0           # Standard deviation / dynamic range
     fov_ratio: float = 0.0                # Detected retinal circle area ratio
-    raw_scores: Dict[str, Any] = field(default_factory=dict)
+    raw_scores: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class QualityAssessmentResult:
     grade: QualityGrade
     is_reliable: bool
-    reasons: List[QualityReason] = field(default_factory=list)
+    reasons: list[QualityReason] = field(default_factory=list)
     metrics: QualityMetrics = field(default_factory=QualityMetrics)
     details: str = ""
-    suspected_clinical_cause: Optional[str] = None
+    suspected_clinical_cause: str | None = None
 
 
 @dataclass
 class DRClassificationResult:
     predicted_grade: DRGrade
-    probabilities: List[float]            # 5-class probability vector [P0, P1, P2, P3, P4]
+    probabilities: list[float]            # 5-class probability vector [P0, P1, P2, P3, P4]
     confidence: float                     # Top-1 softmax probability (uncalibrated)
     top2_margin: float                    # Top-1 minus Top-2 probability
     is_referable: bool                    # Grade >= 2
@@ -92,7 +92,7 @@ class ConfidenceAssessment:
     is_ambiguous: bool
     is_high_risk: bool
     requires_human_review: bool
-    flags: List[str] = field(default_factory=list)
+    flags: list[str] = field(default_factory=list)
 
     def format_confidence_label(self, confidence_val: float, is_referable: bool = False) -> str:
         pct = confidence_val * 100.0
@@ -106,8 +106,8 @@ class ConfidenceAssessment:
 @dataclass
 class GradCAMResult:
     heatmap_generated: bool
-    heatmap_array: Optional[Any] = None   # uint8 RGB overlay
-    overlay_path: Optional[str] = None
+    heatmap_array: Any | None = None   # uint8 RGB overlay
+    overlay_path: str | None = None
     target_layer: str = "final_conv_layer"
     description: str = "Grad-CAM visualization showing image regions influencing the model prediction."
     disclaimer: str = (
@@ -131,33 +131,33 @@ class ScreeningRecord:
     image_path: str
     quality_grade: QualityGrade
     quality_status: str                   # 'Reliable', 'Unreliable', 'Reassessment Pending'
-    rejection_reasons: List[str] = field(default_factory=list)
+    rejection_reasons: list[str] = field(default_factory=list)
     recapture_attempt_count: int = 0
     reassessment_outcome: ReassessmentOutcome = ReassessmentOutcome.NOT_APPLICABLE
-    suspected_clinical_cause: Optional[str] = None
+    suspected_clinical_cause: str | None = None
     
     # Model 2 fields (Only populated if quality cleared to Reliable Original Image)
-    dr_prediction: Optional[DRClassificationResult] = None
-    confidence_assessment: Optional[ConfidenceAssessment] = None
-    gradcam_result: Optional[GradCAMResult] = None
+    dr_prediction: DRClassificationResult | None = None
+    confidence_assessment: ConfidenceAssessment | None = None
+    gradcam_result: GradCAMResult | None = None
     
     # Routing & Terminal safety
     human_review_required: bool = False
     human_review_type: HumanReviewType = HumanReviewType.NONE
-    human_review_reason: Optional[str] = None
+    human_review_reason: str | None = None
     action: str = ""
-    quality_metrics: Optional[QualityMetrics] = None
+    quality_metrics: QualityMetrics | None = None
     # Internal reuse: reassessment segmentation result (BORDERLINE-CLEARED
     # path only). Lets biomarker extraction skip a second full segmentation
     # over the same pixels. Never rendered; excluded from reports/exports.
-    reassessment_structures: Optional[Any] = None
+    reassessment_structures: Any | None = None
 
     # Traceability: which model backend produced the DR grade, and how long
     # the pipeline took. model_backend follows the DRClassifier backend
     # ('keras' | 'pytorch' | 'simulated'). None when unset (legacy or
     # ungradable rows).
-    model_backend: Optional[str] = None
-    inference_time_ms: Optional[float] = None
+    model_backend: str | None = None
+    inference_time_ms: float | None = None
 
     def format_report_text(self) -> str:
         """Formats the official screening report per Section 25."""
@@ -172,15 +172,6 @@ class ScreeningRecord:
                     f"DR Prediction:    Not generated\n"
                     f"Action:           {self.action}"
                 )
-        if self.dr_prediction is None:
-            reasons_str = " / ".join(self.rejection_reasons) if self.rejection_reasons else "Image quality verification failed"
-            cause_str = f"\nSuspected Cause:  {self.suspected_clinical_cause}" if self.suspected_clinical_cause else ""
-            return (
-                f"Image Quality:    {self.quality_grade.value}\n"
-                f"Reason:           {reasons_str}{cause_str}\n"
-                f"DR Prediction:    Not generated\n"
-                f"Action:           {self.action}"
-            )
         else:
             grade_str = f"Grade {self.dr_prediction.predicted_grade.value} — {self.dr_prediction.predicted_grade.label}"
             if self.confidence_assessment:

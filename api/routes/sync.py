@@ -3,11 +3,10 @@ from __future__ import annotations
 import base64
 import logging
 from datetime import datetime, timezone
-from typing import List
+
 from fastapi import APIRouter, Depends
+
 from api.auth import ApiPrincipal, require_auth
-
-
 from api.database import get_db, save_screening_record
 from api.schemas import OfflineSyncBatchRequest, OfflineSyncBatchResponse
 from api.services.ai_bridge import AIBridge
@@ -26,12 +25,13 @@ def _cleanup_orphan_screening_dir(screening_id: str) -> None:
     """
     import os as _os
     import shutil as _shutil
+
     from api.services.ai_bridge import _RESULTS_DIR
     _dir = _os.path.join(_RESULTS_DIR, screening_id)
     try:
         _shutil.rmtree(_dir, ignore_errors=True)
-    except Exception:
-        pass
+    except OSError:
+        logger.debug("Could not remove orphan screening directory: %s", _dir, exc_info=True)
 
 
 @router.post("", response_model=OfflineSyncBatchResponse)
@@ -42,8 +42,8 @@ def synchronize_offline_batch(payload: OfflineSyncBatchRequest, _principal: ApiP
     Guarantees zero data loss for offline camps.
     """
     bridge = AIBridge.get_instance()
-    synced_ids: List[str] = []       # LOCAL ids: the client's dedup key.
-    synced_items: List[dict] = []    # local -> server traceability map.
+    synced_ids: list[str] = []       # LOCAL ids: the client's dedup key.
+    synced_items: list[dict] = []    # local -> server traceability map.
     failed_items = []
     seen_local_ids = set()
 
@@ -57,9 +57,9 @@ def synchronize_offline_batch(payload: OfflineSyncBatchRequest, _principal: ApiP
         patient_ids = {item.patient_id for item in payload.screenings}
         known_patients = set()
         if patient_ids:
+            q = ",".join("?" * len(patient_ids))
             cursor.execute(
-                "SELECT patient_id FROM patients WHERE patient_id IN (%s)"
-                % ",".join("?" * len(patient_ids)),
+                f"SELECT patient_id FROM patients WHERE patient_id IN ({q})",
                 tuple(patient_ids),
             )
             known_patients = {r["patient_id"] for r in cursor.fetchall()}
@@ -67,17 +67,17 @@ def synchronize_offline_batch(payload: OfflineSyncBatchRequest, _principal: ApiP
         receipts = {}
         live_screenings = set()
         if batch_local_ids:
+            q = ",".join("?" * len(batch_local_ids))
             cursor.execute(
-                "SELECT local_screening_id, screening_id FROM sync_receipts "
-                "WHERE local_screening_id IN (%s)" % ",".join("?" * len(batch_local_ids)),
+                f"SELECT local_screening_id, screening_id FROM sync_receipts WHERE local_screening_id IN ({q})",
                 tuple(batch_local_ids),
             )
             receipts = {r["local_screening_id"]: r["screening_id"] for r in cursor.fetchall()}
             server_ids = [s for s in receipts.values() if not s.startswith("pending-")]
             if server_ids:
+                q = ",".join("?" * len(server_ids))
                 cursor.execute(
-                    "SELECT screening_id FROM screenings WHERE screening_id IN (%s)"
-                    % ",".join("?" * len(server_ids)),
+                    f"SELECT screening_id FROM screenings WHERE screening_id IN ({q})",
                     tuple(server_ids),
                 )
                 live_screenings = {r["screening_id"] for r in cursor.fetchall()}
@@ -128,7 +128,7 @@ def synchronize_offline_batch(payload: OfflineSyncBatchRequest, _principal: ApiP
                 raise ValueError("Image payload too large (max ~10MB decoded).")
             try:
                 image_bytes = base64.b64decode(item.image_base64, validate=True)
-            except Exception:
+            except Exception:  # noqa: BLE001 - per-item processing must continue
                 raise ValueError("Invalid base64 image payload.")
             if not image_bytes or len(image_bytes) > 10 * 1024 * 1024:
                 raise ValueError("Decoded image empty or exceeds 10MB.")
@@ -217,12 +217,11 @@ def synchronize_offline_batch(payload: OfflineSyncBatchRequest, _principal: ApiP
                             receipts[item.local_screening_id] = _winner
                             conn.commit()
                             continue
-                    # Stale pending marker (a crash between reserve and
-                    # finalize): clear it and finish the save below.
-                    cursor.execute(
-                        "DELETE FROM sync_receipts WHERE local_screening_id = ?",
-                        (item.local_screening_id,),
-                    )
+                # Stale pending marker (crash between reserve and finalize):
+                # the INSERT OR REPLACE below atomically overwrites it — no
+                # DELETE needed, which avoids a race window where another
+                # worker could insert a new pending marker between DELETE
+                # and REPLACE.
 
                 # Persist screening record and doctor review into SQLite
                 screening_id = save_screening_record(conn, analysis)
@@ -248,7 +247,7 @@ def synchronize_offline_batch(payload: OfflineSyncBatchRequest, _principal: ApiP
                 "local_screening_id": item.local_screening_id,
                 "error": str(e)[:200],
             })
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - return stable per-item failure code
             # Anything else (DB internals, inference stack traces) stays
             # server-side: return a stable error code instead.
             logger.warning("Offline sync item %s failed: %s", item.local_screening_id, e)
