@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../l10n/lang_scope.dart';
 import '../models/screening_models.dart';
 import '../services/api_service.dart';
 

@@ -320,6 +320,8 @@ class FigmaDashboardScreen extends StatelessWidget {
       children: [
         Text(
           context.tr('dash_title'),
+          textAlign: TextAlign.start,
+          softWrap: true,
           style: const TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 22,
@@ -347,9 +349,14 @@ class FigmaDashboardScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       onPressed: () => _startScreening(context),
-      child: Text(
-        context.tr('start_screening'),
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          context.tr('start_screening'),
+          maxLines: 2,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+        ),
       ),
     );
   }
