@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+
 import numpy as np
 
 # Ensure project root in sys.path
@@ -8,10 +9,10 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.segmentation.structure_segmenter import RetinalStructureSegmenter
-from src.quality.checker import ImageQualityChecker
 from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import QualityGrade, ReassessmentOutcome
+from src.quality.checker import ImageQualityChecker
+from src.segmentation.structure_segmenter import RetinalStructureSegmenter
+
 
 class TestSegmentationAndCSME(unittest.TestCase):
     def setUp(self):

@@ -9,7 +9,6 @@ improvising.
 |---|---|
 | Backend API (Render, free tier) | https://drishti-ai-xg6w.onrender.com |
 | Backend health check | https://drishti-ai-xg6w.onrender.com/ (expect `"status": "up"`) |
-| Streamlit demo (friend-deployed, separate engine copy) | https://drishti-ai-dr.streamlit.app/ |
 | Release downloads (APK, Windows, macOS, Linux) | https://github.com/BezaleelPaul/Drishti-AI/releases/tag/v1.0.0-hardened |
 | Web demo (auto-deployed from `master`) | https://bezaleelpaul.github.io/Drishti-AI/ |
 | Render dashboard (redeploy, logs, env vars) | https://dashboard.render.com |
@@ -18,26 +17,10 @@ improvising.
 > Render free tier sleeps when idle: first request can take ~30 s. Open the
 > health-check URL a minute before any demo.
 
-## 1b. Two engines — do not mix them up
-
-The same pipeline code (`src/`) runs in **two independent deployments**:
-
-- **Render (`api/`)**: engine behind FastAPI. Serves the Android / Windows /
-  macOS / Linux apps. Auto-deploys on every `master` push.
-- **Streamlit Cloud (`demo/app.py`)**: engine embedded in the web page
-  process. It **never calls the Render backend** — it runs the pipeline in
-  its own container. Deployed/owned separately: code updates reach it only
-  when the owner **reboots/redeploys the Streamlit app** (dashboard → Reboot).
-
-Privacy consequence: the mobile app is offline-first (memory-only queue, no
-PHI at rest, no backup). The Streamlit demo uploads images to a third-party
-cloud for processing — use synthetic/test captures there, never real patient
-photos. `docs/PRIVACY.md` covers app + API only.
-
 ## 2. Start the backend
 - **Cloud (normal):** nothing to start — Render runs `uvicorn api.main:app`
   on every push to `master`. Check Logs tab if `/` doesn't answer.
-- **Local:** `run_windows.bat` (Windows) / `run_mac.sh` (Mac) / `run_demo.sh`.
+- **Local:** `run_windows.bat` (Windows) / `run_mac.sh` (Mac).
   Localhost builds of the apps point at `http://localhost:8000` only when
   built without `--dart-define=DRISHTI_BASE_URL=...`.
 

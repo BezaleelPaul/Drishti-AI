@@ -7,11 +7,9 @@ Scope:
 - Reassessment logic implementation and tuning.
 """
 
-import os
 import cv2
 import numpy as np
-import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix
+
 
 def compute_retinal_quality_features(img_bgr: np.ndarray) -> dict:
     """Extracts photographic quality features from retinal fundus photograph."""

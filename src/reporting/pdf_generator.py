@@ -203,7 +203,7 @@ def generate_clinical_screening_pdf(
         conf_str = "N/A"
 
     csme_risk = biomarkers.get("csme_risk", "LOW")
-    fovea_dist = biomarkers.get("min_fovea_distance_px", 0)
+    fovea_dist = biomarkers.get("min_fovea_distance_px")
     # Never fabricate negative findings for an ungradable capture: when the
     # pipeline refused to segment (or refused to grade at all), every
     # biomarker cell must read NOT ASSESSED. The "UNGRADABLE" sentinel is one

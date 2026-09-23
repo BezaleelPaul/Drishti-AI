@@ -1,6 +1,6 @@
 import unittest
+
 import numpy as np
-from PIL import Image
 
 from src.classification.classifier import DRClassifier
 from src.pipeline.schema import DRGrade

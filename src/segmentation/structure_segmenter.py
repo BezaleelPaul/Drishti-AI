@@ -146,7 +146,7 @@ class RetinalStructureSegmenter:
     ) -> tuple[tuple[int, int], int, tuple[int, int]]:
         h, w, _ = img_rgb.shape
         cy, cx = h // 2, w // 2
-        approx_radius = int(min(h, w) * 0.08)
+        approx_radius = max(2, int(min(h, w) * 0.08))
 
         # 1. Try deep learning model from toolbox
         if self._fovea_od_dl_model is not None:
@@ -169,7 +169,8 @@ class RetinalStructureSegmenter:
             ks = min(45, max(3, ((min_dim // 8) | 1)))
             if ks > min_dim:
                 ks = min_dim if (min_dim % 2 == 1) else max(3, min_dim - 1)
-            assert ks % 2 == 1  # all branches above preserve oddness; documents the invariant
+            if ks % 2 != 1:
+                ks = ks + 1 if ks % 2 == 0 else ks  # Ensure odd kernel size
             ks = max(3, ks)
             blurred = cv2.GaussianBlur(intensity, (ks, ks), 0)
             blurred[retinal_mask == 0] = 0

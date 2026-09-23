@@ -6,6 +6,7 @@ adversarial non-fundus files, and Section 24 hackathon scenarios.
 
 import os
 import shutil
+
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -36,11 +37,11 @@ def build_curated_test_pack():
         shutil.copy(src_real_3, os.path.join(dirs[0], "real_clinical_drimdb_sample.jpg"))
 
     # 2. Section 24 Demo Scenarios
-    demo_src = os.path.join("demo", "sample_images")
-    if os.path.exists(demo_src):
-        for f in os.listdir(demo_src):
+    curated_src = os.path.join("test_samples", "curated")
+    if os.path.exists(curated_src):
+        for f in os.listdir(curated_src):
             if f.endswith((".jpg", ".png")):
-                shutil.copy(os.path.join(demo_src, f), os.path.join(dirs[3], f))
+                shutil.copy(os.path.join(curated_src, f), os.path.join(dirs[3], f))
 
     # 3. Quality Failures & Edge Cases
     # Severe glare / overexposure
@@ -118,9 +119,9 @@ This folder contains pre-packaged test cases to verify credibility across your t
 ---
 
 ## How to Test in the Browser:
-1. Open the web demo at **`http://localhost:8501`**.
-2. Go to **Tab 2: Standalone Retinal Screening**.
-3. Drag-and-drop any image from these folders and observe the real-time decision flow.
+1. Start the API with `make run`.
+2. Open the Flutter app at **`http://localhost:8000/app`**.
+3. Use the screening flow with any image from these folders and observe the decision flow.
 """
 
     with open(os.path.join(base_dir, "TEST_GUIDE.md"), "w", encoding="utf-8") as f:

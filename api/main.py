@@ -151,11 +151,8 @@ app.add_middleware(
 # Static assets (non-PHI only). Screening result images are NOT mounted here;
 # they are served authenticated via /results/{screening_id}/{file}.
 # -----------------------------------------------------------------------------
-sinduri_assets = os.path.join(_PROJECT_ROOT, "sinduri_uiux_kit", "assets")
 flutter_web_dir = os.path.join(_PROJECT_ROOT, "flutter_app", "build", "web")
 
-if os.path.exists(sinduri_assets):
-    app.mount("/static/uiux", StaticFiles(directory=sinduri_assets), name="uiux")
 if os.path.exists(flutter_web_dir):
     app.mount("/app", StaticFiles(directory=flutter_web_dir, html=True), name="flutter_app")
 

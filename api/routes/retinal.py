@@ -51,6 +51,20 @@ def _safe_json_list(value) -> list:
         return []
 
 
+def _safe_probabilities(value) -> list[float] | None:
+    """Return only a valid five-class probability vector from legacy storage."""
+    values = _safe_json_list(value)
+    if len(values) != 5:
+        return None
+    try:
+        probabilities = [float(item) for item in values]
+    except (TypeError, ValueError):
+        return None
+    if any(not 0.0 <= item <= 1.0 for item in probabilities):
+        return None
+    return probabilities
+
+
 @router.post("/retinal/quality", response_model=RetinalQualityResponse)
 async def check_image_quality(_principal: ApiPrincipal = Depends(require_auth),
     file: UploadFile = File(..., description="Fundus image (JPG/PNG)"),
@@ -167,7 +181,7 @@ def get_patient_screenings(
             dr_grade=r["dr_grade_num"],
             dr_label=r["dr_grade_label"],
             prediction_score=r["dr_confidence"],
-            probabilities=_safe_json_list(r["probabilities"]) or None,
+            probabilities=_safe_probabilities(r["probabilities"]),
             # Backend that produced this grade: 'keras' | 'pytorch' | 'simulated' |
             # None (unknown, e.g. history rows written before this field existed).
             # Clients MUST treat 'simulated' as non-diagnostic.

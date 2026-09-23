@@ -59,8 +59,8 @@ def get_system_status(_principal: ApiPrincipal = Depends(require_auth)):
     try:
         from api.services.ai_bridge import AIBridge
 
-        classifier_backend = AIBridge.get_instance().dr_classifier.get_backend()
-        if classifier_backend not in ("keras", "pytorch"):
+        classifier_backend = AIBridge.loaded_classifier_backend()
+        if classifier_backend is not None and classifier_backend not in ("keras", "pytorch"):
             runtime_issues.append(
                 f"Model 2 runtime backend is {classifier_backend}; clinical weights are unavailable"
             )

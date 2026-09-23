@@ -54,6 +54,7 @@ class ScreeningPipelineRouter:
         recapture_attempt_count: int = 0,
         output_dir: str | None = None,
         skip_gradcam: bool = False,
+        quality_checker: ImageQualityChecker | None = None,
     ) -> ScreeningRecord:
         """
         Executes Node 1 to Node 11 of the approved decision flow.
@@ -92,7 +93,8 @@ class ScreeningPipelineRouter:
         # -------------------------------------------------------------
         # Node 2: IMAGE QUALITY CHECK (Model 1 runs)
         # -------------------------------------------------------------
-        quality_res = self.quality_checker.assess_image(stage_input, strict_mode=False)
+        active_quality_checker = quality_checker or self.quality_checker
+        quality_res = active_quality_checker.assess_image(stage_input, strict_mode=False)
 
         # -------------------------------------------------------------
         # Node 3c: BAD IMAGE PATH

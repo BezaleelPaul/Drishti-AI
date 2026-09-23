@@ -9,9 +9,7 @@
 
 Welcome! This guide gives you everything you need to run **Drishti-AI** on any Mac (**Apple Silicon M1/M2/M3/M4** or **Intel Mac**). 
 
-The platform consists of two main software applications:
-1. **Central Clinical & Doctor Console**: Interactive Streamlit web application with 2-model screening, Grad-CAM++ heatmaps, CSME risk biomarkers, PDF dossier export, ABDM FHIR R4 generation, and MATLAB/Simulink 100k telemedicine simulation.
-2. **ASHA Mobile & Tele-Review App**: Complete Flutter application connecting to a high-speed FastAPI REST backend bridge for rural field check-in and quality gating.
+The platform consists of a Flutter application served by a FastAPI backend. It provides rural field check-in, quality gating, screening results, tele-review, PDF/FHIR reporting, and the underlying MATLAB/Simulink simulation.
 
 ---
 
@@ -64,21 +62,14 @@ You can use the interactive menu:
 
 Or launch individual components directly:
 
-#### 1. Clinical Screening Dashboard (Streamlit UI)
-```bash
-source venv/bin/activate
-streamlit run demo/app.py
-```
-👉 Open your browser to **http://localhost:8501**
-
-#### 2. FastAPI REST Backend Server
+#### 1. FastAPI REST Backend and Flutter Web App
 ```bash
 source venv/bin/activate
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 👉 Interactive API Documentation (Swagger): **http://localhost:8000/docs**
 
-#### 3. Flutter Mobile / Tablet Client (Optional)
+#### 2. Flutter Mobile / Tablet Client (Optional)
 If you have the [Flutter SDK](https://docs.flutter.dev/get-started/install/macos) installed:
 ```bash
 cd flutter_app
@@ -87,7 +78,7 @@ flutter run -d chrome
 flutter run -d macos
 ```
 
-#### 4. Run the Full 10-Subsystem Verification Suite
+#### 3. Run the Full 10-Subsystem Verification Suite
 ```bash
 source venv/bin/activate
 python verify_complete_system.py
@@ -134,11 +125,7 @@ SIH HACKATHON/
 │       └── schema.py          # Strict dataclass schemas
 │
 ├── 🌐 Web & API Applications
-│   ├── demo/                  # Central Clinical Dashboard
-│   │   ├── app.py             # Full Streamlit application (1100+ lines)
-│   │   ├── custom_style.css   # Medical theme stylesheet
-│   │   └── generate_samples.py# Synthetic test generator
-│   └── api/                   # FastAPI Backend Bridge (for Flutter & Telehealth)
+│   └── api/                   # FastAPI Backend Bridge (serves Flutter & Telehealth)
 │       ├── main.py            # FastAPI application entry point
 │       ├── database.py        # SQLite schema (patients, screenings, reviews)
 │       ├── schemas.py         # Pydantic request/response validation
@@ -206,19 +193,13 @@ SIH HACKATHON/
   brew install python@3.11
   ```
 
-### 3. "Port 8501 is already in use"
-* **Fix**: Another instance of Streamlit is running. Free port 8501:
-  ```bash
-  lsof -ti :8501 | xargs kill -9
-  ```
-
-### 4. "Port 8000 is already in use"
+### 3. "Port 8000 is already in use"
 * **Fix**: Free port 8000:
   ```bash
   lsof -ti :8000 | xargs kill -9
   ```
 
-### 5. macOS Gatekeeper / Quarantine
+### 4. macOS Gatekeeper / Quarantine
 * If macOS shows a security warning when executing shell scripts:
   ```bash
   xattr -d com.apple.quarantine *.sh
@@ -232,4 +213,4 @@ When you or your friend present Drishti-AI, emphasize these 4 differentiators:
 1. **Model 1 Answers "Can We Trust This Image?" First**: Standard AI models force authoritative grades on blurry fundus photos. Our Quality Gate rejects bad images with 0% diagnostic leakage.
 2. **100% Offline Edge Operation**: Runs on cheap CPUs (<180 ms) with zero remote API dependencies and a compact 620 MB RAM footprint.
 3. **True Grad-CAM++ & Biomarker Quantification**: Multiscale gradient attention heatmaps overlaid in <1.2 seconds, with microaneurysm candidate counting and CSME risk assessment.
-4. **Complete Telemedicine Architecture**: Flutter mobile app for ASHA field workers, Streamlit central console for doctors, ABDM FHIR R4 interoperability, and district-scale Simulink queuing simulation for 100,000 patients.
+4. **Complete Telemedicine Architecture**: Flutter app for ASHA field workers and reviewers, FastAPI interoperability, ABDM FHIR R4, and district-scale Simulink queuing simulation for 100,000 patients.

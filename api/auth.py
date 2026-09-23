@@ -179,15 +179,33 @@ def _audit_auth_failure(request: Request) -> None:
     )
 
 
+def _role_allows(principal_role: str, *allowed: str) -> bool:
+    """Role-aware authorization using the documented hierarchy: admin >= doctor >= operator.
+
+    For a dependency declared as `require_role("doctor")`, both doctor and admin
+    are accepted because admin is a higher-ranked role with all doctor privileges.
+    """
+    if not allowed:
+        return False
+    if principal_role not in _ROLE_RANK:
+        return False
+    min_rank = min(_ROLE_RANK[role] for role in allowed if role in _ROLE_RANK)
+    return _ROLE_RANK[principal_role] >= min_rank
+
+
 def require_role(*allowed: str):
     """Dependency factory enforcing minimum role. 403 carries a generic
     message (no role oracle) and is audited like a 401."""
+    allowed = tuple(allowed)
+    normalized = tuple(role for role in allowed if role in _ROLE_RANK)
+    if not normalized:
+        raise ValueError(f"require_role() requires at least one valid role: {VALID_ROLES}")
 
     async def _guard(
         request: Request,
         principal: ApiPrincipal = Depends(authenticate),
     ) -> ApiPrincipal:
-        if principal.role not in allowed:
+        if not _role_allows(principal.role, *normalized):
             _audit_row(
                 f"{principal.role}:{principal.key_fingerprint}",
                 "auth_forbidden",

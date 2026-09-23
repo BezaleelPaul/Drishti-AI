@@ -8,12 +8,13 @@ Implements Section 12 & 13 of the Approved Specification:
 
 import json
 import os
+
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 
 from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import DRGrade, QualityGrade
+from src.pipeline.schema import QualityGrade
 from src.synthetic_fixtures import create_synthetic_fundus_image
 
 
@@ -108,7 +109,7 @@ def run_ab_experiment():
             # ARM B & C: Proposed Quality-Gated Pipeline
             # ---------------------------------------------------------
             record = router.process_image(img, recapture_attempt_count=0)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one bad sample must not abort the batch
             # One bad sample must not abort the whole 150-sample run.
             print(f"  [warn] sample {d['id']} errored ({e}); counted as rejected.")
             arm_b_rejected += 1

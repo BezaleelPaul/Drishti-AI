@@ -2,27 +2,27 @@
 End-to-End System Verification Suite for MathWorks SIH26038.
 Tests all 10 core sub-systems and benchmarks execution time.
 """
-import time
 import os
-import json
+import time
+
 import numpy as np
 from PIL import Image
 
+from src.classification.classifier import DRClassifier
+from src.classification.gradcam import GradCAMExplainer
 from src.clinical_risk import (
     DiabetesRiskModel,
     PatientClinicalProfile,
     ScreeningPathway,
 )
-from src.quality.checker import ImageQualityChecker, QualityThresholds
-from src.quality.enhancer import AdaptiveQualityEnhancer
-from src.classification.classifier import DRClassifier
-from src.classification.gradcam import GradCAMExplainer
-from src.segmentation.structure_segmenter import RetinalStructureSegmenter
-from src.simulation.telemedicine_sim import TelemedicineSimulinkEngine, DistrictSimulationParams
-from src.reporting.pdf_generator import generate_clinical_screening_pdf
-from src.reporting.fhir_exporter import export_abdm_fhir_diagnostic_report
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import QualityGrade, ScreeningRecord
+from src.quality.checker import ImageQualityChecker, QualityThresholds
+from src.quality.enhancer import AdaptiveQualityEnhancer
+from src.reporting.fhir_exporter import export_abdm_fhir_diagnostic_report
+from src.reporting.pdf_generator import generate_clinical_screening_pdf
+from src.segmentation.structure_segmenter import RetinalStructureSegmenter
+from src.simulation.telemedicine_sim import DistrictSimulationParams, TelemedicineSimulinkEngine
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 

@@ -1,5 +1,4 @@
 import unittest
-import numpy as np
 
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import (

@@ -1,5 +1,6 @@
 import unittest
-from src.pipeline.confidence import ConfidenceEvaluator, ConfidenceConfig
+
+from src.pipeline.confidence import ConfidenceConfig, ConfidenceEvaluator
 from src.pipeline.schema import DRClassificationResult, DRGrade
 
 

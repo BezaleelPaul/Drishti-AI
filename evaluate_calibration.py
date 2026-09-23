@@ -89,6 +89,7 @@ def main() -> int:
         return 0
 
     from PIL import Image
+
     from src.classification.classifier import DRClassifier
 
     items = []
@@ -104,7 +105,7 @@ def main() -> int:
             try:
                 pred = clf.predict(Image.open(os.path.join(d, f)).convert("RGB"))
                 items.append((pred.confidence, pred.predicted_grade.value == grade))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - continue grading remaining samples
                 print(f"  [warn] {f}: {e}")
     if not items:
         print("no images graded; nothing to report.", file=sys.stderr)

@@ -6,10 +6,8 @@ Processes single images or directories, applying the full 11-node decision flow.
 import argparse
 import os
 import sys
-from PIL import Image
 
 from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import QualityGrade
 
 
 def main():
@@ -51,7 +49,7 @@ def main():
     if not args.image and not args.input_dir:
         # Default to running sample images if neither is passed
         sample_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "demo", "sample_images"
+            os.path.dirname(os.path.abspath(__file__)), "test_samples", "curated"
         )
         if os.path.isdir(sample_dir):
             args.input_dir = sample_dir
@@ -76,7 +74,7 @@ def main():
         sys.exit(1)
 
     print(f"\n{'='*70}")
-    print(f"SIH 2026: AI-Assisted DR Screening Pipeline Execution")
+    print("SIH 2026: AI-Assisted DR Screening Pipeline Execution")
     print(f"Processing {len(image_paths)} image(s)...")
     print(f"{'='*70}\n")
 
@@ -91,7 +89,7 @@ def main():
                 recapture_attempt_count=args.recaptures,
                 output_dir=img_out_dir,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - report and continue per input file
             failures += 1
             print(f"[{idx}/{len(image_paths)}] File: {filename} — FAILED: {exc}",
                   file=sys.stderr)

@@ -16,13 +16,17 @@ data/*.db
 data/*.db-journal
 *.log
 /tmp/
-flutter_app/build/
+# Keep the pre-built Flutter web bundle: FastAPI serves it at /app.
+flutter_app/build/*
+!flutter_app/build/
+!flutter_app/build/web/
+!flutter_app/build/web/**
 flutter_app/.dart_tool/
 presentation/*.pptx
 docs/*.pdf
 # RUNTIME assets — MUST ship in the image. final_model.keras (32MB) is the
 # Model 2 classifier; without it the container silently falls back to
-# simulated inference. test_samples/ (1.2MB) feeds the demo's curated cases.
+# simulated inference. test_samples/ (1.2MB) feeds curated verification cases.
 # (Dockerfile uses `COPY . .` as its only copy, so anything ignored here is
 # absent at runtime.)
 # Host-only / regenerable — safe to exclude

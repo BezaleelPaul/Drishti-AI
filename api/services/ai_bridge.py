@@ -30,7 +30,6 @@ from src.clinical_risk import (
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import QualityGrade, ScreeningRecord
 from src.quality.checker import ImageQualityChecker, QualityThresholds
-from src.quality.enhancer import AdaptiveQualityEnhancer
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _RESULTS_DIR = os.path.join(_PROJECT_ROOT, "results", "api_screenings")
@@ -66,7 +65,11 @@ class AIBridge:
     def __init__(self):
         self.risk_model = DiabetesRiskModel()
         self.quality_checker = ImageQualityChecker()
-        self.quality_enhancer = AdaptiveQualityEnhancer()
+        self._camera_checkers = {
+            "forus": ImageQualityChecker(thresholds=QualityThresholds.for_forus_3nethra()),
+            "remidio": ImageQualityChecker(thresholds=QualityThresholds.for_remidio_fop()),
+            "volk": ImageQualityChecker(thresholds=QualityThresholds.for_volk_inview()),
+        }
         self.dr_classifier = DRClassifier()
         self.gradcam_explainer = GradCAMExplainer(
             classifier_backend=self.dr_classifier,
@@ -88,6 +91,14 @@ class AIBridge:
                 if cls._instance is None:
                     cls._instance = AIBridge()
         return cls._instance
+
+    @classmethod
+    def loaded_classifier_backend(cls) -> str | None:
+        """Return the loaded backend without triggering model initialization."""
+        instance = cls._instance
+        if instance is None:
+            return None
+        return instance.dr_classifier.get_backend()
 
     # Hard ceiling on decoded pixels: a <=10MB high-compression PNG can
     # otherwise expand to gigapixels and OOM the worker at np.array().
@@ -121,18 +132,7 @@ class AIBridge:
         np_img = np.array(pil_img)
 
         # Select camera threshold if specified (case-insensitive)
-        cp = (camera_profile or "").lower()
-        if "forus" in cp:
-            th = QualityThresholds.for_forus_3nethra()
-            checker = ImageQualityChecker(thresholds=th)
-        elif "remidio" in cp:
-            th = QualityThresholds.for_remidio_fop()
-            checker = ImageQualityChecker(thresholds=th)
-        elif "volk" in cp:
-            th = QualityThresholds.for_volk_inview()
-            checker = ImageQualityChecker(thresholds=th)
-        else:
-            checker = self.quality_checker
+        checker = self._checker_for_camera(camera_profile)
 
         result = checker.assess_image(np_img)
         ml_score = float(result.metrics.raw_scores.get("ml_quality_score", 0.0))
@@ -185,6 +185,13 @@ class AIBridge:
             },
         }
 
+    def _checker_for_camera(self, camera_profile: str | None) -> ImageQualityChecker:
+        profile = (camera_profile or "").lower()
+        for key, checker in self._camera_checkers.items():
+            if key in profile:
+                return checker
+        return self.quality_checker
+
     # -------------------------------------------------------------------------
     # 2. End-to-End Retinal Screening Analysis
     # -------------------------------------------------------------------------
@@ -203,30 +210,29 @@ class AIBridge:
         pil_img = self._open_image_capped(image_bytes)
         screening_id = f"SCR-{uuid.uuid4().hex[:12].upper()}"
         screening_dir = os.path.join(_RESULTS_DIR, screening_id)
-        os.makedirs(screening_dir, exist_ok=True)
-
         orig_filename = f"{screening_id}_orig.jpg"
         orig_path = os.path.join(screening_dir, orig_filename)
-        try:
-            pil_img.save(orig_path, quality=95)
-        except Exception:
-            shutil.rmtree(screening_dir, ignore_errors=True)
-            raise
 
         # Run pipeline router. output_dir=None: the router would otherwise write
         # a second Grad-CAM PNG (gradcam_<uuid>.png) that nothing references —
         # the single served overlay is saved below from heatmap_array.
         _t0 = time.perf_counter()
+        record: ScreeningRecord = self.router.process_image(
+            image_input=pil_img,
+            recapture_attempt_count=0,
+            output_dir=None,
+            quality_checker=self._checker_for_camera(camera_profile),
+        )
+        inference_time_ms = round((time.perf_counter() - _t0) * 1000.0, 1)
+
+        # Persist only after the pipeline returns. Rejected or failed uploads
+        # avoid creating a directory and encoding a JPEG before quality gating.
+        os.makedirs(screening_dir, exist_ok=True)
         try:
-            record: ScreeningRecord = self.router.process_image(
-                image_input=orig_path,
-                recapture_attempt_count=0,
-                output_dir=None,
-            )
+            pil_img.save(orig_path, quality=95)
         except Exception:
             shutil.rmtree(screening_dir, ignore_errors=True)
             raise
-        inference_time_ms = round((time.perf_counter() - _t0) * 1000.0, 1)
 
         # URLs relative to static server
         orig_url = f"/results/{screening_id}/{orig_filename}"
@@ -283,21 +289,13 @@ class AIBridge:
         min_fovea_distance_px = None
         if _gradable:
             try:
-                import numpy as _np
                 # Reuse the router's reassessment segmentation on the
                 # BORDERLINE-CLEARED path instead of segmenting twice.
                 seg = getattr(record, "reassessment_structures", None)
                 if seg is None:
-                    # Segment the served JPEG bytes (what the router graded),
-                    # not the pre-encode upload pixels: JPEG q95 shifts values
-                    # slightly and biomarkers must describe the graded image.
-                    from PIL import Image as _PILImage
-                    try:
-                        _served = _PILImage.open(orig_path).convert("RGB")
-                        seg = self.router.structure_segmenter.segment_structures(_np.array(_served))
-                    except Exception as exc:  # noqa: BLE001 - retry segmentation on upload pixels
-                        _logger.debug("Served-image segmentation failed: %s", exc)
-                        seg = self.router.structure_segmenter.segment_structures(_np.array(pil_img))
+                    # Reuse the same upload pixels that the router graded.
+                    # The persisted JPEG is only the client-facing artifact.
+                    seg = self.router.structure_segmenter.segment_structures(np.array(pil_img))
                 vessel_density_pct = round(float(seg.vessel_density_pct), 1)
                 microaneurysm_count = len(seg.microaneurysm_candidates)
                 csme_risk = seg.csme_risk

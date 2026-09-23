@@ -1,12 +1,13 @@
 import unittest
+
 import numpy as np
 
-from src.quality.checker import ImageQualityChecker
-from src.quality.enhancer import AdaptiveQualityEnhancer
 from src.classification.classifier import DRClassifier
 from src.classification.gradcam import GradCAMExplainer
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import QualityGrade
+from src.quality.checker import ImageQualityChecker
+from src.quality.enhancer import AdaptiveQualityEnhancer
 from src.synthetic_fixtures import create_synthetic_fundus_image
 
 

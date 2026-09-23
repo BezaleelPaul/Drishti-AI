@@ -29,7 +29,6 @@ def main() -> int:
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
 
-    from PIL import Image
     from src.pipeline.router import ScreeningPipelineRouter
     from src.pipeline.schema import QualityGrade
     from src.quality.checker import ImageQualityChecker, QualityThresholds
@@ -62,7 +61,7 @@ def main() -> int:
                     rec = router.process_image(os.path.join(root, f), output_dir=None)
                     dist[rec.quality_grade.value] += 1
                     total += 1
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - continue smoke validation
                     dist[f"ERROR:{e}"] += 1
         report["mode"] = "smoke-unlabeled-quality-only"
         report["total"] = total
@@ -91,7 +90,7 @@ def main() -> int:
                     continue
                 try:
                     rec = cam_router.process_image(os.path.join(d, f), output_dir=None)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - continue camera validation
                     print(f"  [warn] {cam}/{f}: {e}")
                     continue
                 stats["n"] += 1

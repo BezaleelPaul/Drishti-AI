@@ -1,7 +1,6 @@
-import unittest
-import numpy as np
-import tempfile
 import os
+import tempfile
+import unittest
 
 from src.pipeline.router import ScreeningPipelineRouter
 from src.pipeline.schema import DRGrade, HumanReviewType, QualityGrade, QualityReason

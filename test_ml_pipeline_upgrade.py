@@ -1,22 +1,22 @@
 """
 Verification script for ML-driven Quality Assessment & True Grad-CAM Engine.
 """
-import sys
 import os
+import sys
+
 import numpy as np
-from PIL import Image
 
 # Ensure project root in sys.path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.quality.checker import ImageQualityChecker, QualityThresholds
-from src.quality.enhancer import AdaptiveQualityEnhancer
 from src.classification.classifier import DRClassifier
 from src.classification.gradcam import GradCAMExplainer
 from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import DRGrade, QualityGrade
+from src.quality.checker import ImageQualityChecker
+from src.quality.enhancer import AdaptiveQualityEnhancer
+
 
 def run_tests():
     print("Testing ML Quality Checker...")

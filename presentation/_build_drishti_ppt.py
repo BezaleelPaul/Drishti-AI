@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate the Drishti-AI SIH 2026 presentation deck."""
 
 import os
@@ -6,7 +5,7 @@ import os
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
 # --- Design tokens (Drishti clinical system) ---
@@ -68,7 +67,7 @@ def add_rect(slide, x, y, w, h, fill, line=None, line_w=1.0, radius=None):
     if radius is not None:
         try:
             s.adjustments[0] = radius
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - optional PowerPoint styling
             pass
     s.shadow.inherit = False
     return s
@@ -82,7 +81,7 @@ def add_tb(slide, x, y, w, h, lines, anchor=MSO_ANCHOR.TOP):
     tf.auto_size = None
     try:
         tf._txBody.bodyPr.set("anchor", {MSO_ANCHOR.TOP: "t", MSO_ANCHOR.MIDDLE: "ctr", MSO_ANCHOR.BOTTOM: "b"}.get(anchor, "t"))
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 - optional PowerPoint styling
         pass
     for i, ln in enumerate(lines):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
@@ -614,7 +613,7 @@ s = blank()
 set_slide_bg(s, CANVAS)
 header_bar(s, "11  —  Built for the field, not the demo booth",
            "Offline. Commodity hardware. Frontline UX. National digital health rails.",
-           "The Streamlit UI is how judges interact. The product is everything that works outside a hospital.")
+           "The Flutter app is how judges interact. The product is everything that works outside a hospital.")
 
 blocks = [
     (TEAL, "EDGE & OFFLINE",
@@ -719,7 +718,7 @@ add_tb(s, 0.70, 5.20, 12, 0.70, [
 add_tb(s, 0.70, 6.10, 12, 0.70, [
     {"text": "Bezaleel  ·  Madhu  ·  Akshay  ·  Adithya  ·  Sinduri  ·  Megha",
      "size": 16, "bold": True, "color": WHITE, "space_after": 6},
-    {"text": "Live demo  ·  docker compose up  ·  localhost:8501     ·     Q & A",
+    {"text": "Live app  ·  docker compose up  ·  localhost:8000/app     ·     Q & A",
      "size": 14, "color": SLATE_400}
 ])
 add_notes(s, "Close on the manifesto. Invite the demo. Do not reopen architecture. If time: ‘ask us to break it with a bad image.’")

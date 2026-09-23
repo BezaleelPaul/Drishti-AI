@@ -1,9 +1,7 @@
 import unittest
-import numpy as np
-from PIL import Image
 
 from src.pipeline.schema import QualityGrade, QualityReason
-from src.quality.checker import ImageQualityChecker, QualityThresholds
+from src.quality.checker import ImageQualityChecker
 from src.synthetic_fixtures import create_synthetic_fundus_image
 
 

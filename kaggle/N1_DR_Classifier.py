@@ -7,14 +7,13 @@ Evaluation: Quadratic-Weighted Kappa (QWK), Per-class Sensitivity/Recall, ROC-AU
 """
 
 import os
-import numpy as np
+
 import pandas as pd
 import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, models
-from sklearn.metrics import cohen_kappa_score, classification_report, roc_auc_score
 from PIL import Image
+from torch import nn
+from torch.utils.data import Dataset
+from torchvision import models, transforms
 
 # -------------------------------------------------------------
 # Configuration
@@ -99,10 +98,10 @@ def train_model():
     weights = 1.0 / (class_counts + 1e-5)
     weights = weights / weights.sum()
     class_weights_tensor = torch.tensor(weights, dtype=torch.float).to(CONFIG["device"])
-    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
+    _criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
 
     model = build_model().to(CONFIG["device"])
-    optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG["learning_rate"], weight_decay=1e-4)
+    _optimizer = torch.optim.AdamW(model.parameters(), lr=CONFIG["learning_rate"], weight_decay=1e-4)
 
     print("Model initialized and ready for Kaggle training run.")
 

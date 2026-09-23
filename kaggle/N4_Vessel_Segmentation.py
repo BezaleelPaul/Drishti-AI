@@ -6,19 +6,18 @@ Scope:
 - Note: This is an optional exploratory module and not part of the mandatory hackathon core MVP.
 """
 
-import os
-import numpy as np
 
 def segment_vessels(image_path: str):
     """
     Optional vessel segmentation using fundus_image_toolbox if available.
     """
-    try:
-        import fundus_image_toolbox as fit
-        # Toolbox provides ensemble of FR-U-Nets trained on FIVES dataset
-        print(f"Running vessel segmentation on {image_path}...")
-    except ImportError:
+    import importlib.util
+
+    if importlib.util.find_spec("fundus_image_toolbox") is None:
         print("fundus_image_toolbox not installed in current environment.")
+        return
+    # Toolbox provides ensemble of FR-U-Nets trained on FIVES dataset.
+    print(f"Running vessel segmentation on {image_path}...")
 
 if __name__ == "__main__":
     print("N4 Vessel Segmentation (Optional Scope).")

@@ -60,6 +60,7 @@ $RECYCLE.BIN/
 .pytest_cache/
 results/pdf_cache/
 results/api_screenings/
+results/validation/
 
 # Flutter build artifacts
 flutter_app/.dart_tool/

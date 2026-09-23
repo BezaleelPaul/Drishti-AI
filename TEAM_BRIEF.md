@@ -17,7 +17,7 @@ India has 77+ million diabetic adults. Diabetic retinopathy is the leading cause
 
 ## WHAT MAKES US DIFFERENT FROM EVERY OTHER HACKATHON SUBMISSION
 
-**This is not "a Streamlit website."** The Streamlit app is one face of a 7-module clinical screening pipeline. Here is what we actually built:
+**This is not just a mobile app.** The Flutter client is one face of a 7-module clinical screening pipeline. Here is what we actually built:
 
 ### The 2-Model Pipeline (the core innovation)
 ```
@@ -103,7 +103,6 @@ Raw Image → [Model 1: Quality Gate] → Good/Borderline/Bad
 | Telemedicine Simulation | DONE | `src/simulation/telemedicine_sim.py` |
 | PDF Report Generator | DONE | `src/reporting/pdf_generator.py` |
 | FHIR Exporter | DONE | `src/reporting/fhir_exporter.py` |
-| Streamlit Demo | DONE - 1077-line full app | `demo/app.py` |
 | Unit Tests | DONE | `tests/unit/` |
 | Integration Tests | DONE | `tests/integration/test_pipeline_flow.py` |
 | Edge Case Tests | DONE | `tests/edge_cases/test_edge_cases.py` |
@@ -137,7 +136,7 @@ Raw Image → [Model 1: Quality Gate] → Good/Borderline/Bad
 
 | Person | Primary Modules | Key Deliverables |
 |--------|----------------|------------------|
-| **Bezaleel** | Pipeline Router, Streamlit UI, Integration | End-to-end flow working, demo functional |
+| **Bezaleel** | Pipeline Router, Flutter/FastAPI Integration | End-to-end flow working, app functional |
 | **Madhu** | Clinical Risk Engine, Retinal Segmentation, Clinical Validation | ICMR thresholds validated, segmentation overlay accurate |
 | **Akshay** | DR Classifier, Grad-CAM, MATLAB/Simulink | Model trained with QWK metrics, Simulink report generated |
 | **Adithya** | Tests, A/B Experiments, Edge Cases, Simulation Metrics | 150-sample benchmark complete, safety metrics documented |
@@ -179,13 +178,13 @@ Raw Image → [Model 1: Quality Gate] → Good/Borderline/Bad
 - Compile the safety metrics table for the presentation
 
 **I will:**
-- Ensure the Streamlit demo runs flawlessly end-to-end
+- Ensure the Flutter app and FastAPI workflow run flawlessly end-to-end
 - Wire all modules together in the pipeline router
 - Prepare the 8-slide pitch deck
 - Coordinate the final rehearsal on Day 8
 
 ---
 
-**We are not building a demo. We are building a clinically safe, production-grade screening pipeline that could actually save vision in rural India.** The Streamlit app is just how judges interact with it. The real project is the architecture, the safety guarantees, and the deployment story.
+**We are not building a demo. We are building a clinically safe, production-grade screening pipeline that could actually save vision in rural India.** The Flutter app is the field-facing interface; the real project is the architecture, the safety guarantees, and the deployment story.
 
 Let's make this count. — Bezaleel

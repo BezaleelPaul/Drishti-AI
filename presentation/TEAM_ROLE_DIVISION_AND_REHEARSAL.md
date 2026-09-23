@@ -7,12 +7,12 @@
 
 | Member | Role | Core Domain & Modules Owned |
 | :--- | :--- | :--- |
-| **Bezaleel** | **Team Lead & Full-Stack Architect** | System Architecture, Quality Gate Orchestration, Bounded Recapture Logic, Streamlit UI Integration (`src/pipeline/router.py`, `demo/app.py`). |
+| **Bezaleel** | **Team Lead & Full-Stack Architect** | System Architecture, Quality Gate Orchestration, Bounded Recapture Logic, Flutter/FastAPI Integration (`src/pipeline/router.py`, `api/main.py`). |
 | **Madhu** | **Clinical Intelligence & Biological Triage Lead** | Stage 1 Clinical Risk Engine, ICMR Asian-Indian cutoffs, Biological defect attribution (cataract vs. mydriasis), Retinal Anatomical Segmentation (`src/clinical_risk/`, `src/segmentation/`). |
 | **Akshay** | **Deep Learning & MathWorks Modeling Lead** | EfficientNetB0 5-class severity grading, Grad-CAM explainability (<30s constraint), MATLAB Simulink 100,000-patient discrete-event simulation (`src/classification/`, `matlab/simulink_telemedicine_model.m`). |
 | **Adithya** | **Validation, Edge Cases & Telemedicine Ops Lead** | 150-sample A/B experiment evaluation, Adversarial & non-fundus edge cases, 99.1% bandwidth optimization, Rural PHC field operations (`tests/`, `evaluate_ab_test.py`, `docs/AB_EXPERIMENT_RESULTS.md`). |
-| **Sinduri** | **Lead UI/UX Designer (ASHA Mobile & Field UX)** | Low-cognitive-load ASHA mobile client interface, bilingual audio prompts, real-time quality triage feedback UI, patient referral slip layouts (`sinduri_uiux_kit/`, `flutter_app/`). |
-| **Megha** | **Lead UI/UX Designer (Doctor Console & Data Viz)** | Central Tele-Ophthalmology Dashboard, specialist over-read workbench, Grad-CAM++ lesion heatmaps, quantitative CSME biomarker overlays, ABDM FHIR report layouts (`demo/app.py`). |
+| **Sinduri** | **Lead UI/UX Designer (ASHA Mobile & Field UX)** | Low-cognitive-load ASHA mobile client interface, bilingual audio prompts, real-time quality triage feedback UI, patient referral slip layouts (`flutter_app/`). |
+| **Megha** | **Lead UI/UX Designer (Doctor Console & Data Viz)** | Tele-Ophthalmology review workflow, Grad-CAM++ lesion heatmaps, quantitative CSME biomarker overlays, ABDM FHIR report layouts (`flutter_app/`). |
 
 ---
 
@@ -43,7 +43,7 @@
 ---
 
 ### Part 4: Live Demonstration & Safety Verification (Minutes 5:30 – 7:00) — Speaker: Bezaleel & Adithya
-- **Bezaleel:** *(Shares screen with Streamlit UI)* *"Let's see this live in our offline-ready interface running on `localhost:8501`."*
+- **Bezaleel:** *(Shares screen with the Flutter app)* *"Let's see this live in our offline-ready interface running on `localhost:8000/app`."*
   - Scenario 1: Clean Fundus photo $\rightarrow$ Passes Quality Gate $\rightarrow$ Grade 2 Moderate NPDR $\rightarrow$ Grad-CAM overlay displayed $\rightarrow$ Low confidence flagged honestly.
   - Scenario 2: Blurry / Defocused capture $\rightarrow$ Instantly rejected by Model 1 Quality Gate $\rightarrow$ Model 2 DR grade is strictly SUPPRESSED $\rightarrow$ Guided recapture prompt shown.
 - **Adithya:** *"To prove clinical safety, we conducted an A/B/C experiment on 150 benchmark images. Standard classifiers forced a diagnosis on 100% of ungradable images. Our architecture achieved a 0% forced prediction rate, completely eliminating diagnostic leakage. Furthermore, our bounded recapture policy caps retries at 2 attempts before escalating to a human clinician."*

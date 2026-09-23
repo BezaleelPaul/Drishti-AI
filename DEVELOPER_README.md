@@ -1,12 +1,11 @@
 # 🌐 Drishti-AI: Universal Developer & Deployment Guide
 
 ### Smart India Hackathon 2026 • Problem Statement SIH26038 (MathWorks)
-**Complete Clinical Screening Platform (Python AI Pipeline • FastAPI Backend • Flutter Mobile App • Streamlit Console)**
+**Complete Clinical Screening Platform (Python AI Pipeline • FastAPI Backend • Flutter Mobile App)**
 
 > **Clinical Architecture Premise:**  
 > Standard 5-class DR classification was proven by Google Health (Gulshan et al., 2016) and IDx-DR on curated hospital-grade tabletop cameras. **Drishti-AI operationalizes and democratizes this capability for rural Indian PHCs**: introducing Model 1 Quality Gating (preventing false diagnoses on ungradable handheld captures), sub-180ms CPU-only offline execution, quantitative CSME biomarker extraction, and district-scale telemedicine triage.
 
----
 
 ## 🚀 1-Click Quickstart (No Manual Setup Needed)
 
@@ -16,7 +15,7 @@ Whether you are on **Windows** or **macOS**, this repository includes automated,
 1. **Double-click** `setup_windows.bat`  
    *(Automatically detects Python, creates `./venv`, installs dependencies, and runs verification).*
 2. **Double-click** `run_windows.bat`  
-   *(Presents an interactive launch menu to open the Streamlit Doctor Dashboard, the FastAPI Backend, or the Flutter Mobile App).*
+   *(Presents an interactive launch menu for the FastAPI backend and Flutter app, verification, and API tests).*
 
 ### 🍎 If You Are on macOS (Apple Silicon or Intel):
 1. Open **Terminal** (`Cmd + Space` → `Terminal`).
@@ -33,9 +32,8 @@ Whether you are on **Windows** or **macOS**, this repository includes automated,
 export DRISHTI_API_KEYS='replace-with-a-long-random-key:operator'
 docker compose up
 ```
-Open **http://localhost:8501** in your browser.
+Open **http://localhost:8000/app** in your browser.
 
----
 
 ## 📦 What Is Inside the Software Ecosystem
 
@@ -72,7 +70,6 @@ Drishti-AI consists of four integrated layers designed for rural tele-ophthalmol
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
 
 ## 📂 Complete Folder Structure Reference
 
@@ -84,7 +81,6 @@ SIH HACKATHON/
 │   ├── run_windows.bat         # Interactive terminal launcher for Windows
 │   ├── setup_mac.sh            # 1-Click installer for macOS (auto-detects M-Series/Intel)
 │   ├── run_mac.sh              # Interactive terminal launcher for macOS
-│   ├── run_demo.bat / .sh      # Legacy direct demo launchers
 │   ├── Makefile                # Developer shortcuts (make setup, make test, make run)
 │   ├── Dockerfile              # Production container build
 │   └── docker-compose.yml      # Zero-configuration container runner
@@ -111,10 +107,7 @@ SIH HACKATHON/
 │       └── schema.py           # Strict dataclass schemas
 │
 ├── 🌐 Web & API Applications
-│   ├── demo/                   # Central Clinical Dashboard
-│   │   ├── app.py              # Streamlit Web UI (1100+ lines)
-│   │   └── custom_style.css    # Healthcare CSS stylesheet
-│   └── api/                    # FastAPI Backend Bridge
+│   └── api/                    # FastAPI Backend Bridge and Flutter host
 │       ├── main.py             # FastAPI entry point (serves API & Flutter Web)
 │       ├── database.py         # SQLite schema (patients, screenings, reviews)
 │       ├── schemas.py          # Pydantic request/response validation
@@ -149,7 +142,6 @@ SIH HACKATHON/
     └── presentation/             # Official 8-slide PPT deck and pitch guides
 ```
 
----
 
 ## 🛠️ How to Develop & Test Each Component
 
@@ -198,31 +190,21 @@ cd flutter_app
 flutter build web --release
 ```
 
-### 4. Developing the Streamlit Dashboard (`demo/`)
-```bash
-python -m streamlit run demo/app.py
-```
-* **Dashboard URL**: `http://localhost:8501`
-
----
-
 ## ❓ Cross-Platform Troubleshooting Matrix
 
 | Problem | Operating System | Solution |
 |---|---|---|
 | `python was not found` | Windows | Install Python 3.10+ from python.org and check **"Add python.exe to PATH"**. |
 | `error: externally-managed-environment` | macOS Sonoma / Sequoia | Run `./setup_mac.sh` which uses `./venv` to safely isolate packages. |
-| `Address already in use: 8501` | Any | Another Streamlit instance is running. Kill it or choose a new port: `streamlit run demo/app.py --server.port 8502`. |
 | `Address already in use: 8000` | Any | Free port 8000: Windows: `netstat -ano \| findstr :8000`, Mac: `lsof -ti :8000 \| xargs kill -9`. |
 | `Flutter CLI not found` | Any | You don't need Flutter! Launch Option [2] in `run_windows.bat` or `run_mac.sh` to open the pre-built app at `http://localhost:8000/app`. |
 | Script permission denied | macOS | Run `chmod +x setup_mac.sh run_mac.sh`. |
 
----
 
 ## 🏆 Presentation Quick-Pitch Checklist
 
 When demonstrating Drishti-AI to evaluators or judges:
 1. **Show Model 1 Rejection First**: Load `1_blurry_eye_retake.jpg`. Point out that the AI **refuses to diagnose** poor quality images and provides actionable distance guidance and audio feedback instead of generating a fake grade.
 2. **Show Model 2 Diagnostic Grading & Grad-CAM++**: Load `2_clear_eye_normal.jpg` or `3_severe_eye_referral.jpg`. Demonstrate the high-speed Grad-CAM++ visual attention heatmap and CSME risk calculation.
-3. **Show Dual-Client Architecture**: Show the doctor console on Streamlit and the ASHA field app on Flutter/FastAPI to prove full clinical workflow integration.
+3. **Show the Flutter workflow**: Show field check-in, quality gating, results, and tele-review in the Flutter app served by FastAPI.
 4. **Show ABDM / Ayushman Bharat Compliance**: Download the clinical A4 PDF dossier and ABDM FHIR R4 JSON bundle.

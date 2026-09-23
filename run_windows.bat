@@ -24,48 +24,33 @@ echo ====================================================================
 echo.
 echo Select which application component to run:
 echo.
-echo   [1] Central Doctor Dashboard (Streamlit Web UI)  [RECOMMENDED]
-echo       - Full 2-model screening, Grad-CAM++, PDF, FHIR, CSME risk
-echo       - Opens automatically in browser: http://localhost:8501
-echo.
-echo   [2] FastAPI REST Server + Embedded Flutter Mobile App
+echo   [1] FastAPI REST Server + Embedded Flutter Mobile App  [RECOMMENDED]
 echo       - High-speed REST backend on http://localhost:8000
 echo       - Includes Flutter Web App pre-built at: http://localhost:8000/app
 echo       - Swagger API documentation at: http://localhost:8000/docs
 echo.
-echo   [3] Flutter Mobile / Tablet Client (Native Chrome Launch)
+echo   [2] Flutter Mobile / Tablet Client (Native Chrome Launch)
 echo       - Requires Flutter SDK installed
 echo.
-echo   [4] Run Full System Verification Suite (10 Subsystems)
+echo   [3] Run Full System Verification Suite (10 Subsystems)
 echo       - Benchmarks Model 1, Model 2, Segmentation, CLAHE, Simulink
 echo.
-echo   [5] Run FastAPI Endpoint Verification Tests
+echo   [4] Run FastAPI Endpoint Verification Tests
 echo.
-echo   [6] Exit
+echo   [5] Exit
 echo.
 echo ====================================================================
-set /p CHOICE="Enter choice [1-6] (Default 1): "
+set /p CHOICE="Enter choice [1-5] (Default 1): "
 if "%CHOICE%"=="" set CHOICE=1
 
-if "%CHOICE%"=="1" goto STREAMLIT
-if "%CHOICE%"=="2" goto API
-if "%CHOICE%"=="3" goto FLUTTER
-if "%CHOICE%"=="4" goto VERIFY
-if "%CHOICE%"=="5" goto APITEST
-if "%CHOICE%"=="6" goto EXIT
+if "%CHOICE%"=="1" goto API
+if "%CHOICE%"=="2" goto FLUTTER
+if "%CHOICE%"=="3" goto VERIFY
+if "%CHOICE%"=="4" goto APITEST
+if "%CHOICE%"=="5" goto EXIT
 
-echo Invalid selection. Please choose 1 to 6.
+echo Invalid selection. Please choose 1 to 5.
 timeout /t 2 >nul
-goto MENU
-
-:STREAMLIT
-cls
-echo [*] Launching Central Doctor Screening Dashboard at http://localhost:8501...
-echo [*] Press Ctrl+C in this window anytime to stop the server.
-echo.
-start "" "http://localhost:8501" 2>nul
-python -m streamlit run demo/app.py
-pause
 goto MENU
 
 :API

@@ -44,6 +44,6 @@ This folder contains pre-packaged test cases to verify credibility across your t
 ---
 
 ## How to Test in the Browser:
-1. Open the web demo at **`http://localhost:8501`**.
-2. Go to **Tab 2: Standalone Retinal Screening**.
-3. Drag-and-drop any image from these folders and observe the real-time decision flow.
+1. Start the API with `make run`.
+2. Open the Flutter app at **`http://localhost:8000/app`**.
+3. Use the screening flow with any image from these folders and observe the decision flow.

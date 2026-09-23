@@ -7,11 +7,7 @@ Scope:
 - Stating explicit claim boundary per Section 8.
 """
 
-import os
-import torch
 import numpy as np
-import cv2
-from PIL import Image
 
 EXPLAINABILITY_CLAIM_BOUNDARY = (
     "CLAIM BOUNDARY: Grad-CAM highlights which spatial regions most influenced "

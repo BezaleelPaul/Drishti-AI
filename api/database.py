@@ -19,16 +19,24 @@ def _resolve_db_path(raw: str) -> str:
     file path (used directly). The old check only recognized *existing*
     files, so a fresh file path was mkdir'd into a directory of that name.
     Suffix + parent semantics decide for not-yet-existing paths."""
-    if os.path.isdir(raw):
-        return os.path.join(raw, "screening_platform.db")
-    if os.path.isfile(raw):
-        return raw
-    if raw.lower().endswith((".db", ".sqlite", ".sqlite3", ".db3")):
-        parent = os.path.dirname(os.path.abspath(raw))
+    candidate = (raw or "").strip()
+    if not candidate:
+        fallback = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data",
+        )
+        os.makedirs(fallback, exist_ok=True)
+        return os.path.join(fallback, "screening_platform.db")
+    if os.path.isdir(candidate):
+        return os.path.join(candidate, "screening_platform.db")
+    if os.path.isfile(candidate):
+        return candidate
+    if candidate.lower().endswith((".db", ".sqlite", ".sqlite3", ".db3")):
+        parent = os.path.dirname(os.path.abspath(candidate))
         os.makedirs(parent, exist_ok=True)
-        return os.path.abspath(raw)
-    os.makedirs(raw, exist_ok=True)
-    return os.path.join(raw, "screening_platform.db")
+        return os.path.abspath(candidate)
+    os.makedirs(candidate, exist_ok=True)
+    return os.path.join(candidate, "screening_platform.db")
 
 
 _DB_DIR = os.environ.get(

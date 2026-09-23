@@ -1,5 +1,5 @@
 # SIH 2026 3-Minute Video Demonstration Script
-## System: Drishti-AI — Streamlit Live Dashboard (`http://localhost:8501`)
+## System: Drishti-AI — Flutter App served by FastAPI (`http://localhost:8000/app`)
 
 ---
 

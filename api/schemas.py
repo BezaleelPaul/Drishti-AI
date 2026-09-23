@@ -57,7 +57,7 @@ class PatientListResponse(BaseModel):
 # -----------------------------------------------------------------------------
 class DiabetesRiskRequest(BaseModel):
     patient_id: str | None = None
-    age: int = Field(..., ge=0, le=120, json_schema_extra={"example": 54})
+    age: int = Field(..., ge=1, le=120, json_schema_extra={"example": 54})
     gender: str = Field(..., json_schema_extra={"example": "Male"})
     bmi: float = Field(..., ge=10, le=70, json_schema_extra={"example": 28.4})
     family_history: bool = Field(..., json_schema_extra={"example": True})

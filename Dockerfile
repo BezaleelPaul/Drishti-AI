@@ -8,12 +8,12 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
-    PORT=8501
+    PORT=8000
 
 WORKDIR /app
 
 # Install system dependencies (headless OpenCV needs no libGL).
-# tini provides correct PID-1 signal handling for streamlit/uvicorn.
+# tini provides correct PID-1 signal handling for uvicorn.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libglib2.0-0 \
@@ -36,16 +36,15 @@ COPY . .
 RUN useradd -m -u 10001 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expose Streamlit dashboard and FastAPI backend ports
-EXPOSE 8000 8501
+# Expose the FastAPI backend and embedded Flutter app.
+EXPOSE 8000
 
 # Healthcheck to verify cold-start responsiveness (TF/torch cold-start
 # on edge hardware takes 30-60s, so allow a generous start-period)
 HEALTHCHECK --interval=30s --timeout=15s --start-period=90s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+    CMD curl -f http://localhost:8000/ || exit 1
 
 # tini as PID 1; CMD honors $PORT so `-e PORT=8000` works.
-# docker-compose `command:` replaces this CMD (not the ENTRYPOINT),
-# e.g. uvicorn for the backend service.
+# docker-compose `command:` replaces this CMD (not the ENTRYPOINT).
 ENTRYPOINT ["tini", "--"]
-CMD ["sh", "-c", "exec streamlit run demo/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true"]
+CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -56,7 +56,7 @@ Unlike naive pipelines that apply identical thresholds across all optical instru
 
 ### 1. 100% Zero-Telemetry Offline Operation
 - **No Remote Model Downloads**: Pre-trained weights (`final_model.keras`, `diabetes_ml_model.joblib`) are packaged locally within the repository.
-- **No Web Font or CDN Dependencies**: Offline CSS styling and bundled assets in `flutter_app/assets/images` and `demo/custom_style.css`.
+- **No Web Font or CDN Dependencies**: Offline styling and bundled assets in `flutter_app/assets/images`.
 - **Local SQLite Audit Trail**: Screening records, doctor review queues, and patient demographics are persisted in `netra_ai.db`.
 
 ### 2. Lightweight Memory Footprint

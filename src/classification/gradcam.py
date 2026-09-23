@@ -47,9 +47,9 @@ class GradCAMExplainer:
     FALLBACK_LAYER_NAME = "multiscale_vascular_saliency (fallback)"
 
     FALLBACK_NOTE = (
-        " NOTE: No deep-learning weights were available, so this map is a multi-scale "
-        "vascular saliency fallback — not gradient backpropagation — and must not be "
-        "interpreted as model attention."
+        " NOTE: Gradient backpropagation was unavailable, so this map is a multi-scale "
+        "vascular saliency fallback — not model attention — and must not be interpreted "
+        "as gradient-based evidence."
     )
 
     # Single background threshold shared by saliency masking and overlay blending.
@@ -111,8 +111,8 @@ class GradCAMExplainer:
             layer_name = self.FALLBACK_LAYER_NAME
             disclaimer = self.EXPLAINABILITY_DISCLAIMER + self.FALLBACK_NOTE
             logging.getLogger("NetraAI.GradCAM").warning(
-                "No DL weights available; using multi-scale vascular saliency fallback. "
-                "Output is NOT gradient backpropagation."
+                "Gradient-based explainability unavailable; using multi-scale vascular "
+                "saliency fallback. Output is NOT gradient backpropagation."
             )
 
         # 3. Create Overlaid Visual Heatmap onto Original Retinal Frame
@@ -157,14 +157,21 @@ class GradCAMExplainer:
 
         # Locate last 4D convolutional feature layer
         target_layer = None
-        for layer in reversed(keras_model.layers):
+        target_layer_index = None
+        for layer_index in range(len(keras_model.layers) - 1, -1, -1):
+            layer = keras_model.layers[layer_index]
             out_shape = getattr(layer, "output_shape", None)
+            if out_shape is None and hasattr(layer, "output"):
+                out_shape = getattr(layer.output, "shape", None)
             if out_shape and len(out_shape) == 4:
                 target_layer = layer
+                target_layer_index = layer_index
                 break
             if hasattr(layer, "layers"):  # nested backbone
                 for sub in reversed(layer.layers):
                     sub_shape = getattr(sub, "output_shape", None)
+                    if sub_shape is None and hasattr(sub, "output"):
+                        sub_shape = getattr(sub.output, "shape", None)
                     if sub_shape and len(sub_shape) == 4:
                         target_layer = sub
                         break
@@ -174,13 +181,17 @@ class GradCAMExplainer:
         if target_layer is None:
             raise ValueError("No 4D convolutional feature map found in Keras model.")
 
-        grad_model = tf.keras.models.Model(
-            inputs=keras_model.inputs,
-            outputs=[target_layer.output, keras_model.output],
-        )
-
         with tf.GradientTape() as tape:
-            conv_outputs, predictions = grad_model(img_tensor)
+            if target_layer_index is not None:
+                # Keras 3 may reject a multi-output graph built from a
+                # serialized nested Functional backbone. Replaying the head
+                # keeps the backbone activation connected to the input tensor.
+                conv_outputs = target_layer(img_tensor, training=False)
+                predictions = conv_outputs
+                for layer in keras_model.layers[target_layer_index + 1:]:
+                    predictions = layer(predictions, training=False)
+            else:
+                raise ValueError("Nested Keras feature map requires an unsupported graph path.")
             target_score = predictions[:, class_idx]
 
         grads = tape.gradient(target_score, conv_outputs)
@@ -386,7 +397,8 @@ class GradCAMExplainer:
         from src.image_io import to_rgb_uint8
         if isinstance(image_input, str):
             # Shared funnel: dimension cap applies to file paths too.
-            return Image.fromarray(to_rgb_uint8(np.array(Image.open(image_input).convert("RGB"))))
+            with Image.open(image_input) as img:
+                return Image.fromarray(to_rgb_uint8(np.array(img.convert("RGB"))))
         elif isinstance(image_input, np.ndarray):
             # Single shared loader, mirroring classifier._load_as_pil.
             return Image.fromarray(to_rgb_uint8(image_input)).convert("RGB")

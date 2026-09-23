@@ -318,10 +318,11 @@ class ImageQualityChecker:
             if isinstance(image_input, str):
                 if not os.path.exists(image_input):
                     return None, f"File not found: {image_input}"
-                pil_img = Image.open(image_input).convert("RGB")
-                # Same shared funnel as ndarray input: dimension cap and
-                # normalization apply identically to file and array paths.
-                return to_rgb_uint8(np.array(pil_img)), None
+                with Image.open(image_input) as img:
+                    pil_img = img.convert("RGB")
+                    # Same shared funnel as ndarray input: dimension cap and
+                    # normalization apply identically to file and array paths.
+                    return to_rgb_uint8(np.array(pil_img)), None
             elif isinstance(image_input, Image.Image):
                 return to_rgb_uint8(np.array(image_input.convert("RGB"))), None
             elif isinstance(image_input, np.ndarray):

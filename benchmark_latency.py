@@ -17,9 +17,8 @@ import json
 import os
 import platform
 import statistics
+import subprocess
 import time
-
-import numpy as np
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -33,12 +32,11 @@ def _hardware_info() -> dict:
     }
     try:
         if platform.system() == "Darwin":
-            import subprocess
             info["cpu_brand"] = subprocess.run(
                 ["sysctl", "-n", "machdep.cpu.brand_string"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, timeout=5, check=False,
             ).stdout.strip()
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         pass
     return info
 
@@ -61,12 +59,12 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join(PROJECT_ROOT, "results", "benchmark.json"))
     args = ap.parse_args()
 
-    from src.quality.checker import ImageQualityChecker, QualityThresholds
-    from src.quality.enhancer import AdaptiveQualityEnhancer  # noqa: F401 (import cost counted)
     from src.classification.classifier import DRClassifier
     from src.classification.gradcam import GradCAMExplainer
-    from src.segmentation.structure_segmenter import RetinalStructureSegmenter
     from src.pipeline.router import ScreeningPipelineRouter
+    from src.quality.checker import ImageQualityChecker, QualityThresholds
+    from src.quality.enhancer import AdaptiveQualityEnhancer  # noqa: F401 (import cost counted)
+    from src.segmentation.structure_segmenter import RetinalStructureSegmenter
     from src.synthetic_fixtures import create_synthetic_fundus_image
 
     checker = ImageQualityChecker(QualityThresholds())
@@ -87,11 +85,18 @@ def main() -> int:
         img = create_synthetic_fundus_image((size, size))
         pred = clf.predict(img)
         entry = {
-            "quality_gate": _time(lambda: checker.assess_image(img), args.repeats),
-            "segmentation": _time(lambda: segmenter.segment_structures(img), args.repeats),
-            "classifier": _time(lambda: clf.predict(img), args.repeats),
-            "gradcam": _time(lambda: explainer.generate_heatmap(img, pred.predicted_grade, classifier=clf), args.repeats),
-            "full_router": _time(lambda: router.process_image(img, output_dir=None), args.repeats),
+            "quality_gate": _time(lambda image=img: checker.assess_image(image), args.repeats),
+            "segmentation": _time(lambda image=img: segmenter.segment_structures(image), args.repeats),
+            "classifier": _time(lambda image=img: clf.predict(image), args.repeats),
+            "gradcam": _time(
+                lambda image=img, grade=pred.predicted_grade: explainer.generate_heatmap(
+                    image, grade, classifier=clf
+                ),
+                args.repeats,
+            ),
+            "full_router": _time(
+                lambda image=img: router.process_image(image, output_dir=None), args.repeats
+            ),
         }
         report["sizes"][str(size)] = entry
 

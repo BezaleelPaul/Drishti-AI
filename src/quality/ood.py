@@ -67,7 +67,10 @@ def ood_score(
 
     max_p = max(probs)
     deficit = 1.0 - max_p
-    entropy = -sum(p * math.log(p) for p in probs if p > 0.0) / math.log(NUM_CLASSES)
+    if NUM_CLASSES <= 1:
+        entropy = 0.0  # Single class: no entropy
+    else:
+        entropy = -sum(p * math.log(p) for p in probs if p > 0.0) / math.log(NUM_CLASSES)
 
     signals: list[str] = []
     if deficit > 0.5:
@@ -86,7 +89,7 @@ def ood_score(
         if not math.isfinite(v):
             raise ValueError(f"{name} must be finite, got {val!r}.")
         if v < lo or (hi is not None and v > hi):
-            stat_penalty = max(stat_penalty, 0.25)
+            stat_penalty += 0.25
             signals.append(f"{name} outside fundus envelope ({v:.1f})")
 
     combined = 0.45 * deficit + 0.45 * entropy + stat_penalty

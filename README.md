@@ -182,10 +182,10 @@ SIH HACKATHON/
 │   ├── N2_Image_Quality.py
 │   ├── N3_Explainability.py
 │   └── N4_Vessel_Segmentation.py
-├── demo/                    # Interactive Streamlit demo & test assets
-│   ├── app.py
-│   ├── generate_samples.py
-│   └── sample_images/       # Pre-generated test cases for demo scenarios
+├── flutter_app/             # Mobile, tablet, and web application
+│   ├── lib/
+│   └── assets/
+├── test_samples/            # Clinical and curated verification fixtures
 ├── docs/                    # Architectural and clinical documentation
 │   ├── ARCHITECTURE.md
 │   ├── DECISION_FLOW.md
@@ -228,7 +228,7 @@ Run the entire platform with zero local dependency installation:
 export DRISHTI_API_KEYS='replace-with-a-long-random-key:operator'
 docker compose up
 ```
-Open **http://localhost:8501** in your browser. Configure the same API key in
+Open **http://localhost:8000/app** in your browser. Configure the same API key in
 the Flutter client when using the backend (`--dart-define=DRISHTI_API_KEY=...`).
 
 ### Option B: Local Python Environment
@@ -242,9 +242,9 @@ make setup
 make test
 # Or: python verify_complete_system.py
 
-# 3. Launch interactive Streamlit demo UI
+# 3. Launch the Flutter app through FastAPI
 make run
-# Or: streamlit run demo/app.py
+# Open http://localhost:8000/app
 ```
 
 ### Option C: CLI Batch Screening
@@ -300,11 +300,11 @@ Action:           Recapture image. Do not display a DR grade for an image that f
 
 | Team Member | Role | Primary Modules Owned | Key Deliverables |
 | :--- | :--- | :--- | :--- |
-| **Bezaleel** | Team Lead & Full-Stack Architect | Pipeline Decision Router, Streamlit UI, FastAPI Backend, Cross-Platform Integration | End-to-end clinical flow, zero-config Windows & macOS setups, production Docker stack |
+| **Bezaleel** | Team Lead & Full-Stack Architect | Pipeline Decision Router, Flutter/FastAPI Integration, Cross-Platform Integration | End-to-end clinical flow, zero-config Windows & macOS setups, production Docker stack |
 | **Madhu** | Clinical Lead & Biomedical Engineer | Upstream Clinical Risk Engine, Retinal Structure Segmentation, Clinical Validation | ICMR 2024 guidelines calibration, OD/Fovea Euclidean CSME risk distance, clinical report validation |
 | **Akshay** | Deep Learning & Operations Lead | EfficientNetB0 DR Classifier, Grad-CAM++ Engine, MATLAB/Simulink Queuing Model | APTOS 2019 model training (QWK metrics), <1.2s CPU Grad-CAM++, 100k-patient Simulink simulation |
 | **Adithya** | Safety & Verification Lead | Test Frameworks, A/B Benchmark Experiments, Edge-Case Hardening, Telemedicine Metrics | 150-sample benchmark dataset, 0% forced-prediction validation on ungradables, safety guardrail metrics |
-| **Sinduri** | Lead UI/UX Designer | ASHA Mobile Client UX, Field Worker Workflow, Design System & Figma Kits | Low-cognitive-load ASHA mobile screens, camera recapture prompts, bilingual referral slips, `sinduri_uiux_kit/` |
+| **Sinduri** | Lead UI/UX Designer | ASHA Mobile Client UX, Field Worker Workflow, Design System | Low-cognitive-load ASHA mobile screens, camera recapture prompts, bilingual referral slips |
 | **Megha** | Lead UI/UX Designer | Doctor Diagnostic Console, Tele-Ophthalmology Dashboard, Clinical Data Visualization | Specialist over-read workbench, Grad-CAM++ lesion heatmaps, quantitative CSME biomarker overlays, ABDM FHIR report layouts |
 
 ---

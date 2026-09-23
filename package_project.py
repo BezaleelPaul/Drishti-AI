@@ -4,8 +4,8 @@ for team members and judges. Excludes repository metadata and bytecode.
 """
 
 import os
-import zipfile
 import time
+import zipfile
 
 
 def make_portable_zip(
@@ -19,7 +19,6 @@ def make_portable_zip(
     exclude_dirs = {".git", "__pycache__", ".pytest_cache", ".idea", ".vscode", "venv", ".venv"}
     exclude_exts = {".pyc", ".pyo", ".pyd"}
     
-    abs_source = os.path.abspath(source_dir)
     abs_output = os.path.abspath(output_zip)
 
     file_count = 0

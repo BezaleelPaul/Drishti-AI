@@ -5,13 +5,13 @@ Stage 2: AI-Assisted Retinal Screening Pipeline (Section 3 Decision Flow)
 """
 
 import os
+
 from src.clinical_risk import (
     DiabetesRiskModel,
     PatientClinicalProfile,
     ScreeningPathway,
 )
 from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import QualityGrade
 
 
 def run_comprehensive_test():
@@ -22,7 +22,7 @@ def run_comprehensive_test():
 
     risk_model = DiabetesRiskModel()
     pipeline_router = ScreeningPipelineRouter()
-    sample_dir = os.path.join("demo", "sample_images")
+    sample_dir = os.path.join("test_samples", "curated")
 
     # -------------------------------------------------------------
     # Case A: Person with Confirmed Diabetes -> Retinal Screening
@@ -56,7 +56,7 @@ def run_comprehensive_test():
             output_dir=os.path.join("results", "test_case_a"),
         )
         print(record_a.format_report_text())
-        print(f"Audit overlay saved to: results/test_case_a/gradcam_overlay.png")
+        print("Audit overlay saved to: results/test_case_a/gradcam_overlay.png")
 
     # -------------------------------------------------------------
     # Case B: High-Risk Individual without Confirmed Diagnosis
