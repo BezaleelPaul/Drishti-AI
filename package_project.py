@@ -7,18 +7,32 @@ import os
 import time
 import zipfile
 
+DEFAULT_OUTPUT_DIR = "release/archives"
+
 
 def make_portable_zip(
     source_dir: str = ".",
-    output_zip: str = "SIH2026_DR_Screening_Pipeline.zip",
+    output_zip: str = "release/archives/SIH2026_DR_Screening_Pipeline.zip",
 ):
     print(f"Creating portable zip archive: {output_zip}...")
     start_time = time.time()
-    
+
     # Exclude patterns
-    exclude_dirs = {".git", "__pycache__", ".pytest_cache", ".idea", ".vscode", "venv", ".venv"}
+    exclude_dirs = {
+        ".git",
+        "__pycache__",
+        ".pytest_cache",
+        ".idea",
+        ".vscode",
+        "venv",
+        ".venv",
+        "release",
+    }
     exclude_exts = {".pyc", ".pyo", ".pyd"}
-    
+
+    output_parent = os.path.dirname(os.path.abspath(output_zip))
+    os.makedirs(output_parent, exist_ok=True)
+
     abs_output = os.path.abspath(output_zip)
 
     file_count = 0
@@ -26,19 +40,19 @@ def make_portable_zip(
         for root, dirs, files in os.walk(source_dir):
             # Prune excluded directories
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
-            
+
             for f in sorted(files):
                 file_path = os.path.join(root, f)
                 abs_file_path = os.path.abspath(file_path)
-                
+
                 # Do not include the zip file inside itself
                 if abs_file_path == abs_output:
                     continue
-                    
+
                 _, ext = os.path.splitext(f)
                 if ext.lower() in exclude_exts or ext.lower() == ".zip":
                     continue
-                    
+
                 # Relative archive path
                 arcname = os.path.relpath(file_path, source_dir)
                 zf.write(file_path, arcname)
@@ -53,5 +67,8 @@ def make_portable_zip(
 
 if __name__ == "__main__":
     import sys
+
     out_name = sys.argv[1] if len(sys.argv) > 1 else "SIH2026_DR_Screening_Pipeline_LATEST.zip"
+    if not os.path.dirname(out_name):
+        out_name = os.path.join(DEFAULT_OUTPUT_DIR, out_name)
     make_portable_zip(output_zip=out_name)

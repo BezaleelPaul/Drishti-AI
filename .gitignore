@@ -54,6 +54,12 @@ $RECYCLE.BIN/
 
 # Local Package Archives (prevent GitHub >100MB rejection)
 *.zip
+*.apk
+*.rar
+*.tar.gz
+
+# Local release artifacts (archives + extracted builds), never committed
+/release/
 
 # Databases & Cache
 *.db
@@ -61,6 +67,8 @@ $RECYCLE.BIN/
 results/pdf_cache/
 results/api_screenings/
 results/validation/
+results/*.log
+results/*.err
 
 # Flutter build artifacts
 flutter_app/.dart_tool/

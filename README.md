@@ -140,6 +140,28 @@ To maintain scientific integrity and clinical rigor, the Drishti-AI team explici
 
 ---
 
+## 📊 Measured Validation & Safety Evidence (all reproducible)
+
+> Full methodology, tables, and caveats: **[`docs/EVALUATION_RESULTS.md`](docs/EVALUATION_RESULTS.md)**.
+> Raw outputs: `results/labeled_evaluation.json`, `results/labeled_evaluation_predictions.csv` (per-image audit trail), `results/demo_rehearsal/`.
+
+**External accuracy on 2,810 labeled real screening images** (`evaluate_labeled_dataset.py`, EyePACS-style third-party labels):
+
+| Metric | Measured |
+|---|---|
+| Top-1 accuracy | **71.5%** (matches the model card's own 72% APTOS holdout claim — integration loses nothing) |
+| Macro-F1 / QWK | **0.26 / 0.31** — minority-class recall collapses under domain shift |
+| Referable-DR sensitivity (grade ≥ 2) | **0.21** — *far below screening-grade; see guardrail 3 above* |
+| ECE (10-bin) | 0.064 |
+| Domain-gate coverage / false-reject rate | 93.1% / **6.9%** |
+| Model 1 pass rate (GOOD+BORDERLINE, full 2,810 run, retuned) | **75.7%** — was 40.9% before blur-threshold recalibration; fails safe (over-refuses, never grades) |
+
+**Input safety (enforced in CI):** all 14 adversarial non-retinal fixtures (faces, documents, screenshots, landscapes, historical API face uploads) are rejected with `IMG_NOT_FUNDUS` and **no DR grade ever generated** — `tests/red_team/test_corpus_sweep.py` (76 subtests).
+
+**End-to-end rehearsal:** `python demo_rehearsal.py` boots the real HTTP API and runs the full flow twice (register → risk → quality → analyze → history → result image → adverse input → review queue): **2/2 runs green, 26 assertions**, evidence in `results/demo_rehearsal/`. Measured on this machine: cold screening 6.8 s, warm 1.3 s through the full API (quality ensemble + Grad-CAM included).
+
+---
+
 ## 📦 Downloaded External Assets
 
 This project integrates the two essential research resources downloaded and prepared in `external/`:
@@ -156,9 +178,10 @@ This project integrates the two essential research resources downloaded and prep
 ```text
 SIH HACKATHON/
 ├── src/
-│   ├── quality/             # Model 1: Image quality checker, threshold configs, metrics
+│   ├── quality/             # Model 1: quality checker, domain gate (fundus_gate.py), OOD
 │   │   ├── __init__.py
-│   │   └── checker.py
+│   │   ├── checker.py
+│   │   └── fundus_gate.py
 │   ├── classification/      # Model 2: DR 5-class severity classifier & Grad-CAM engine
 │   │   ├── __init__.py
 │   │   ├── classifier.py
@@ -168,15 +191,12 @@ SIH HACKATHON/
 │       ├── schema.py
 │       ├── confidence.py
 │       └── router.py
+├── api/                     # FastAPI backend (auth, routes, SQLite persistence)
 ├── tests/
 │   ├── unit/                # Per-module unit tests (quality, classifier, confidence)
-│   │   ├── test_quality.py
-│   │   ├── test_classifier.py
-│   │   └── test_confidence.py
-│   ├── integration/         # Decision flow integration tests (Good, Bad, Borderline)
-│   │   └── test_pipeline_flow.py
-│   └── edge_cases/          # Section 18 edge case validations
-│       └── test_edge_cases.py
+│   ├── integration/         # Decision flow + history contract tests
+│   ├── edge_cases/          # Section 18 edge case validations
+│   └── red_team/            # Adversarial corpus sweep + safety invariants (CI-gated)
 ├── kaggle/                  # Kaggle GPU training exports (N1 to N4)
 │   ├── N1_DR_Classifier.py
 │   ├── N2_Image_Quality.py
@@ -185,21 +205,25 @@ SIH HACKATHON/
 ├── flutter_app/             # Mobile, tablet, and web application
 │   ├── lib/
 │   └── assets/
-├── test_samples/            # Clinical and curated verification fixtures
+├── test_samples/            # Verification fixtures: real fundus, quality failures,
+│                            # adversarial non-retinal (14), demo scenarios
 ├── docs/                    # Architectural and clinical documentation
 │   ├── ARCHITECTURE.md
 │   ├── DECISION_FLOW.md
 │   ├── LABELING_CRITERIA.md
 │   ├── METRICS_AND_EVALUATION.md
+│   ├── EVALUATION_RESULTS.md  # External validation on 2,810 labeled images
 │   └── DATASET_STRATEGY.md
 ├── presentation/            # SIH presentation slides and pitch guide
 │   └── PITCH_AND_SLIDES_OUTLINE.md
-├── results/                 # Metrics outputs, reports, and Grad-CAM overlays
+├── results/                 # Metrics outputs, rehearsal evidence, Grad-CAM overlays
 ├── external/                # Pretrained models & upstream packages
 │   ├── DR-EfficientNetB0/
 │   └── fundus_image_toolbox/
 ├── requirements.txt         # Core dependencies
 ├── run_pipeline.py          # Command-line screening runner
+├── evaluate_labeled_dataset.py  # External accuracy/safety evaluation
+├── demo_rehearsal.py        # End-to-end HTTP demo rehearsal (2 runs, saved evidence)
 └── README.md                # Project documentation
 ```
 
@@ -242,7 +266,14 @@ make setup
 make test
 # Or: python verify_complete_system.py
 
-# 3. Launch the Flutter app through FastAPI
+# 3. Full test suites (what CI runs)
+python -m pytest tests                      # unit + integration + red_team
+python -m unittest discover -s tests/red_team -p "test_*.py"
+
+# 4. End-to-end demo rehearsal (boots the API, runs the flow twice)
+python demo_rehearsal.py
+
+# 5. Launch the Flutter app through FastAPI
 make run
 # Open http://localhost:8000/app
 ```
@@ -292,7 +323,8 @@ Action:           Recapture image. Do not display a DR grade for an image that f
 - **Day 5 (11 Sep):** Reassessment logic & pipeline integration. *(Completed)*
 - **Day 6 (12 Sep):** Confidence scoring & Grad-CAM overlays. *(Completed)*
 - **Day 7 (13 Sep):** A/B/C experimental comparisons & safety metric compilation. *(Completed)*
-- **Day 8 (14 Sep):** Freeze demo scenarios, slide deck, and presentation rehearsal.
+- **Day 8 (14 Sep):** Freeze demo scenarios, slide deck, and presentation rehearsal. *(Completed)*
+- **Post-milestone hardening:** adversarial input corpus + red-team CI gate, domain gate calibrated on 2,810 real labeled images (FRR 42% → 6.9%), external accuracy evaluation (`docs/EVALUATION_RESULTS.md`), E2E demo rehearsal × 2 green (`results/demo_rehearsal/`), Flutter analyze/tests green locally.
 
 ---
 

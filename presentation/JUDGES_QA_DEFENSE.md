@@ -76,3 +76,34 @@
 > 
 > We are not claiming to reinvent basic mathematical classification; we are solving the engineering, safety, and democratization gap that makes AI clinically usable and safe for rural India."*
 
+---
+
+### Q8: "What accuracy do you actually get? Did you measure it on real data, or only in the demo?"
+**Respondent:** Adithya (Safety & Verification Lead)
+**Winning Answer (lead with the weak number, they will find it):**
+> *"We re-measured the shipped model ourselves on 2,810 real, third-party labeled screening images — not the training set, not synthetic data. Everything is in `docs/EVALUATION_RESULTS.md` and reproduces with one command (`python evaluate_labeled_dataset.py`):
+> - **Top-1 accuracy 71.5%** — which matches the model card's own 72% holdout claim, so our integration and preprocessing lose nothing.
+> - But we publish the honest metrics too: **macro-F1 0.26, QWK 0.31, and referable-DR sensitivity of only 0.21.** Accuracy on a 73%-negative dataset is a vanity metric; sensitivity is the one that matters, and ours is far below screening grade.
+> - That is exactly why the product is built the way it is: **the model never acts alone.** Domain gate (93.1% coverage, 6.9% false rejects; 14/14 adversarial inputs blocked, enforced by a CI red-team suite), quality gate, uncertainty gate at 60%/0.15, and mandatory clinician review on every referable grade. Every abstention routes to a human instead of inventing a grade.
+> - Our end-to-end rehearsal (`python demo_rehearsal.py`) boots the real HTTP API and passes 2/2 runs with 26 assertions, including: a human face uploaded as a scan comes back `IMG_NOT_FUNDUS` with **no grade and no referral**.
+>
+> So the claim we defend is not an accuracy number — it's a safety architecture that stays honest when the model is wrong."*
+
+---
+
+## 📌 Cheat sheet — every number below is reproducible from this repo
+
+| Claim | Number | Reproduce with |
+|---|---|---|
+| External top-1 accuracy (2,810 labeled images) | 71.5% | `python evaluate_labeled_dataset.py` |
+| Macro-F1 / QWK / ECE | 0.26 / 0.31 / 0.064 | same → `results/labeled_evaluation.json` |
+| Referable-DR sensitivity (grade ≥ 2) | 0.21 | same |
+| Domain-gate coverage / false-reject rate | 93.1% / 6.9% | same (gate columns in CSV) |
+| Adversarial non-retinal fixtures blocked | 14 / 14 | `python -m unittest discover -s tests/red_team -p "test_*.py"` |
+| E2E demo rehearsal | 2/2 runs, 26 assertions | `python demo_rehearsal.py` |
+| Test suites | pytest 86 + 116 subtests; unittest 29/11/29; verify 10/10 | `make test` / CI |
+| Flutter | analyze clean (2 infos), tests pass | `flutter analyze && flutter test` |
+| Cold / warm screening through full API | 6.8 s / 1.3 s | `results/demo_rehearsal/*.json` |
+| Model 1 pass rate on real screening images | 75.7% full-set (was 40.9%; retuned, fails safe) | `evaluate_labeled_dataset.py --mode quality` |
+| Operating point, held-out test half | sens 0.25 → 0.62 at t=0.09 (spec 0.78) | `python operating_point_sweep.py --holdout` |
+

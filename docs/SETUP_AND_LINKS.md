@@ -38,11 +38,11 @@ The app's Online badge goes green when `/status` answers with the key.
 
 ## 4. Install per platform
 
-| Platform | File (in the release) | How |
+| Platform | File (in `release/archives/`) | How |
 |---|---|---|
 | Android | `netra_ai_mobile-release.apk` | Uninstall any old debug build first (signature changed), tap APK, allow unknown apps |
 | Windows | `netra_ai_windows_app.zip` | Extract, run `netra_ai_mobile.exe`, no install |
-| macOS | `netra_ai_macos.zip` | Unzip, right-click `netra_ai_mobile.app` → Open (unsigned bypass, once) |
+| macOS | `Drishti-AI-macOS-v1.0.0.zip` (CI name: `netra_ai_macos.zip`) | Unzip, right-click `netra_ai_mobile.app` → Open (unsigned bypass, once) |
 | Linux | `netra_ai_linux.tar.gz` | `tar -xzf netra_ai_linux.tar.gz && ./bundle/netra_ai_mobile` |
 | iOS | — (unsigned CI build only) | Needs Apple Developer account ($99/yr); see CI artifacts |
 

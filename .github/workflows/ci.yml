@@ -46,6 +46,12 @@ jobs:
       run: |
         python -m unittest discover -s tests/integration -p "test_*.py"
 
+    # Red-team safety suite: non-fundus rejection, no-forced-prediction
+    # invariants, and the machine-readable error-code contract.
+    - name: Run Red-Team Safety Suite
+      run: |
+        python -m unittest discover -s tests/red_team -p "test_*.py"
+
     - name: Run Comprehensive Verification Suite
       run: |
         python verify_complete_system.py
@@ -53,6 +59,21 @@ jobs:
     - name: Schemas import clean under deprecation-as-error
       run: |
         python -W error::DeprecationWarning -c "import api.schemas, api.main"
+
+    # End-to-end HTTP rehearsal: boots uvicorn and runs the full screening
+    # flow twice (register -> risk -> quality -> analyze -> history ->
+    # result image -> adverse input -> review queue) with assertions.
+    - name: End-to-End Demo Rehearsal
+      run: |
+        python demo_rehearsal.py --runs 1
+
+    # Labeled-set evaluation smoke on a stratified subsample (downloads the
+    # public parquet). Network flakiness must never break the pipeline.
+    - name: Labeled Evaluation Smoke (best effort)
+      continue-on-error: true
+      run: |
+        pip install huggingface_hub pyarrow
+        python evaluate_labeled_dataset.py --limit 40 --out results/eval_smoke.json
 
   flutter:
     runs-on: ubuntu-latest
