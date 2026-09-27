@@ -3,6 +3,7 @@ Lightweight SQLite persistence layer for Netra-AI.
 Stores patients, screening records, and doctor review actions.
 Fully offline-first and portable across platforms.
 """
+
 from __future__ import annotations
 
 import json
@@ -87,7 +88,8 @@ def save_screening_record(conn: sqlite3.Connection, analysis: dict[str, Any]) ->
             raise ValueError(f"Cannot persist screening: missing required key '{required}'.")
     is_ref = analysis.get("is_referable")
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
     INSERT INTO screenings (
         screening_id, patient_id, eye_side, camera_profile, quality_grade,
         quality_score, rejection_reasons, suspected_clinical_cause,
@@ -97,60 +99,69 @@ def save_screening_record(conn: sqlite3.Connection, analysis: dict[str, Any]) ->
         action_recommendation, screening_status, created_at,
         probabilities, vessel_density_pct, microaneurysm_count, csme_risk,
         min_fovea_distance_px, confidence_flags, patient_summary, captured_at,
-        model_backend, inference_time_ms
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        analysis["screening_id"],
-        analysis["patient_id"],
-        analysis.get("eye_side", "Right"),
-        analysis.get("camera_profile", "Generic Fundus Camera"),
-        analysis.get("quality_grade", "GOOD"),
-        analysis.get("quality_score", 0.0),
-        json.dumps(analysis.get("rejection_reasons", [])),
-        analysis.get("suspected_clinical_cause"),
-        analysis.get("dr_grade"),
-        analysis.get("dr_label"),
-        analysis.get("prediction_score"),
-        None if is_ref is None else (1 if is_ref else 0),
-        1 if analysis.get("requires_human_review") else 0,
-        analysis.get("human_review_type"),
-        analysis.get("human_review_reason"),
-        analysis.get("original_image_url"),
-        analysis.get("gradcam_overlay_url"),
-        analysis.get("gradcam_target_layer"),
-        analysis.get("action_recommendation", ""),
-        "Completed",
-        analysis.get("created_at", datetime.now(timezone.utc).isoformat()),
-        json.dumps(analysis.get("probabilities")) if analysis.get("probabilities") is not None else None,
-        analysis.get("vessel_density_pct"),
-        analysis.get("microaneurysm_count"),
-        analysis.get("csme_risk"),
-        analysis.get("min_fovea_distance_px"),
-        json.dumps(analysis.get("confidence_flags", [])),
-        analysis.get("patient_plain_language_summary"),
-        analysis.get("captured_at"),
-        analysis.get("model_backend", "unknown"),
-        analysis.get("inference_time_ms"),
-    ))
+        model_backend, inference_time_ms, error_code
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            analysis["screening_id"],
+            analysis["patient_id"],
+            analysis.get("eye_side", "Right"),
+            analysis.get("camera_profile", "Generic Fundus Camera"),
+            analysis.get("quality_grade", "GOOD"),
+            analysis.get("quality_score", 0.0),
+            json.dumps(analysis.get("rejection_reasons", [])),
+            analysis.get("suspected_clinical_cause"),
+            analysis.get("dr_grade"),
+            analysis.get("dr_label"),
+            analysis.get("prediction_score"),
+            None if is_ref is None else (1 if is_ref else 0),
+            1 if analysis.get("requires_human_review") else 0,
+            analysis.get("human_review_type"),
+            analysis.get("human_review_reason"),
+            analysis.get("original_image_url"),
+            analysis.get("gradcam_overlay_url"),
+            analysis.get("gradcam_target_layer"),
+            analysis.get("action_recommendation", ""),
+            "Completed",
+            analysis.get("created_at", datetime.now(timezone.utc).isoformat()),
+            json.dumps(analysis.get("probabilities"))
+            if analysis.get("probabilities") is not None
+            else None,
+            analysis.get("vessel_density_pct"),
+            analysis.get("microaneurysm_count"),
+            analysis.get("csme_risk"),
+            analysis.get("min_fovea_distance_px"),
+            json.dumps(analysis.get("confidence_flags", [])),
+            analysis.get("patient_plain_language_summary"),
+            analysis.get("captured_at"),
+            analysis.get("model_backend", "unknown"),
+            analysis.get("inference_time_ms"),
+            analysis.get("error_code"),
+        ),
+    )
 
     # If human review required, create pending doctor review queue item.
     # Plain INSERT with retry: a dropped review (OR IGNORE) would silently lose
     # a flagged case, so collisions must raise/retry, never be swallowed.
     if analysis.get("requires_human_review"):
         import sqlite3 as _sqlite3
+
         for _attempt in range(3):
             review_id = f"REV-{uuid.uuid4().hex[:12].upper()}"
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                 INSERT INTO doctor_reviews (
                     review_id, screening_id, patient_id, status, created_at
                 ) VALUES (?, ?, ?, 'PENDING', ?)
-                """, (
-                    review_id,
-                    analysis["screening_id"],
-                    analysis["patient_id"],
-                    analysis.get("created_at", datetime.now(timezone.utc).isoformat()),
-                ))
+                """,
+                    (
+                        review_id,
+                        analysis["screening_id"],
+                        analysis["patient_id"],
+                        analysis.get("created_at", datetime.now(timezone.utc).isoformat()),
+                    ),
+                )
                 break
             except _sqlite3.IntegrityError:
                 if _attempt == 2:
@@ -269,10 +280,16 @@ def init_db():
         """)
 
         # Lookup indexes (avoid full-table scans as screening volume grows)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_screenings_patient ON screenings(patient_id, created_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_screenings_created ON screenings(created_at)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_screenings_patient ON screenings(patient_id, created_at)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_screenings_created ON screenings(created_at)"
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_patients_created ON patients(created_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reviews_status ON doctor_reviews(status, created_at)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reviews_status ON doctor_reviews(status, created_at)"
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_patients_abha ON patients(abha_id)")
 
         # Column migration for databases created before the biomarker fields
@@ -319,6 +336,7 @@ def _ensure_screening_columns(cursor: sqlite3.Cursor) -> None:
         ("captured_at", "TEXT"),
         ("model_backend", "TEXT"),
         ("inference_time_ms", "REAL"),
+        ("error_code", "TEXT"),
     ):
         if name not in existing:
             cursor.execute(f"ALTER TABLE screenings ADD COLUMN {name} {ddl}")
@@ -398,15 +416,18 @@ def _seed_demo_data(cursor: sqlite3.Cursor):
             "Sedentary",
             json.dumps(["Blurry vision", "Frequent urination", "Dark spots in vision"]),
             now,
-        )
+        ),
     ]
-    cursor.executemany("""
+    cursor.executemany(
+        """
     INSERT OR IGNORE INTO patients (
         patient_id, abha_id, name, age, gender, phone, village, screening_centre,
         known_diabetes, diabetes_duration_years, hba1c, fasting_glucose, blood_pressure,
         bmi, family_history, physical_activity, symptoms, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, sample_patients)
+    """,
+        sample_patients,
+    )
 
 
 import threading as _threading

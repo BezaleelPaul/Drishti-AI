@@ -3,6 +3,7 @@ Pydantic Schemas for Netra-AI FastAPI REST API.
 Complies with clinical guidelines, plain-language patient summaries,
 and ABDM tele-ophthalmology requirements.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -18,22 +19,40 @@ class PatientBase(BaseModel):
     age: int = Field(..., ge=1, le=120, json_schema_extra={"example": 54})
     gender: str = Field(..., max_length=32, json_schema_extra={"example": "Male"})
     phone: str | None = Field(None, max_length=32, json_schema_extra={"example": "+91 98451 22340"})
-    abha_id: str | None = Field(None, max_length=32, json_schema_extra={"example": "91-4521-8890-3321"})
-    village: str | None = Field(None, max_length=120, json_schema_extra={"example": "Shivaji Nagar, PHC Bhor"})
-    screening_centre: str | None = Field(None, max_length=120, json_schema_extra={"example": "Bhor Rural Health Sub-Centre"})
+    abha_id: str | None = Field(
+        None, max_length=32, json_schema_extra={"example": "91-4521-8890-3321"}
+    )
+    village: str | None = Field(
+        None, max_length=120, json_schema_extra={"example": "Shivaji Nagar, PHC Bhor"}
+    )
+    screening_centre: str | None = Field(
+        None, max_length=120, json_schema_extra={"example": "Bhor Rural Health Sub-Centre"}
+    )
 
     # Diabetes Context
-    known_diabetes: str = Field("Unknown", max_length=32, json_schema_extra={"example": "Yes"})  # 'Yes', 'No', 'Unknown'
-    diabetes_duration_years: float | None = Field(None, ge=0, le=80, json_schema_extra={"example": 6.0})
+    known_diabetes: str = Field(
+        "Unknown", max_length=32, json_schema_extra={"example": "Yes"}
+    )  # 'Yes', 'No', 'Unknown'
+    diabetes_duration_years: float | None = Field(
+        None, ge=0, le=80, json_schema_extra={"example": 6.0}
+    )
     hba1c: float | None = Field(None, ge=3, le=20, json_schema_extra={"example": 8.2})
-    fasting_glucose: float | None = Field(None, ge=20, le=1000, json_schema_extra={"example": 165.0})
+    fasting_glucose: float | None = Field(
+        None, ge=20, le=1000, json_schema_extra={"example": 165.0}
+    )
     blood_pressure: str | None = Field(None, max_length=16, json_schema_extra={"example": "138/86"})
 
     # Upstream Risk Factors
     bmi: float | None = Field(None, ge=10, le=70, json_schema_extra={"example": 28.4})
     family_history: bool = Field(False, json_schema_extra={"example": True})
-    physical_activity: str = Field("Moderate", max_length=32, json_schema_extra={"example": "Sedentary"})
-    symptoms: list[str] = Field(default_factory=list, max_length=30, json_schema_extra={"example": ["Blurry vision", "Mild fatigue"]})
+    physical_activity: str = Field(
+        "Moderate", max_length=32, json_schema_extra={"example": "Sedentary"}
+    )
+    symptoms: list[str] = Field(
+        default_factory=list,
+        max_length=30,
+        json_schema_extra={"example": ["Blurry vision", "Mild fatigue"]},
+    )
 
 
 class PatientCreate(PatientBase):
@@ -62,26 +81,39 @@ class DiabetesRiskRequest(BaseModel):
     bmi: float = Field(..., ge=10, le=70, json_schema_extra={"example": 28.4})
     family_history: bool = Field(..., json_schema_extra={"example": True})
     physical_activity: str = Field("Sedentary", json_schema_extra={"example": "Sedentary"})
-    symptoms: list[str] = Field(default_factory=list, max_length=30, json_schema_extra={"example": ["Blurry vision"]})
+    symptoms: list[str] = Field(
+        default_factory=list, max_length=30, json_schema_extra={"example": ["Blurry vision"]}
+    )
     hba1c: float | None = Field(None, ge=3, le=20, json_schema_extra={"example": 8.2})
-    fasting_glucose: float | None = Field(None, ge=20, le=1000, json_schema_extra={"example": 165.0})
+    fasting_glucose: float | None = Field(
+        None, ge=20, le=1000, json_schema_extra={"example": 165.0}
+    )
     random_glucose: float | None = Field(None, ge=20, le=1000, json_schema_extra={"example": 220.0})
-    known_diabetes_years: float | None = Field(None, ge=0, le=80, json_schema_extra={"example": 6.0})
+    known_diabetes_years: float | None = Field(
+        None, ge=0, le=80, json_schema_extra={"example": 6.0}
+    )
 
 
 class DiabetesRiskResponse(BaseModel):
     risk_score: float = Field(..., json_schema_extra={"example": 84.0})  # 0 to 100
-    risk_level: str = Field(..., json_schema_extra={"example": "HIGH"})   # 'LOW', 'MODERATE', 'HIGH'
+    risk_level: str = Field(..., json_schema_extra={"example": "HIGH"})  # 'LOW', 'MODERATE', 'HIGH'
     pathway: str = Field(..., json_schema_extra={"example": "RETINAL_SCREENING_INDICATED"})
     # 'clinical_rule' for diagnostic biomarkers, 'ml' for model-weighted
     # prediction, and 'heuristic' when the fallback is used.
     # Clients MUST treat 'heuristic' as non-diagnostic and warn the user.
     risk_source: str = Field(..., json_schema_extra={"example": "ml"})
     clinical_rationale: list[str] = Field(default_factory=list)
-    action_recommendation: str = Field(..., json_schema_extra={"example": "Retinal imaging indicated for Diabetic Retinopathy screening."})
+    action_recommendation: str = Field(
+        ...,
+        json_schema_extra={
+            "example": "Retinal imaging indicated for Diabetic Retinopathy screening."
+        },
+    )
     patient_friendly_guidance: str = Field(
         ...,
-        json_schema_extra={"example": "The assessment indicates elevated risk factors. Clinical testing and retinal screening are recommended."}
+        json_schema_extra={
+            "example": "The assessment indicates elevated risk factors. Clinical testing and retinal screening are recommended."
+        },
     )
 
 
@@ -89,16 +121,20 @@ class DiabetesRiskResponse(BaseModel):
 # 3. Retinal Quality & Screening Schemas
 # -----------------------------------------------------------------------------
 class RetinalQualityResponse(BaseModel):
-    quality_grade: str = Field(..., json_schema_extra={"example": "GOOD"})  # 'GOOD', 'BORDERLINE', 'BAD'
-    quality_score: float = Field(..., json_schema_extra={"example": 0.88})   # [0.0 - 1.0]
+    quality_grade: str = Field(
+        ..., json_schema_extra={"example": "GOOD"}
+    )  # 'GOOD', 'BORDERLINE', 'BAD'
+    quality_score: float = Field(..., json_schema_extra={"example": 0.88})  # [0.0 - 1.0]
     is_reliable: bool = Field(..., json_schema_extra={"example": True})
     rejection_reasons: list[str] = Field(default_factory=list)
     suspected_clinical_cause: str | None = None
+    # Machine-readable failure mode so clients never parse free text:
+    # IMG_INVALID | IMG_NOT_FUNDUS | IMG_UNGRADABLE | None (gradable).
+    error_code: str | None = Field(None, json_schema_extra={"example": "IMG_NOT_FUNDUS"})
     operator_action: str
     recapture_tips: list[str] = Field(default_factory=list)
     audio_guidance_hindi: str = Field(
-        ...,
-        json_schema_extra={"example": "कैमरा 2 सेमी पास लाएं और मरीज को हरी बत्ती पर देखने को कहें।"}
+        ..., json_schema_extra={"example": "कैमरा 2 सेमी पास लाएं और मरीज को हरी बत्ती पर देखने को कहें।"}
     )
     metrics: dict[str, Any] = Field(default_factory=dict)
 
@@ -115,11 +151,16 @@ class RetinalAnalysisResponse(BaseModel):
     quality_passed: bool = Field(..., json_schema_extra={"example": True})
     rejection_reasons: list[str] = Field(default_factory=list)
     suspected_clinical_cause: str | None = None
+    # Machine-readable terminal state: IMG_INVALID | IMG_NOT_FUNDUS |
+    # IMG_UNGRADABLE | AI_LOW_CONFIDENCE | AI_UNAVAILABLE | AI_TIMEOUT | None.
+    error_code: str | None = Field(None, json_schema_extra={"example": "IMG_NOT_FUNDUS"})
 
     # Model 2 DR Prediction (Suppressed if quality failed)
     dr_grade: int | None = Field(None, json_schema_extra={"example": 2})  # 0 to 4
     dr_label: str | None = Field(None, json_schema_extra={"example": "Moderate NPDR"})
-    prediction_score: float | None = Field(None, json_schema_extra={"example": 0.742})  # Model top-1 score
+    prediction_score: float | None = Field(
+        None, json_schema_extra={"example": 0.742}
+    )  # Model top-1 score
     probabilities: list[float] | None = None
     is_referable: bool | None = Field(None, json_schema_extra={"example": True})
     # Which classifier produced this grade: 'keras' | 'pytorch' | 'simulated' |
@@ -137,24 +178,37 @@ class RetinalAnalysisResponse(BaseModel):
 
     # Uncertainty & Human Review Routing
     requires_human_review: bool = Field(..., json_schema_extra={"example": True})
-    human_review_type: str = Field(..., json_schema_extra={"example": "CLINICAL_LEVEL"})  # 'NONE', 'OPERATOR_LEVEL', 'CLINICAL_LEVEL'
-    human_review_reason: str | None = Field(None, json_schema_extra={"example": "Referable DR Grade 2 detected"})
+    human_review_type: str = Field(
+        ..., json_schema_extra={"example": "CLINICAL_LEVEL"}
+    )  # 'NONE', 'OPERATOR_LEVEL', 'CLINICAL_LEVEL'
+    human_review_reason: str | None = Field(
+        None, json_schema_extra={"example": "Referable DR Grade 2 detected"}
+    )
     confidence_flags: list[str] = Field(default_factory=list)
 
     # Explainability
     original_image_url: str | None = None
     gradcam_overlay_url: str | None = None
-    gradcam_target_layer: str | None = Field(None, json_schema_extra={"example": "final_convolutional_block"})
+    gradcam_target_layer: str | None = Field(
+        None, json_schema_extra={"example": "final_convolutional_block"}
+    )
     gradcam_disclaimer: str = (
         "Grad-CAM visualizes regions of highest gradient activation influencing the "
         "model prediction. It does not constitute automated lesion segmentation."
     )
 
     # Clinical Actions & Plain Patient Language
-    action_recommendation: str = Field(..., json_schema_extra={"example": "Refer for comprehensive ophthalmic examination within 30 days."})
+    action_recommendation: str = Field(
+        ...,
+        json_schema_extra={
+            "example": "Refer for comprehensive ophthalmic examination within 30 days."
+        },
+    )
     patient_plain_language_summary: str = Field(
         ...,
-        json_schema_extra={"example": "Signs of mild-to-moderate changes in blood vessels detected. An eye doctor review has been scheduled."}
+        json_schema_extra={
+            "example": "Signs of mild-to-moderate changes in blood vessels detected. An eye doctor review has been scheduled."
+        },
     )
     created_at: str
     # Field-capture time for offline-synced items (server created_at = sync time).
@@ -185,7 +239,9 @@ class DoctorReviewItem(BaseModel):
     human_review_reason: str | None
     original_image_url: str | None
     gradcam_overlay_url: str | None
-    status: str = "PENDING"  # 'PENDING', 'CONFIRMED', 'OVERRIDDEN', 'REFERRED', 'RECAPTURE_REQUESTED'
+    status: str = (
+        "PENDING"  # 'PENDING', 'CONFIRMED', 'OVERRIDDEN', 'REFERRED', 'RECAPTURE_REQUESTED'
+    )
     doctor_name: str | None = None
     doctor_decision: str | None = None
     clinical_notes: str | None = None
@@ -201,11 +257,23 @@ class DoctorReviewListResponse(BaseModel):
 
 
 class DoctorDecisionRequest(BaseModel):
-    doctor_name: str = Field(..., max_length=120, json_schema_extra={"example": "Dr. S. Ramanathan, MD (Ophthal)"})
-    decision: str = Field(..., json_schema_extra={"example": "CONFIRM_AND_REFER"})  # 'CONFIRM', 'OVERRIDE_GRADE', 'REQUEST_RECAPTURE', 'ROUTINE_FOLLOW_UP'
+    doctor_name: str = Field(
+        ..., max_length=120, json_schema_extra={"example": "Dr. S. Ramanathan, MD (Ophthal)"}
+    )
+    decision: str = Field(
+        ..., json_schema_extra={"example": "CONFIRM_AND_REFER"}
+    )  # 'CONFIRM', 'OVERRIDE_GRADE', 'REQUEST_RECAPTURE', 'ROUTINE_FOLLOW_UP'
     grade_override: int | None = Field(None, ge=0, le=4, json_schema_extra={"example": 2})
-    clinical_notes: str = Field(..., max_length=2000, json_schema_extra={"example": "Multiple microaneurysms confirmed in macular region. Refer to District Eye Hospital."})
-    referral_urgency: str = Field("Within 30 Days", max_length=64, json_schema_extra={"example": "Within 30 Days"})  # 'Immediate', 'Within 30 Days', 'Routine 12 Months'
+    clinical_notes: str = Field(
+        ...,
+        max_length=2000,
+        json_schema_extra={
+            "example": "Multiple microaneurysms confirmed in macular region. Refer to District Eye Hospital."
+        },
+    )
+    referral_urgency: str = Field(
+        "Within 30 Days", max_length=64, json_schema_extra={"example": "Within 30 Days"}
+    )  # 'Immediate', 'Within 30 Days', 'Routine 12 Months'
     follow_up_days: int = Field(30, ge=0, le=365, json_schema_extra={"example": 30})
 
 

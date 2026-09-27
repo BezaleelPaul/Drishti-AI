@@ -30,6 +30,14 @@ This folder contains pre-packaged test cases to verify credibility across your t
   - Color profile & retinal mask verification halts the image: **`BAD`**.
   - Reason: `Non-fundus or corrupt image file`.
   - **Zero leakage** into disease grading.
+- **Fixtures:** `external_*` are real photographs downloaded from Wikimedia
+  Commons (faces, selfie, receipt, desk, landscape, desktop screenshot, retina
+  illustration, segmentation/crop overlays — see `ATTRIBUTION.md`).
+  `historical_api_upload_*` are two inputs that really went through
+  `/retinal/analyze`; both must now stop at the domain gate.
+- **Automated:** `tests/red_team/test_corpus_sweep.py` sweeps every scan test
+  case in this folder **and every other image in the repo** and asserts no
+  non-retinal input ever produces a DR (diabetes) prediction.
 
 ---
 

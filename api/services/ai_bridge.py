@@ -6,6 +6,7 @@ Binds FastAPI HTTP requests directly to the validated Python AI models:
 - Explainability: GradCAMExplainer (Grad-CAM++ higher-order gradients)
 - Upstream Risk: DiabetesRiskModel (Random Forest risk engine)
 """
+
 from __future__ import annotations
 
 import io
@@ -28,7 +29,7 @@ from src.clinical_risk import (
     PatientClinicalProfile,
 )
 from src.pipeline.router import ScreeningPipelineRouter
-from src.pipeline.schema import QualityGrade, ScreeningRecord
+from src.pipeline.schema import PipelineErrorCode, QualityGrade, ScreeningRecord
 from src.quality.checker import ImageQualityChecker, QualityThresholds
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,6 +49,7 @@ def _confidence_flags_with_ood(base_flags, probs) -> list:
     try:
         if probs:
             from src.quality.ood import ood_score
+
             res = ood_score(probs)
             if res.is_suspect:
                 flags.append(f"OOD_SUSPECT (score {res.ood_score:.2f}): " + "; ".join(res.signals))
@@ -111,6 +113,7 @@ class AIBridge:
         high-compression PNG is rejected before any pixel buffer exists."""
         from PIL import Image as _PILImage
         from PIL import UnidentifiedImageError
+
         if not image_bytes or len(image_bytes) > 10 * 1024 * 1024:
             raise ValueError("Image too large or empty (max 10MB)")
         try:
@@ -119,7 +122,8 @@ class AIBridge:
             if w <= 0 or h <= 0 or w * h > AIBridge._MAX_IMAGE_PIXELS:
                 raise ValueError(
                     f"Image dimensions {w}x{h} outside decodable range "
-                    f"(max {AIBridge._MAX_IMAGE_PIXELS} pixels).")
+                    f"(max {AIBridge._MAX_IMAGE_PIXELS} pixels)."
+                )
             return pil_img.convert("RGB")
         except (UnidentifiedImageError, OSError) as e:
             raise ValueError(f"Invalid image file: {e}")
@@ -145,7 +149,9 @@ class AIBridge:
         if result.grade == QualityGrade.BAD or result.grade == QualityGrade.BORDERLINE:
             for r in result.reasons:
                 if "blur" in r.value.lower():
-                    tips.append("Adjust camera diopter dial (+/- 2D) or stabilize against patient brow.")
+                    tips.append(
+                        "Adjust camera diopter dial (+/- 2D) or stabilize against patient brow."
+                    )
                     hindi_guide = "कृपया कैमरा 2 सेमी पास लाएं और फोकस डायल घुमाएं।"
                 elif "illumination" in r.value.lower() or "dark" in r.value.lower():
                     tips.append("Dim room lights for 3 minutes for natural physiological dilation.")
@@ -154,13 +160,19 @@ class AIBridge:
                     tips.append("Reposition slightly to eliminate corneal glare.")
                     hindi_guide = "कैमरे का कोण थोड़ा बदलें ताकि चमक कम हो सके।"
                 elif "ml ensemble" in r.value.lower() or "ml quality" in r.value.lower():
-                    tips.append("AI quality check is uncertain — clean lens, re-center, and recapture in stable light.")
+                    tips.append(
+                        "AI quality check is uncertain — clean lens, re-center, and recapture in stable light."
+                    )
                     hindi_guide = "लेंस साफ करें, आंख को केंद्र में रखें और दोबारा फोटो लें।"
                 elif "contrast" in r.value.lower():
-                    tips.append("Low vessel contrast — dim room lights and recapture with steady fixation.")
+                    tips.append(
+                        "Low vessel contrast — dim room lights and recapture with steady fixation."
+                    )
                     hindi_guide = "कमरे की लाइट धीमी करें और दोबारा फोटो लें।"
                 elif "field" in r.value.lower():
-                    tips.append("Ask patient to fixate steadily on the internal green fixation target.")
+                    tips.append(
+                        "Ask patient to fixate steadily on the internal green fixation target."
+                    )
                     hindi_guide = "मरीज को कैमरे के अंदर हरी बत्ती पर स्थिर देखने को कहें।"
 
         if not tips and result.grade != QualityGrade.GOOD:
@@ -172,7 +184,10 @@ class AIBridge:
             "is_reliable": result.is_reliable,
             "rejection_reasons": reasons_str,
             "suspected_clinical_cause": result.suspected_clinical_cause,
-            "operator_action": "Proceed to DR Analysis" if result.is_reliable else "Please recapture image",
+            "error_code": result.error_code.value if result.error_code else None,
+            "operator_action": "Proceed to DR Analysis"
+            if result.is_reliable
+            else "Please recapture image",
             "recapture_tips": tips,
             "audio_guidance_hindi": hindi_guide,
             "metrics": {
@@ -181,7 +196,9 @@ class AIBridge:
                 "contrast": round(result.metrics.contrast_score, 1),
                 "fov_ratio": round(result.metrics.fov_ratio, 3),
                 "ml_quality_score": round(ml_score, 3),
-                "quality_engine": result.metrics.raw_scores.get("quality_engine", "MultiScale_Fusion"),
+                "quality_engine": result.metrics.raw_scores.get(
+                    "quality_engine", "MultiScale_Fusion"
+                ),
             },
         }
 
@@ -268,14 +285,21 @@ class AIBridge:
             probs = [round(float(p), 4) for p in record.dr_prediction.probabilities]
             is_ref = record.dr_prediction.is_referable if record.dr_prediction else None
 
-        # Plain language patient explanation
-        plain_summary = self._generate_plain_patient_summary(record.quality_grade, dr_grade, is_ref)
+        # Plain language patient explanation (never presents an uncertain
+        # prediction as a confirmed finding).
+        plain_summary = self._generate_plain_patient_summary(
+            record.quality_grade,
+            dr_grade,
+            is_ref,
+            error_code=record.error_code.value if record.error_code else None,
+        )
 
         # Real segmentation biomarkers (None when ungradable or on failure — never fabricated)
         # A BORDERLINE capture cleared by reassessment joins the Good path
         # (router: reassessment_outcome==CLEARED with a DR prediction), so it
         # gets segmented and marked passed exactly like GOOD.
         from src.pipeline.schema import ReassessmentOutcome
+
         _cleared = (
             record.quality_grade == QualityGrade.BORDERLINE
             and getattr(record, "reassessment_outcome", None) == ReassessmentOutcome.CLEARED
@@ -314,6 +338,7 @@ class AIBridge:
             "quality_passed": _gradable,
             "rejection_reasons": record.rejection_reasons,
             "suspected_clinical_cause": record.suspected_clinical_cause,
+            "error_code": record.error_code.value if record.error_code else None,
             "dr_grade": dr_grade,
             "dr_label": dr_label,
             "prediction_score": round(conf, 4) if conf is not None else None,
@@ -325,7 +350,9 @@ class AIBridge:
             "human_review_type": record.human_review_type.value,
             "human_review_reason": record.human_review_reason,
             "confidence_flags": _confidence_flags_with_ood(
-                getattr(record.confidence_assessment, "flags", []) if record.confidence_assessment else [],
+                getattr(record.confidence_assessment, "flags", [])
+                if record.confidence_assessment
+                else [],
                 probs,
             ),
             "action_recommendation": record.action,
@@ -388,7 +415,19 @@ class AIBridge:
             "patient_friendly_guidance": patient_guide,
         }
 
-    def _generate_plain_patient_summary(self, quality: QualityGrade, dr_grade: int | None, is_referable: bool) -> str:
+    def _generate_plain_patient_summary(
+        self,
+        quality: QualityGrade,
+        dr_grade: int | None,
+        is_referable: bool | None,
+        error_code: str | None = None,
+    ) -> str:
+        if error_code == PipelineErrorCode.AI_LOW_CONFIDENCE.value:
+            return (
+                "The photograph was examined, but the screening system was not "
+                "confident enough to state a result. A qualified clinician will "
+                "review this image before any result is shared."
+            )
         if quality == QualityGrade.BAD:
             return "The photograph was not clear enough for the computer to examine your retina. Please take a new photograph."
         if quality == QualityGrade.BORDERLINE and dr_grade is None:

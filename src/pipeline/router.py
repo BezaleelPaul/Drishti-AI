@@ -13,6 +13,7 @@ from src.pipeline.confidence import ConfidenceEvaluator
 from src.pipeline.schema import (
     GradCAMResult,
     HumanReviewType,
+    PipelineErrorCode,
     QualityGrade,
     ReassessmentOutcome,
     ScreeningRecord,
@@ -124,9 +125,10 @@ class ScreeningPipelineRouter:
                     ),
                     action=(
                         f"Recapture cap reached ({recapture_attempt_count}/{self.MAX_RECAPTURE_CAP}). "
-                        f"Escalate to supervising clinician for on-site physical evaluation."
+                        "Escalate to supervising clinician for on-site physical evaluation."
                     ),
                     quality_metrics=quality_res.metrics,
+                    error_code=quality_res.error_code or PipelineErrorCode.IMG_UNGRADABLE,
                 )
 
             # Standard Bad: prompt for immediate recapture
@@ -148,6 +150,7 @@ class ScreeningPipelineRouter:
                     "that fails the reliability gate."
                 ),
                 quality_metrics=quality_res.metrics,
+                error_code=quality_res.error_code or PipelineErrorCode.IMG_UNGRADABLE,
             )
 
         # -------------------------------------------------------------
@@ -232,6 +235,7 @@ class ScreeningPipelineRouter:
                             "Image does NOT proceed to DR Classification."
                         ),
                         quality_metrics=quality_res.metrics,
+                        error_code=quality_res.error_code or PipelineErrorCode.IMG_UNGRADABLE,
                     )
                 reasons = [r.value for r in quality_res.reasons]
                 return ScreeningRecord(
@@ -253,6 +257,7 @@ class ScreeningPipelineRouter:
                         "Request fresh capture. Image does NOT proceed to DR Classification."
                     ),
                     quality_metrics=quality_res.metrics,
+                    error_code=quality_res.error_code or PipelineErrorCode.IMG_UNGRADABLE,
                 )
 
         # -------------------------------------------------------------
@@ -336,7 +341,23 @@ class ScreeningPipelineRouter:
             )
         review_reason = " | ".join(flags) if human_review_req else None
 
-        if dr_result.predicted_grade.value == 0:
+        # -------------------------------------------------------------
+        # Section 7 uncertainty gate. When the model itself is not
+        # confident (or the top-2 classes are ambiguous) the prediction is
+        # PROVISIONAL: it is retained for clinician over-read but must never
+        # be released as an automated result. Clients branch on
+        # AI_LOW_CONFIDENCE instead of parsing prose. A referable grade keeps
+        # its referral action - under-referring is the larger clinical risk.
+        # -------------------------------------------------------------
+        uncertain = (not confidence_result.is_confident) or bool(confidence_result.is_ambiguous)
+        error_code = PipelineErrorCode.AI_LOW_CONFIDENCE if uncertain else None
+
+        if uncertain and not referable_review:
+            action_text = (
+                "AI confidence below the reliability threshold: no automated "
+                "result released. Image routed for mandatory clinician review."
+            )
+        elif dr_result.predicted_grade.value == 0:
             if human_review_req:
                 action_text = "Routine annual screening recommended. Low confidence / ambiguity flagged for clinical verification."
             else:
@@ -369,6 +390,7 @@ class ScreeningPipelineRouter:
             quality_metrics=quality_res.metrics,
             reassessment_structures=reassessment_struct,
             model_backend=self.dr_classifier.get_backend(),
+            error_code=error_code,
         )
 
     @staticmethod
