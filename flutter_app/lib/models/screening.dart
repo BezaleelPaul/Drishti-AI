@@ -29,6 +29,11 @@ class ScreeningResult {
   final int? microaneurysmCount;
   final String? csmeRisk;
   final double? minFoveaDistancePx;
+  // Machine-readable terminal state from the server, null when the result is
+  // usable: IMG_INVALID | IMG_NOT_FUNDUS | IMG_UNGRADABLE |
+  // AI_LOW_CONFIDENCE | AI_UNAVAILABLE | AI_TIMEOUT. When set, the screen
+  // must NOT present dr_grade as a confirmed finding.
+  final String? errorCode;
 
   ScreeningResult({
     required this.screeningId,
@@ -59,9 +64,12 @@ class ScreeningResult {
     this.microaneurysmCount,
     this.csmeRisk,
     this.minFoveaDistancePx,
+    this.errorCode,
   });
 
-  factory ScreeningResult.fromJson(Map<String, dynamic> json) => ScreeningResult(
+  factory ScreeningResult.fromJson(
+    Map<String, dynamic> json,
+  ) => ScreeningResult(
     screeningId: json['screening_id'] ?? '',
     patientId: json['patient_id'] ?? '',
     eyeSide: json['eye_side'] ?? 'Unknown',
@@ -71,7 +79,8 @@ class ScreeningResult {
     // NOTE: ungradable (non-GOOD) is fail. BORDERLINE cleared by server-side
     // reassessment arrives as an explicit quality_passed=true from the
     // backend; only fall back to the grade check when the flag is absent.
-    qualityPassed: json['quality_passed'] as bool? ?? (json['quality_grade'] == 'GOOD'),
+    qualityPassed:
+        json['quality_passed'] as bool? ?? (json['quality_grade'] == 'GOOD'),
     rejectionReasons: json['rejection_reasons'] is List
         ? (json['rejection_reasons'] as List).map((e) => e.toString()).toList()
         : const [],
@@ -88,13 +97,14 @@ class ScreeningResult {
     gradcamTargetLayer: json['gradcam_target_layer']?.toString(),
     modelBackend: json['model_backend']?.toString(),
     actionRecommendation: (json['action_recommendation'] ?? '').toString(),
-    patientPlainLanguageSummary:
-        (json['patient_plain_language_summary'] ?? '').toString(),
+    patientPlainLanguageSummary: (json['patient_plain_language_summary'] ?? '')
+        .toString(),
     createdAt: (json['created_at'] ?? '').toString(),
     capturedAt: json['captured_at']?.toString(),
     vesselDensityPct: (json['vessel_density_pct'] as num?)?.toDouble(),
     microaneurysmCount: (json['microaneurysm_count'] as num?)?.toInt(),
     csmeRisk: json['csme_risk']?.toString(),
     minFoveaDistancePx: (json['min_fovea_distance_px'] as num?)?.toDouble(),
+    errorCode: json['error_code']?.toString(),
   );
 }

@@ -60,7 +60,13 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
     }
     final a = widget.state.analysis!;
     final grade = a.drGrade ?? 0;
-    final ungraded = a.drGrade == null;
+    // A terminal error code means the prediction is not a result: never show
+    // it as "AI detected X". Exception: a referable grade stays visible
+    // because under-referral is the larger clinical risk.
+    final errorCode = a.errorCode;
+    final isReferable = a.isReferable == true;
+    final ungraded = a.drGrade == null || (errorCode != null && !isReferable);
+    final provisional = errorCode != null && !ungraded;
     final idx = grade.clamp(0, 4);
     final conf = a.predictionScore != null
         ? '${(a.predictionScore! * 100).toStringAsFixed(1)}%'
@@ -105,7 +111,8 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                       Text(
                         ungraded
                             ? context.tr('awaiting_verif')
-                            : '${context.tr('ai_detected')}: ${context.tr(_sevKeys[idx])}',
+                            : '${context.tr('ai_detected')}: ${context.tr(_sevKeys[idx])}'
+                                  '${provisional ? ' — provisional, clinician sign-off required' : ''}',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 18,

@@ -39,7 +39,8 @@ class PatientModel {
       abhaId: json['abha_id'] ?? '',
       village: json['village'] ?? '',
       knownDiabetes: json['known_diabetes'] ?? 'Unknown',
-      diabetesDurationYears: (json['diabetes_duration_years'] as num?)?.toDouble(),
+      diabetesDurationYears: (json['diabetes_duration_years'] as num?)
+          ?.toDouble(),
       hba1c: (json['hba1c'] as num?)?.toDouble(),
       fastingGlucose: (json['fasting_glucose'] as num?)?.toDouble(),
       bmi: (json['bmi'] as num?)?.toDouble(),
@@ -128,7 +129,8 @@ class RetinalQualityModel {
       suspectedClinicalCause: json['suspected_clinical_cause'],
       operatorAction: json['operator_action'] ?? '',
       recaptureTips: List<String>.from(json['recapture_tips'] ?? []),
-      audioGuidanceHindi: json['audio_guidance_hindi'] ?? 'कृपया पुनः प्रयास करें।',
+      audioGuidanceHindi:
+          json['audio_guidance_hindi'] ?? 'कृपया पुनः प्रयास करें।',
     );
   }
 }
@@ -165,6 +167,11 @@ class ScreeningAnalysisModel {
   // Tracks whether any individual value was not returned by the AI backend
   // and was left null. The UI uses this to flag gaps in the analysis.
   final bool isFromFallback;
+  // Machine-readable terminal state from the server (null when usable):
+  // IMG_INVALID | IMG_NOT_FUNDUS | IMG_UNGRADABLE | AI_LOW_CONFIDENCE |
+  // AI_UNAVAILABLE | AI_TIMEOUT. AI_LOW_CONFIDENCE means the prediction is
+  // provisional and must never be rendered as a confirmed finding.
+  final String? errorCode;
 
   ScreeningAnalysisModel({
     required this.screeningId,
@@ -192,6 +199,7 @@ class ScreeningAnalysisModel {
     this.biomarkers,
     this.isOffline = false,
     this.isFromFallback = false,
+    this.errorCode,
   });
 
   factory ScreeningAnalysisModel.fromJson(Map<String, dynamic> json) {
@@ -216,11 +224,15 @@ class ScreeningAnalysisModel {
       gradcamTargetLayer: json['gradcam_target_layer']?.toString(),
       modelBackend: json['model_backend']?.toString(),
       actionRecommendation: json['action_recommendation'] ?? '',
-      plainLanguageAdvice: json['plain_language_advice'] ?? json['patient_plain_language_summary'] ?? '',
+      plainLanguageAdvice:
+          json['plain_language_advice'] ??
+          json['patient_plain_language_summary'] ??
+          '',
       smsReferralSlip: json['sms_referral_slip'] ?? '',
       biomarkers: json['biomarkers'] as Map<String, dynamic>?,
       isOffline: json['is_offline'] ?? false,
       isFromFallback: json['is_from_fallback'] ?? false,
+      errorCode: json['error_code']?.toString(),
     );
   }
 }

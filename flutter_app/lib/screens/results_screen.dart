@@ -162,9 +162,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
     // Defense in depth: if the image failed the quality gate, no grade may
     // be shown — even if a dr_grade somehow arrives with the payload.
     final gradeLeaked = !res.qualityPassed && res.drGrade != null;
-    final isPending = res.drGrade == null || gradeLeaked;
+    // A terminal error code withholds the headline grade. AI_LOW_CONFIDENCE
+    // means the model itself could not commit to the finding, so the
+    // provisional number is for clinicians only. Exception: a referable
+    // grade keeps its urgent headline — under-referral is the larger
+    // clinical risk.
+    final errorCode = res.errorCode;
+    final isUncertain = errorCode == 'AI_LOW_CONFIDENCE';
     final isSimulated = res.modelBackend == 'simulated';
-    final isReferable = !isPending && !isSimulated && res.isReferable == true;
+    final isReferable = !gradeLeaked && !isSimulated && res.isReferable == true;
+    final isPending =
+        res.drGrade == null ||
+        gradeLeaked ||
+        (errorCode != null && !isReferable);
     final drGradeLabel = (isPending || isSimulated)
         ? 'PENDING'
         : '${res.drGrade}';
@@ -225,22 +235,24 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          isPending
-                              ? 'ANALYSIS PENDING — NO GRADE ASSIGNED'
-                              : (isSimulated
-                                    ? '⚠️ SIMULATION MODE — NOT A DIAGNOSIS'
-                                    : (isReferable
-                                          ? 'URGENT SPECIALIST REFERRAL'
+                          isReferable
+                              ? 'URGENT SPECIALIST REFERRAL'
+                              : (isPending
+                                    ? (isUncertain
+                                          ? 'AI COULD NOT CONFIRM — CLINICIAN REVIEW REQUIRED'
+                                          : 'ANALYSIS PENDING — NO GRADE ASSIGNED')
+                                    : (isSimulated
+                                          ? '⚠️ SIMULATION MODE — NOT A DIAGNOSIS'
                                           : 'HEALTHY RETINA — NO DR')),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isPending
-                                ? Colors.amber.shade900
-                                : (isSimulated
-                                      ? Colors.orange.shade900
-                                      : (isReferable
-                                            ? Colors.red.shade900
+                            color: isReferable
+                                ? Colors.red.shade900
+                                : (isPending
+                                      ? Colors.amber.shade900
+                                      : (isSimulated
+                                            ? Colors.orange.shade900
                                             : Colors.green.shade900)),
                             letterSpacing: 0.5,
                           ),
@@ -266,10 +278,33 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         ),
                       ),
                     if (gradeLeaked) const SizedBox(height: 6),
+                    if (isUncertain)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFB45309)),
+                        ),
+                        child: const Text(
+                          'The model is not confident enough to state a result. '
+                          'No automated diagnosis is released for this image — a '
+                          'qualified clinician will review it.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF92400E),
+                          ),
+                        ),
+                      ),
                     Text(
                       (isPending || isSimulated)
-                          ? 'GRADE: PENDING (image queued for server analysis)'
-                          : 'GRADE $drGradeLabel: ${res.drLabel?.toUpperCase() ?? "UNKNOWN"}',
+                          ? (isUncertain
+                                ? 'GRADE: WITHHELD (model confidence below threshold)'
+                                : 'GRADE: PENDING (image queued for server analysis)')
+                          : 'GRADE $drGradeLabel: ${res.drLabel?.toUpperCase() ?? "UNKNOWN"}'
+                                '${isUncertain ? ' (PROVISIONAL — CLINICIAN SIGN-OFF REQUIRED)' : ''}',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,

@@ -265,6 +265,69 @@ class ApiService {
     );
   }
 
+  /// Server reachable but the clinical DR model is unavailable (HTTP 503).
+  /// Explicit state: no grade is produced on-device, ever.
+  ScreeningResult _aiUnavailableFallback({
+    required String localId,
+    required String patientId,
+    required String eyeSide,
+    required String cameraProfile,
+  }) {
+    return ScreeningResult(
+      screeningId: localId,
+      patientId: patientId,
+      eyeSide: eyeSide,
+      cameraProfile: cameraProfile,
+      qualityGrade: 'AI_UNAVAILABLE',
+      qualityScore: 0.0,
+      qualityPassed: false,
+      rejectionReasons: const [
+        'AI screening service is unavailable right now. No grade was assigned.',
+      ],
+      requiresHumanReview: true,
+      humanReviewType: 'OPERATOR_LEVEL',
+      humanReviewReason: 'Clinical model unavailable; result must be retried.',
+      actionRecommendation:
+          'Retry once the AI service is back online. Do not record a DR grade for this capture.',
+      patientPlainLanguageSummary:
+          'The eye check could not run because the screening service is offline. Please try again shortly.',
+      createdAt: DateTime.now().toIso8601String(),
+      errorCode: 'AI_UNAVAILABLE',
+    );
+  }
+
+  /// The request exceeded the inference deadline. The server may already be
+  /// processing this capture, so it is deliberately NOT queued for sync
+  /// (a duplicate row would be created) — the operator simply retries.
+  ScreeningResult _aiTimeoutFallback({
+    required String localId,
+    required String patientId,
+    required String eyeSide,
+    required String cameraProfile,
+  }) {
+    return ScreeningResult(
+      screeningId: localId,
+      patientId: patientId,
+      eyeSide: eyeSide,
+      cameraProfile: cameraProfile,
+      qualityGrade: 'AI_TIMEOUT',
+      qualityScore: 0.0,
+      qualityPassed: false,
+      rejectionReasons: const [
+        'AI analysis timed out. No grade was assigned for this capture.',
+      ],
+      requiresHumanReview: true,
+      humanReviewType: 'OPERATOR_LEVEL',
+      humanReviewReason: 'Inference timed out; retry the screening.',
+      actionRecommendation:
+          'Retry the screening on a stable connection. Do not record a DR grade for this capture.',
+      patientPlainLanguageSummary:
+          'The eye check took too long and was not completed. Please retry.',
+      createdAt: DateTime.now().toIso8601String(),
+      errorCode: 'AI_TIMEOUT',
+    );
+  }
+
   /// Demo-UI wrapper: quality gate returning the intake-flow model.
   /// Delegates to [assessQuality] so server truth is shared.
   Future<ui.RetinalQualityModel> checkQuality({
@@ -496,6 +559,16 @@ class ApiService {
       if (response.statusCode == 200) {
         return ScreeningResult.fromJson(json.decode(response.body));
       }
+      if (response.statusCode == 503) {
+        // Clinical DR model unavailable (fail-closed server side). Never
+        // substitute an on-device guess for a missing model.
+        return _aiUnavailableFallback(
+          localId: 'UNAV-${DateTime.now().millisecondsSinceEpoch}',
+          patientId: patientId,
+          eyeSide: eyeSide,
+          cameraProfile: cameraProfile,
+        );
+      }
       // Server rejection (unknown patient 404, bad eye_side 422, bad key
       // 401...): surface it, never mislabel as offline.
       throw Exception('Analysis failed: ${response.statusCode}');
@@ -532,17 +605,10 @@ class ApiService {
         cameraProfile: cameraProfile,
       );
     } on TimeoutException {
-      final localId = 'LOC-${DateTime.now().millisecondsSinceEpoch}';
-      offlineQueue.add({
-        'local_screening_id': localId,
-        'patient_id': patientId,
-        'eye_side': eyeSide,
-        'camera_profile': cameraProfile,
-        'image_base64': base64Encode(imageBytes),
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      return _offlineScreeningFallback(
-        localId: localId,
+      // Deliberately NOT queued: the server may already be processing this
+      // capture, and syncing it again would create a duplicate screening.
+      return _aiTimeoutFallback(
+        localId: 'TMO-${DateTime.now().millisecondsSinceEpoch}',
         patientId: patientId,
         eyeSide: eyeSide,
         cameraProfile: cameraProfile,
@@ -570,7 +636,11 @@ class ApiService {
       );
       final grade = result.drGrade;
       final isOffline = result.qualityGrade == 'PENDING_SYNC';
+      // A terminal error code means no result exists: the payload must be
+      // rendered as a failure/uncertain state, never as clinical metrics.
+      final hasErrorCode = result.errorCode != null;
       final isFromFallback =
+          hasErrorCode ||
           result.modelBackend == 'simulated' ||
           result.microaneurysmCount == null ||
           result.vesselDensityPct == null ||
@@ -599,9 +669,11 @@ class ApiService {
         modelBackend: result.modelBackend,
         actionRecommendation: result.actionRecommendation,
         plainLanguageAdvice: result.patientPlainLanguageSummary,
-        smsReferralSlip:
-            'Netra-AI: ${result.drLabel ?? 'Screening complete'} (Grade ${grade ?? '-'}). '
-            '${result.actionRecommendation} Screening:${result.screeningId}',
+        smsReferralSlip: hasErrorCode
+            ? 'Netra-AI: no result assigned (${result.errorCode}). '
+                  '${result.actionRecommendation} Screening:${result.screeningId}'
+            : 'Netra-AI: ${result.drLabel ?? 'Screening complete'} (Grade ${grade ?? '-'}). '
+                  '${result.actionRecommendation} Screening:${result.screeningId}',
         biomarkers: {
           'microaneurysm_count': result.microaneurysmCount,
           'vessel_density_pct': result.vesselDensityPct,
@@ -610,6 +682,7 @@ class ApiService {
         },
         isOffline: isOffline,
         isFromFallback: isFromFallback,
+        errorCode: result.errorCode,
       );
     } catch (e) {
       // analyzeRetina only throws on server rejection — surface it.
