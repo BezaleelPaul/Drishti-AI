@@ -1,0 +1,10 @@
+{
+  "description": "Streamlines diabetic retinopathy screening in rural health centers with AI analysis, specialist review, and referral support for timely patient care.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
