@@ -1,0 +1,133 @@
+{
+  "run": 2,
+  "ok": true,
+  "wall_seconds": 2.13,
+  "patient_id": "PT-DEMO-R2-1790431482",
+  "screening_id": "SCR-949F56BA32BD",
+  "engine": "Ready (Model 1 Quality + Model 2 DR + Grad-CAM++)",
+  "quality": {
+    "grade": "GOOD",
+    "error_code": null
+  },
+  "analysis": {
+    "dr_grade": 0,
+    "dr_label": "No DR",
+    "error_code": null,
+    "model_backend": "keras",
+    "is_referable": false,
+    "inference_time_ms": 1302.4,
+    "requires_human_review": false
+  },
+  "adverse_input": {
+    "error_code": "IMG_NOT_FUNDUS",
+    "dr_grade": null
+  },
+  "steps": [
+    {
+      "step": "GET /status",
+      "ok": true,
+      "status": 200,
+      "ms": 15.7
+    },
+    {
+      "step": "POST /patients",
+      "ok": true,
+      "status": 201,
+      "ms": 47.5
+    },
+    {
+      "assert": "patient id echoed back",
+      "ok": true
+    },
+    {
+      "step": "POST /diabetes-risk",
+      "ok": true,
+      "status": 200,
+      "ms": 0.0
+    },
+    {
+      "assert": "risk level enum",
+      "ok": true
+    },
+    {
+      "step": "POST /retinal/quality (real fundus)",
+      "ok": true,
+      "status": 200,
+      "ms": 79.1
+    },
+    {
+      "assert": "GOOD image passes quality gate (got GOOD/None)",
+      "ok": true
+    },
+    {
+      "step": "POST /retinal/analyze (real fundus)",
+      "ok": true,
+      "status": 200,
+      "ms": 1443.9
+    },
+    {
+      "assert": "no hard failure on real fundus (got None)",
+      "ok": true
+    },
+    {
+      "assert": "shipped keras backend used",
+      "ok": true
+    },
+    {
+      "assert": "inference time recorded",
+      "ok": true
+    },
+    {
+      "step": "GET /screenings/PT-DEMO-R2-1790431482",
+      "ok": true,
+      "status": 200,
+      "ms": 54.2
+    },
+    {
+      "assert": "screening persisted once",
+      "ok": true
+    },
+    {
+      "assert": "history exposes error_code contract",
+      "ok": true
+    },
+    {
+      "step": "GET overlay image",
+      "ok": true,
+      "status": 200,
+      "ms": 25.6
+    },
+    {
+      "assert": "overlay is an image",
+      "ok": true
+    },
+    {
+      "step": "POST /retinal/analyze (adverse: human face)",
+      "ok": true,
+      "status": 200,
+      "ms": 427.5
+    },
+    {
+      "assert": "face rejected as non-retinal",
+      "ok": true
+    },
+    {
+      "assert": "no DR grade invented for a face",
+      "ok": true
+    },
+    {
+      "assert": "no referral fabricated for a face",
+      "ok": true
+    },
+    {
+      "step": "GET /review/pending",
+      "ok": true,
+      "status": 200,
+      "ms": 22.2
+    },
+    {
+      "assert": "review queue reachable by doctor key",
+      "ok": true
+    }
+  ]
+}
