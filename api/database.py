@@ -279,6 +279,33 @@ def init_db():
         )
         """)
 
+        # De-identified sync store (/sync/v2, Ticket C-4): pseudonym-keyed
+        # screening results with NO PHI columns — name/phone/ABHA/village do
+        # not exist as fields, and the fail-closed linter rejects payloads
+        # that try to smuggle them in. The row's PK doubles as the sync
+        # receipt (INSERT OR IGNORE + fetch = idempotent replay).
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS deid_screenings (
+            pseudo_screening_id TEXT PRIMARY KEY,
+            pseudonym TEXT NOT NULL,
+            age_band TEXT,
+            gender TEXT,
+            eye_side TEXT NOT NULL CHECK (eye_side IN ('Right','Left')),
+            dr_grade_num INTEGER CHECK (dr_grade_num IS NULL OR dr_grade_num BETWEEN 0 AND 4),
+            dr_label TEXT,
+            prob_vector TEXT,
+            confidence REAL,
+            requires_human_review INTEGER NOT NULL DEFAULT 0,
+            consent_version TEXT NOT NULL,
+            image_path TEXT,
+            captured_at TEXT,
+            created_at TEXT NOT NULL
+        )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_deid_pseudonym ON deid_screenings(pseudonym, created_at)"
+        )
+
         # Lookup indexes (avoid full-table scans as screening volume grows)
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_screenings_patient ON screenings(patient_id, created_at)"

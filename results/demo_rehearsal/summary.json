@@ -4,14 +4,14 @@
   "runs_detail": [
     {
       "run": 1,
-      "wall_seconds": 31.82,
-      "screening_id": "SCR-64DDE70C9A83",
+      "wall_seconds": 31.62,
+      "screening_id": "SCR-1B62B68F9E76",
       "dr_grade": 0,
       "error_code": null,
-      "inference_time_ms": 12027.2,
+      "inference_time_ms": 12173.2,
       "adverse_error_code": "IMG_NOT_FUNDUS",
-      "assertions_passed": 13,
-      "steps": 9
+      "assertions_passed": 23,
+      "steps": 13
     }
   ],
   "evidence": [

@@ -17,7 +17,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
+import hmac
 import importlib
+import io
 import json
 import os
 import subprocess
@@ -25,6 +29,7 @@ import sys
 import time
 
 httpx = importlib.import_module("httpx")
+PIL = importlib.import_module("PIL.Image")
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 OP = {"X-API-Key": "dev-operator-key"}
@@ -200,6 +205,112 @@ def run_once(client, run: int) -> dict:
     pending = r.json()
     _require(isinstance(pending, (list, dict)), "review queue reachable by doctor key", steps)
 
+    # -------------------------------------------------------------------
+    # De-identified referral uplink leg (/sync/v2, C-2/C-3/C-4/D-2).
+    # Mirrors the phone-side chain: pseudonymize -> downscale+strip image ->
+    # POST /sync/v2 -> replay -> doctor-only visibility -> PHI smuggle
+    # rejected -> image round-trip.
+    # -------------------------------------------------------------------
+    device_salt = "rehearsal-device-salt"
+
+    def _pseudo(kind: str, local_id: str) -> str:
+        digest = hmac.new(
+            device_salt.encode(), f"{kind}:{local_id}".encode(), hashlib.sha256
+        ).hexdigest()
+        prefix = "RSV" if kind == "patient" else "SCR"
+        return f"{prefix}-{digest[:8].upper()}"
+
+    pseudonym = _pseudo("patient", patient_id)
+    pseudo_screening = _pseudo("screening", screening_id)
+
+    # Client de-id: downscale to 512 + re-encode (EXIF/GPS gone).
+    img = PIL.open(io.BytesIO(fundus_bytes)).convert("RGB")
+    img.thumbnail((512, 512))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=80)
+    deid_image_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    deid_item = {
+        "pseudo_screening_id": pseudo_screening,
+        "pseudonym": pseudonym,
+        "age_band": "50-59",
+        "gender": "F",
+        "eye_side": "Right",
+        "dr_grade": analysis["dr_grade"],
+        "dr_label": analysis["dr_label"],
+        "probabilities": None,
+        "confidence": analysis.get("prediction_score"),
+        "requires_human_review": True,
+        "image_base64": deid_image_b64,
+        "consent_version": "v1-2026-09",
+        "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+    r = _step(
+        steps,
+        "POST /sync/v2 (de-identified referral)",
+        lambda: client.post("/sync/v2", headers=OP, json={"screenings": [deid_item]}),
+    )
+    _require(r.json()["total_synced"] == 1, "de-identified referral stored", steps)
+
+    r = _step(
+        steps,
+        "POST /sync/v2 (idempotent replay)",
+        lambda: client.post("/sync/v2", headers=OP, json={"screenings": [deid_item]}),
+    )
+    _require(r.json()["total_synced"] == 1, "replay accepted without duplicate", steps)
+
+    r = _step(
+        steps,
+        "GET /sync/v2/pending (doctor)",
+        lambda: client.get("/sync/v2/pending", headers=DR),
+    )
+    pending_items = r.json()["items"]
+    match = [i for i in pending_items if i["pseudo_screening_id"] == pseudo_screening]
+    _require(bool(match), "doctor sees the referral in the queue", steps)
+    _require(match[0]["has_image"] is True, "referral image available to doctor", steps)
+    _require(
+        {"name", "phone", "abha_id", "village", "patient_id"}.isdisjoint(match[0].keys()),
+        "referral queue exposes no PHI fields",
+        steps,
+    )
+
+    r_forbidden = client.get("/sync/v2/pending", headers=OP)
+    _require(
+        r_forbidden.status_code == 403,
+        f"operator blocked from referral queue (got {r_forbidden.status_code})",
+        steps,
+    )
+
+    smuggled = dict(deid_item)
+    smuggled["pseudo_screening_id"] = _pseudo("screening", f"{screening_id}-smuggle")
+    smuggled["name"] = "Rehearsal Smuggled Name"
+    r_smuggle = client.post("/sync/v2", headers=OP, json={"screenings": [smuggled]})
+    _require(r_smuggle.status_code == 422, "PHI smuggle rejected (422)", steps)
+    # Two rejection layers, either may fire: pydantic extra=forbid
+    # (parse-time, "extra_forbidden") or the PHI linter ("PHI_REJECTED").
+    # The privacy contract under test: the smuggled VALUE never appears.
+    _require(
+        "Rehearsal Smuggled Name" not in r_smuggle.text
+        and ("PHI_REJECTED" in r_smuggle.text or "extra_forbidden" in r_smuggle.text),
+        "rejection names the field, never the value",
+        steps,
+    )
+
+    r = _step(
+        steps,
+        "GET /sync/v2/image (doctor)",
+        lambda: client.get(f"/sync/v2/image/{pseudo_screening}", headers=DR),
+    )
+    _require(
+        r.headers.get("content-type", "").startswith("image/jpeg"),
+        "de-identified image served to doctor",
+        steps,
+    )
+    _require(
+        base64.b64encode(r.content).decode() == deid_image_b64, "image bytes round-trip", steps
+    )
+
     return {
         "run": run,
         "ok": True,
@@ -220,6 +331,14 @@ def run_once(client, run: int) -> dict:
         "adverse_input": {
             "error_code": adverse["error_code"],
             "dr_grade": adverse["dr_grade"],
+        },
+        "deid_uplink": {
+            "pseudonym": pseudonym,
+            "pseudo_screening_id": pseudo_screening,
+            "doctor_visible": bool(match),
+            "operator_blocked": r_forbidden.status_code == 403,
+            "phi_smuggle_rejected": r_smuggle.status_code == 422,
+            "image_roundtrip": True,
         },
         "steps": steps,
     }

@@ -314,11 +314,58 @@ class OfflineSyncBatchResponse(BaseModel):
     failed_items: list[dict[str, str]]
     # LOCAL screening ids the client queued (its dedup key): the server ids
     # are traceable via synced_items. A previous version returned server ids
-    # here, which clients match against local ids — the queue never drained.
+    # here, which clients match against local ids - the queue never drained.
     synced_screening_ids: list[str]
     synced_items: list[dict[str, str]] = Field(default_factory=list)
 
 
+# -----------------------------------------------------------------------------
+# 5b. De-identified Sync Schemas (/sync/v2, Ticket C-4)
+# -----------------------------------------------------------------------------
+# The v2 contract carries ONLY pseudonymized data (docs/PRIVACY.md). Two
+# fail-closed mechanisms: `extra="forbid"` rejects unknown field names at
+# parse time, and api/services/deid_linter.py re-checks the whitelist plus
+# value-level regex tripwires (mobile/ABHA/salutation) before any write.
+class DeidentifiedSyncItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pseudo_screening_id: str = Field(..., min_length=4, max_length=64)
+    pseudonym: str = Field(..., min_length=4, max_length=32)
+    age_band: str | None = Field(None, max_length=8, pattern=r"^\d{1,2}-\d{1,2}$")
+    gender: str | None = Field(None, max_length=16)
+    eye_side: str = Field(..., pattern=r"^(Right|Left)$")
+    dr_grade: int | None = Field(None, ge=0, le=4)
+    dr_label: str | None = Field(None, max_length=32)
+    probabilities: list[float] | None = Field(None, max_length=5)
+    confidence: float | None = Field(None, ge=0.0, le=1.0)
+    requires_human_review: bool = False
+    # De-identified image: downscaled 512px JPEG (~<=1.1MB decoded). The
+    # 15MB cap of v1 is deliberately NOT reused — v2 payloads are small.
+    image_base64: str | None = Field(None, max_length=1_500_000)
+    consent_version: str = Field(..., min_length=4, max_length=32)
+    captured_at: str | None = Field(None, max_length=40)
+
+
+class DeidentifiedSyncRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Tightened from v1's 5: no inference happens server-side in v2, but the
+    # smaller cap keeps the request body inside the 2G-tolerant budget
+    # (~650KB per batch at ~200KB/item with image).
+    screenings: list[DeidentifiedSyncItem] = Field(..., max_length=3)
+
+
+class DeidentifiedSyncResponse(BaseModel):
+    total_received: int
+    total_synced: int
+    # Client dedup keys (pseudo_screening_id) that are durably stored;
+    # retries of these ids replay from the stored row without re-writing.
+    synced_pseudo_ids: list[str]
+    failed_items: list[dict[str, str]] = Field(default_factory=list)
+
+
+# -----------------------------------------------------------------------------
+# 6. System Status Schemas
 # -----------------------------------------------------------------------------
 # 6. System Status Schemas
 # -----------------------------------------------------------------------------

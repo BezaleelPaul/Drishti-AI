@@ -5,7 +5,10 @@ pass ``--days`` explicitly. Dry-run is the default; ``--apply`` deletes.
 
 Deletes, for every screening with ``created_at`` older than the cutoff:
   - the ``screenings`` row + its ``doctor_reviews`` rows,
-  - the ``results/api_screenings/<screening_id>/`` directory, if present.
+  - the ``results/api_screenings/<screening_id>/`` directory, if present,
+  - the ``deid_screenings`` row + its stored image (Ticket C-4: the
+    pseudonymized referral store purges on the SAME window — the doctor
+    console is operational, not archival).
 
 Patients, audit log, and sync receipts are NEVER deleted by this job
 (patients outlive individual screenings; audit rows are the compliance
@@ -59,7 +62,8 @@ def purge_expired_screenings(
     if results_dir is None:
         results_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "results", "api_screenings",
+            "results",
+            "api_screenings",
         )
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     removed_screenings: list[str] = []
@@ -72,29 +76,38 @@ def purge_expired_screenings(
     try:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(screenings)")}
         if "screening_id" not in cols or "created_at" not in cols:
-            return {"cutoff": cutoff.isoformat(), "screenings": [], "reviews": 0,
-                    "dirs": [], "invalid_timestamps": [], "dry_run": dry_run,
-                    "note": "screenings table absent"}
-        for row in conn.execute("SELECT screening_id, created_at FROM screenings"):
-            created_at = _parse_created(row["created_at"])
-            if created_at is None:
-                invalid_timestamps.append(row["screening_id"])
-            elif created_at < cutoff:
-                removed_screenings.append(row["screening_id"])
-        if not dry_run and removed_screenings:
-            q = ",".join("?" for _ in removed_screenings)
-            cur = conn.execute(
-                f"DELETE FROM doctor_reviews WHERE screening_id IN ({q})", removed_screenings)
-            removed_reviews = cur.rowcount or 0
-            conn.execute(f"DELETE FROM screenings WHERE screening_id IN ({q})", removed_screenings)
-            conn.commit()
-        elif dry_run:
-            ph = ",".join("?" for _ in removed_screenings)
-            cur = conn.execute(
-                f"SELECT COUNT(*) FROM doctor_reviews WHERE screening_id IN ({ph})",
-                removed_screenings,
-            ) if removed_screenings else None
-            removed_reviews = cur.fetchone()[0] if cur else 0
+            note = "screenings table absent"
+        else:
+            note = None
+            for row in conn.execute("SELECT screening_id, created_at FROM screenings"):
+                created_at = _parse_created(row["created_at"])
+                if created_at is None:
+                    invalid_timestamps.append(row["screening_id"])
+                elif created_at < cutoff:
+                    removed_screenings.append(row["screening_id"])
+            if not dry_run and removed_screenings:
+                q = ",".join("?" for _ in removed_screenings)
+                cur = conn.execute(
+                    f"DELETE FROM doctor_reviews WHERE screening_id IN ({q})",
+                    removed_screenings,
+                )
+                removed_reviews = cur.rowcount or 0
+                conn.execute(
+                    f"DELETE FROM screenings WHERE screening_id IN ({q})",
+                    removed_screenings,
+                )
+                conn.commit()
+            elif dry_run:
+                ph = ",".join("?" for _ in removed_screenings)
+                cur = (
+                    conn.execute(
+                        f"SELECT COUNT(*) FROM doctor_reviews WHERE screening_id IN ({ph})",
+                        removed_screenings,
+                    )
+                    if removed_screenings
+                    else None
+                )
+                removed_reviews = cur.fetchone()[0] if cur else 0
     finally:
         conn.close()
 
@@ -105,24 +118,74 @@ def purge_expired_screenings(
             if not dry_run:
                 shutil.rmtree(d, ignore_errors=True)
 
-    return {"cutoff": cutoff.isoformat(), "screenings": removed_screenings,
-            "reviews": removed_reviews, "dirs": removed_dirs,
-            "invalid_timestamps": invalid_timestamps, "dry_run": dry_run}
+    # De-identified referral store (C-4): same retention window, image
+    # files included. The doctor console is operational, not archival.
+    removed_deid: list[str] = []
+    deid_images_dir = os.path.join(results_dir, "deid_screenings")
+    try:
+        conn2 = sqlite3.connect(db_path)
+        conn2.row_factory = sqlite3.Row
+        try:
+            cols = {r["name"] for r in conn2.execute("PRAGMA table_info(deid_screenings)")}
+            if {"pseudo_screening_id", "created_at"} <= cols:
+                for row in conn2.execute(
+                    "SELECT pseudo_screening_id, image_path, created_at FROM deid_screenings"
+                ):
+                    created_at = _parse_created(row["created_at"])
+                    if created_at is not None and created_at < cutoff:
+                        removed_deid.append(row["pseudo_screening_id"])
+                if not dry_run and removed_deid:
+                    q = ",".join("?" for _ in removed_deid)
+                    conn2.execute(
+                        f"DELETE FROM deid_screenings WHERE pseudo_screening_id IN ({q})",
+                        removed_deid,
+                    )
+                    conn2.commit()
+        finally:
+            conn2.close()
+    except sqlite3.OperationalError:
+        pass  # de-identified store not yet created; nothing to purge
+
+    for pid in removed_deid:
+        f = os.path.join(deid_images_dir, f"{pid}.jpg")
+        if os.path.isfile(f) and not dry_run:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+
+    return {
+        "cutoff": cutoff.isoformat(),
+        "screenings": removed_screenings,
+        "reviews": removed_reviews,
+        "dirs": removed_dirs,
+        "deid": removed_deid,
+        "invalid_timestamps": invalid_timestamps,
+        "dry_run": dry_run,
+        "note": note,
+    }
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Purge expired screening records (dry-run default).")
-    ap.add_argument("--days", type=int, default=retention_days_from_env(),
-                    help="Retain screenings newer than DAYS. Also via RETENTION_DAYS.")
+    ap.add_argument(
+        "--days",
+        type=int,
+        default=retention_days_from_env(),
+        help="Retain screenings newer than DAYS. Also via RETENTION_DAYS.",
+    )
     ap.add_argument("--apply", action="store_true", help="Actually delete (default: dry-run).")
     args = ap.parse_args()
     if args.days <= 0:
         print("retention disabled (days<=0); nothing to do.")
         return 0
     rep = purge_expired_screenings(args.days, dry_run=not args.apply)
-    print(f"cutoff={rep['cutoff']} dry_run={rep['dry_run']} "
-            f"screenings={len(rep['screenings'])} reviews={rep['reviews']} "
-            f"dirs={len(rep['dirs'])} invalid_timestamps={len(rep['invalid_timestamps'])}")
+    print(
+        f"cutoff={rep['cutoff']} dry_run={rep['dry_run']} "
+        f"screenings={len(rep['screenings'])} reviews={rep['reviews']} "
+        f"dirs={len(rep['dirs'])} deid={len(rep['deid'])} "
+        f"invalid_timestamps={len(rep['invalid_timestamps'])}"
+    )
     for sid in rep["screenings"][:20]:
         print(f"  {sid}")
     return 0

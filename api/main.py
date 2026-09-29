@@ -2,12 +2,14 @@
 Netra-AI / Drishti-AI: FastAPI Application Entry Point.
 Binds Flutter Mobile/Tablet/Web frontend to the Python AI Screening Pipeline.
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 # Ensure repository root is in sys.path
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +30,7 @@ from api.routes.retinal import router as retinal_router
 from api.routes.review import router as review_router
 from api.routes.risk import router as risk_router
 from api.routes.sync import router as sync_router
+from api.routes.sync_v2 import router as sync_v2_router
 from api.routes.system import router as system_router
 
 logger = logging.getLogger(__name__)
@@ -99,6 +102,7 @@ app = FastAPI(
 app.add_middleware(RateLimiter)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+
 # -----------------------------------------------------------------------------
 # CORS: explicit allowlist only. Wildcard origins + credentials is both broken
 # (browsers reject it) and a PHI exfiltration vector. Configure via:
@@ -156,6 +160,54 @@ flutter_web_dir = os.path.join(_PROJECT_ROOT, "flutter_app", "build", "web")
 if os.path.exists(flutter_web_dir):
     app.mount("/app", StaticFiles(directory=flutter_web_dir, html=True), name="flutter_app")
 
+
+# -----------------------------------------------------------------------------
+# Request-validation 422s MUST NOT echo the offending values. Pydantic's
+# default error body includes an `input` field containing the raw value —
+# on /sync/v2 that would leak exactly the PHI the endpoint exists to keep
+# off the server (fail-closed contract, Ticket C-4). Redact globally: the
+# field location (loc) and error type are kept, the value is dropped.
+# -----------------------------------------------------------------------------
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+
+
+@app.exception_handler(RequestValidationError)
+async def _redacted_validation_handler(request, exc: RequestValidationError):
+    errors = []
+    for err in exc.errors():
+        redacted = dict(err)
+        redacted.pop("input", None)
+        errors.append(redacted)
+    # Parse-time rejections on the de-identified sync path are audit-logged
+    # too (field NAMES only — the redacted errors carry no values), so an
+    # attempted PHI smuggle cannot bypass the audit trail by being
+    # malformed (Ticket C-4 contract: every rejection is logged).
+    if request.url.path == "/sync/v2":
+        try:
+            from api.database import get_db
+
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO audit_log (actor, action, resource, detail, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        "deid-sync",
+                        "deid_sync_rejected",
+                        "parse-time",
+                        ";".join(f"loc={err.get('loc')},type={err.get('type')}" for err in errors)[
+                            :400
+                        ],
+                        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    ),
+                )
+                conn.commit()
+        except Exception:  # noqa: BLE001 - audit best-effort, never block the 422
+            logger.debug("Audit log write for parse-time rejection failed", exc_info=True)
+    return JSONResponse(status_code=422, content={"detail": errors})
+
+
 # -----------------------------------------------------------------------------
 # Include API Routers
 # -----------------------------------------------------------------------------
@@ -165,6 +217,7 @@ app.include_router(risk_router)
 app.include_router(retinal_router)
 app.include_router(review_router)
 app.include_router(sync_router)
+app.include_router(sync_v2_router)
 app.include_router(results_router)
 
 
