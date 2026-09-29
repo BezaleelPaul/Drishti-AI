@@ -1,15 +1,19 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
 import '../../models/screening_models.dart';
 import '../../services/api_service.dart';
+import '../../services/ml/on_device_pipeline.dart';
 import '../../theme/figma_theme.dart';
 import '../../widgets/workflow_bar.dart';
 import 'flow_result_screen.dart';
 import 'flow_state.dart';
 
 /// Figma "AI Screening" (Workflow step 3): animated 5-stage stepper
-/// while the real `analyzeRetinaFull` call runs in parallel.
+/// while the real analysis runs in parallel.
+///
+/// Offline-first order (never fake): on-device TFLite pipeline -> server
+/// (LAN laptop) -> PENDING_SYNC queue entry with no grade assigned.
 class FlowAnalysisScreen extends StatefulWidget {
   final FlowState state;
 
@@ -29,6 +33,7 @@ class _FlowAnalysisScreenState extends State<FlowAnalysisScreen> {
   ];
 
   final _api = ApiService();
+  final _onDevice = OnDevicePipeline();
   int _done = 0;
   Timer? _timer;
   ScreeningAnalysisModel? _result;
@@ -50,9 +55,38 @@ class _FlowAnalysisScreenState extends State<FlowAnalysisScreen> {
   }
 
   Future<void> _runAnalysis() async {
+    final bytes = widget.state.imageBytes;
+    if (bytes == null) {
+      if (!mounted) return;
+      setState(() => _error = StateError('No image captured'));
+      return;
+    }
+
+    // 1. On-device pipeline (works with airplane mode on).
     try {
-      final bytes = widget.state.imageBytes;
-      if (bytes == null) throw StateError('No image captured');
+      final local = await _onDevice.analyze(
+        imageBytes: bytes,
+        patientId: widget.state.patient.patientId,
+        eyeSide: widget.state.eyeSide,
+        cameraProfile: widget.state.cameraProfile,
+        recaptureAttemptCount: widget.state.recaptureAttemptCount,
+      );
+      if (local != null) {
+        if (!mounted) return;
+        setState(() {
+          _result = local;
+        });
+        _maybeProceed();
+        return;
+      }
+      // On-device artifact unavailable: fall through to the server path.
+    } catch (_) {
+      // On-device failure falls back to the server path; it never produces
+      // a fabricated grade.
+    }
+
+    // 2. Server analysis (LAN laptop edge path).
+    try {
       final res = await _api.analyzeRetinaFull(
         imageBytes: bytes,
         patientId: widget.state.patient.patientId,
@@ -61,7 +95,9 @@ class _FlowAnalysisScreenState extends State<FlowAnalysisScreen> {
         filename: widget.state.filename,
       );
       if (!mounted) return;
-      setState(() => _result = res);
+      setState(() {
+        _result = res;
+      });
       _maybeProceed();
     } catch (e) {
       if (!mounted) return;

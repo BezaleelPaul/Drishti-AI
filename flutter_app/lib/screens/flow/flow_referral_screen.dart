@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
+import '../../services/referral_uplink_service.dart';
 import '../../theme/figma_theme.dart';
 import '../../widgets/workflow_bar.dart';
+import '../consent_screen.dart';
 import 'flow_report_screen.dart';
 import 'flow_state.dart';
 
 /// Figma "Referral" (Workflow step 4): urgency card, specialist,
-/// send actions. SMS has no backend endpoint — labelled Demo, honest.
+/// send actions.
+///
+/// The send button is the END of the privacy chain (C-2 → C-3 → C-4 → D-2):
+/// consent screen first, then the payload is built de-identified
+/// (pseudonym, banded age, EXIF-stripped downscaled image), linted
+/// client-side, POSTed to /sync/v2 — or queued durably for the next
+/// connectivity window when the doctor console is unreachable.
 class FlowReferralScreen extends StatefulWidget {
   final FlowState state;
 
@@ -18,6 +26,130 @@ class FlowReferralScreen extends StatefulWidget {
 
 class _FlowReferralScreenState extends State<FlowReferralScreen> {
   bool _smsSent = false;
+  bool _uploading = false;
+  ReferralUplinkService? _uplink;
+
+  @override
+  void initState() {
+    super.initState();
+    ReferralUplinkService.create().then((s) {
+      if (mounted) setState(() => _uplink = s);
+    });
+  }
+
+  String get _pseudonym {
+    final uplink = _uplink;
+    if (uplink == null) return 'RSV-........';
+    // The pseudonym is deterministic for the patient on this device; the
+    // uplink surfaces it so the operator sees the privacy guarantee.
+    return uplink.pseudonymFor(widget.state.patient.patientId) ??
+        'RSV-........';
+  }
+
+  /// ICMR/NHS-style referral urgency derived from the grade (Ticket D-1):
+  /// grade 2 (referable NPDR) -> routine 4-week pathway; grade 3 (severe)
+  /// -> 1 week; grade 4 (proliferative) -> urgent, within 48 hours. The
+  /// urgency is clinical policy, not a hardcoded constant.
+  ({String label, String hindi}) _urgencyFor(int grade) {
+    switch (grade) {
+      case 4:
+        return (
+          label: 'Urgent — within 48 hours',
+          hindi: 'तत्काल — 48 घंटे के भीतर',
+        );
+      case 3:
+        return (
+          label: 'Priority — within 1 week',
+          hindi: 'प्राथमिकता — 1 सप्ताह के भीतर',
+        );
+      default:
+        return (
+          label: 'Routine — within 4 weeks',
+          hindi: 'सामान्य — 4 सप्ताह के भीतर',
+        );
+    }
+  }
+
+  Future<void> _sendReferral() async {
+    final granted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConsentScreen(
+          localPatientId: widget.state.patient.patientId,
+          patientDisplayName: widget.state.patient.name,
+        ),
+      ),
+    );
+    if (granted != true || !mounted) {
+      if (granted == false && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Consent refused — data stays on this device only.'),
+            backgroundColor: FigmaColors.danger,
+          ),
+        );
+      }
+      return;
+    }
+
+    final uplink = _uplink;
+    if (uplink == null || !mounted) return;
+
+    setState(() => _uploading = true);
+    try {
+      final analysis = widget.state.analysis;
+      final build = await uplink.buildPayload(
+        localPatientId: widget.state.patient.patientId,
+        patientAge: widget.state.patient.age,
+        patientGender: widget.state.patient.gender,
+        eyeSide: widget.state.eyeSide,
+        localScreeningId:
+            analysis?.screeningId ??
+            'LOC-${DateTime.now().millisecondsSinceEpoch}',
+        drGrade: widget.state.correctedGrade ?? analysis?.drGrade,
+        drLabel: analysis?.drLabel,
+        confidence: analysis?.predictionScore,
+        requiresHumanReview: analysis?.requiresHumanReview ?? true,
+        consentLanguage: LangScope.langOf(context).name,
+        imageBytes: widget.state.imageBytes,
+      );
+
+      if (!build.isOk) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              build.refusal == ReferralBuildRefusal.noConsent
+                  ? 'Consent refused — data stays on this device only.'
+                  : 'Referral blocked by privacy lint: ${build.violations.join(", ")}',
+            ),
+            backgroundColor: FigmaColors.danger,
+          ),
+        );
+        return;
+      }
+
+      final result = await uplink.upload(build.payload!);
+      if (!mounted) return;
+      setState(() {
+        widget.state.referralSent = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.outcome == ReferralOutcome.uploaded
+                ? 'Referral uploaded de-identified as $_pseudonym '
+                      '(no name/phone/ABHA/village left the device).'
+                : 'Offline — referral queued securely and will upload on '
+                      'the next connection (still de-identified as $_pseudonym).',
+          ),
+          backgroundColor: FigmaColors.success,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
 
   void _sendSms() {
     setState(() => _smsSent = true);
@@ -35,6 +167,7 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
   Widget build(BuildContext context) {
     final st = widget.state;
     final grade = st.correctedGrade ?? st.analysis?.drGrade ?? 2;
+    final urgency = _urgencyFor(grade);
     return Scaffold(
       backgroundColor: FigmaColors.surface,
       appBar: AppBar(
@@ -85,7 +218,8 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                         ),
                       ),
                       Text(
-                        '${context.tr('urgency_label')}: 4 weeks',
+                        '${context.tr('urgency_label')}: ${urgency.label}\n'
+                        '${urgency.hindi}',
                         style: const TextStyle(
                           fontSize: 13,
                           color: FigmaColors.text,
@@ -140,12 +274,18 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
-                  onPressed: st.referralSent
+                  onPressed: (st.referralSent || _uploading)
                       ? null
-                      : () => setState(() => st.referralSent = true),
-                  icon: Icon(
-                    st.referralSent ? Icons.check : Icons.send_outlined,
-                  ),
+                      : _sendReferral,
+                  icon: _uploading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          st.referralSent ? Icons.check : Icons.send_outlined,
+                        ),
                   label: Text(
                     st.referralSent
                         ? context.tr('sync_complete')

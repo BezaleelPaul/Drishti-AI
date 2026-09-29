@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../l10n/lang_scope.dart';
+import '../services/api_service.dart';
+import '../services/offline_queue_service.dart';
 import '../theme/figma_theme.dart';
 import '../widgets/figma_drawer.dart';
 import '../widgets/status_badge.dart';
@@ -13,8 +17,49 @@ import 'queue_screen.dart';
 /// cards (cyan/amber/purple/red), offline banner, recent screenings
 /// (cards on narrow, table rows on wide). All strings localized (en/kn/hi/te/ta).
 /// Navigation targets are the existing backend-wired screens.
-class FigmaDashboardScreen extends StatelessWidget {
+///
+/// Ticket B-3: the Online/Offline badge is LIVE (server ping every 30 s)
+/// and shows the durable queue depth — the dashboard never claims
+/// connectivity it does not have (the old badge was hardcoded green).
+class FigmaDashboardScreen extends StatefulWidget {
   const FigmaDashboardScreen({super.key});
+
+  @override
+  State<FigmaDashboardScreen> createState() => _FigmaDashboardScreenState();
+}
+
+class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
+  final _api = ApiService();
+  bool? _online; // null = unknown (probing)
+  int _queuedCount = 0;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    final online = await _api.ping();
+    final persisted = await OfflineQueueService.instance.restoreAll();
+    final deid = await OfflineQueueService.instance.restoreKind(
+      OfflineQueueService.kindDeidReferral,
+    );
+    if (!mounted) return;
+    setState(() {
+      _online = online;
+      _queuedCount =
+          persisted.screenings.length + persisted.patients.length + deid.length;
+    });
+  }
 
   static const _recent = [
     (
@@ -77,6 +122,16 @@ class FigmaDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final online = _online;
+    final badgeColor = online == null
+        ? FigmaColors.muted
+        : (online ? FigmaColors.success : FigmaColors.danger);
+    final badgeBg = online == null
+        ? const Color(0xFFF1F5F9)
+        : (online ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2));
+    final badgeText = online == null
+        ? '…' // probing — language-neutral; resolves within one ping
+        : (online ? context.tr('online') : context.tr('offline'));
     return Scaffold(
       backgroundColor: FigmaColors.surface,
       drawer: const FigmaDrawer(),
@@ -104,7 +159,7 @@ class FigmaDashboardScreen extends StatelessWidget {
             margin: const EdgeInsets.only(right: 4),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0FDF4),
+              color: badgeBg,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
@@ -112,20 +167,41 @@ class FigmaDashboardScreen extends StatelessWidget {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: FigmaColors.success,
+                  decoration: BoxDecoration(
+                    color: badgeColor,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  context.tr('online'),
-                  style: const TextStyle(
+                  badgeText,
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: FigmaColors.success,
+                    color: badgeColor,
                   ),
                 ),
+                if (_queuedCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: FigmaColors.primaryDark,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$_queuedCount',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

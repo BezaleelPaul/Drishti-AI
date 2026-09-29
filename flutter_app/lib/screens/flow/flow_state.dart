@@ -14,6 +14,11 @@ class FlowState {
   RetinalQualityModel? quality;
   ScreeningAnalysisModel? analysis;
 
+  /// On-device recapture loop counter (router MAX_RECAPTURE_CAP = 2).
+  /// The capture/analysis flow increments this whenever the quality gate
+  /// returns BAD or a failed borderline reassessment.
+  int recaptureAttemptCount;
+
   /// Specialist verdict: 'CONFIRM' | 'CHANGE' | 'REEXAMINE'.
   String? verdict;
   int? correctedGrade;
@@ -29,6 +34,7 @@ class FlowState {
     this.eyeSide = 'Right',
     this.quality,
     this.analysis,
+    this.recaptureAttemptCount = 0,
     this.verdict,
     this.correctedGrade,
     this.specialistNotes = '',

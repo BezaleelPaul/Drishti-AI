@@ -4,7 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../l10n/lang_scope.dart';
+import '../../models/screening_models.dart';
 import '../../services/api_service.dart';
+import '../../services/ml/on_device_pipeline.dart';
 import '../../theme/figma_theme.dart';
 import '../../widgets/workflow_bar.dart';
 import 'flow_analysis_screen.dart';
@@ -23,6 +25,7 @@ class FlowCaptureScreen extends StatefulWidget {
 
 class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
   final _api = ApiService();
+  final _onDevice = OnDevicePipeline();
   String _sample = 'assets/images/2_clear_eye_normal.jpg';
   bool _checking = false;
 
@@ -80,9 +83,9 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
       unawaited(_runQuality());
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open photo: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not open photo: $e')));
     }
   }
 
@@ -91,11 +94,22 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
     if (bytes == null) return;
     setState(() => _checking = true);
     try {
-      final q = await _api.checkQuality(
+      // Offline-first: on-device quality gate, server as fallback. Both
+      // paths use the same thresholds, so verdicts agree in either mode.
+      RetinalQualityModel? q;
+      try {
+        q = _onDevice.checkQualityOnDevice(bytes);
+      } catch (_) {
+        q = null;
+      }
+      q ??= await _api.checkQuality(
         imageBytes: bytes,
         filename: widget.state.filename,
         cameraProfile: widget.state.cameraProfile,
       );
+      if (q.qualityGrade == 'BAD') {
+        widget.state.recaptureAttemptCount += 1;
+      }
       if (mounted) setState(() => widget.state.quality = q);
     } finally {
       if (mounted) setState(() => _checking = false);

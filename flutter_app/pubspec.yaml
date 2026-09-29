@@ -39,6 +39,18 @@ dependencies:
   google_fonts: ^6.3.1
   shared_preferences: ^2.3.3
 
+  # On-device offline inference (Ticket A-2). flutter_litert is the
+  # maintained, import-compatible successor of the archived tflite_flutter.
+  flutter_litert: ^3.8.0
+  # Image decode/resize in canonical RGB for the on-device pipeline (A-3).
+  image: ^4.2.0
+  # Encrypted local store (Ticket B-1): PHI never leaves the device.
+  sqflite_sqlcipher: ^3.1.0
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  flutter_secure_storage: ^11.2.0
+  crypto: ^3.0.7
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -73,6 +85,11 @@ flutter:
     - assets/images/scenario_3_borderline.jpg
     - assets/images/scenario_4_uncertain.jpg
     - assets/images/real_clinical_drimdb_sample.jpg
+    # On-device DR model (Ticket A-1: SHIPPED — fp32, parity-gated with
+    # 100% top-1 agreement on the clinical corpus; fp16 drifted 0.29 and
+    # was rejected by validate_tflite_quantized.py. int8 upgrade pending a
+    # real calibration corpus.)
+    - assets/models/dr_efficientnet_b0_fp32.tflite
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

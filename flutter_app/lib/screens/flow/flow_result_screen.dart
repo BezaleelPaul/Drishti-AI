@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
+import '../../models/screening_models.dart' as ui;
 import '../../theme/figma_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/workflow_bar.dart';
@@ -34,6 +35,20 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
     Color(0xFFEA580C),
     FigmaColors.danger,
   ];
+
+  /// Honest provenance line (E-2): where the numbers came from and what
+  /// they cost. Measured on-device time when available, e.g.
+  /// "on-device TFLite, 612 ms" — never a fabricated number.
+  String _backendSuffix(ui.ScreeningAnalysisModel a) {
+    final backend = a.modelBackend;
+    final ms = (a.biomarkers?['inference_time_ms'] as num?)?.toDouble();
+    if (backend == null && ms == null) return '';
+    final parts = <String>[
+      if (backend != null) backend == 'tflite-fp32' ? 'on-device' : backend,
+      if (ms != null) '${ms.toStringAsFixed(0)} ms',
+    ];
+    return parts.isEmpty ? '' : '  •  ${parts.join(" • ")}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +137,8 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                         ),
                       ),
                       Text(
-                        '${context.tr('confidence')}: $conf',
+                        '${context.tr('confidence')}: $conf'
+                        '${_backendSuffix(a)}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: FigmaColors.muted,

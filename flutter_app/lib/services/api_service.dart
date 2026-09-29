@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../models/patient.dart';
 import '../models/screening.dart';
 import '../models/screening_models.dart' as ui;
+import 'offline_queue_service.dart';
 
 /// Thrown when the review queue rejects the configured API key.
 /// Callers must surface this (demo-data banner), never render it as "empty".
@@ -44,10 +45,26 @@ class ApiService {
   final String baseUrl;
   final String key;
 
-  // In-memory offline queues for field camps (lost on restart — persist
-  // before relying on multi-day offline operation).
+  // Offline queue hot-path mirrors (write-through to OfflineQueueService;
+  // rehydrated at app start by restoreQueues, so field-camp captures
+  // survive process kills — Ticket B-2).
   static final List<Map<String, dynamic>> offlineQueue = [];
   static final List<Map<String, dynamic>> offlinePatients = [];
+
+  /// Rehydrates the in-memory mirrors from the durable store at startup.
+  static Future<void> restoreQueues() async {
+    final restored = await OfflineQueueService.instance.restoreAll();
+    for (final e in restored.patients) {
+      if (!offlinePatients.any((p) => '${p['patient_id']}' == e.id)) {
+        offlinePatients.add(e.payload);
+      }
+    }
+    for (final e in restored.screenings) {
+      if (!offlineQueue.any((s) => '${s['local_screening_id']}' == e.id)) {
+        offlineQueue.add(e.payload);
+      }
+    }
+  }
 
   ApiService({this.baseUrl = defaultBaseUrl, this.key = apiKey}) {
     _requireHttps(baseUrl);
@@ -161,15 +178,24 @@ class ApiService {
         'Patient registration rejected: ${response.statusCode} ${response.body}',
       );
     } on SocketException {
-      if (queueOnOffline && localId.isNotEmpty) offlinePatients.add(payload);
+      if (queueOnOffline && localId.isNotEmpty) {
+        offlinePatients.add(payload);
+        await OfflineQueueService.instance.addPatient(payload);
+      }
       if (!queueOnOffline) rethrow;
       return localId;
     } on http.ClientException {
-      if (queueOnOffline && localId.isNotEmpty) offlinePatients.add(payload);
+      if (queueOnOffline && localId.isNotEmpty) {
+        offlinePatients.add(payload);
+        await OfflineQueueService.instance.addPatient(payload);
+      }
       if (!queueOnOffline) rethrow;
       return localId;
     } on TimeoutException {
-      if (queueOnOffline && localId.isNotEmpty) offlinePatients.add(payload);
+      if (queueOnOffline && localId.isNotEmpty) {
+        offlinePatients.add(payload);
+        await OfflineQueueService.instance.addPatient(payload);
+      }
       if (!queueOnOffline) rethrow;
       return localId;
     }
@@ -574,14 +600,16 @@ class ApiService {
       throw Exception('Analysis failed: ${response.statusCode}');
     } on SocketException {
       final localId = 'LOC-${DateTime.now().millisecondsSinceEpoch}';
-      offlineQueue.add({
+      final entry = {
         'local_screening_id': localId,
         'patient_id': patientId,
         'eye_side': eyeSide,
         'camera_profile': cameraProfile,
         'image_base64': base64Encode(imageBytes),
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+      offlineQueue.add(entry);
+      await OfflineQueueService.instance.addScreening(entry);
       return _offlineScreeningFallback(
         localId: localId,
         patientId: patientId,
@@ -590,14 +618,16 @@ class ApiService {
       );
     } on http.ClientException {
       final localId = 'LOC-${DateTime.now().millisecondsSinceEpoch}';
-      offlineQueue.add({
+      final entry = {
         'local_screening_id': localId,
         'patient_id': patientId,
         'eye_side': eyeSide,
         'camera_profile': cameraProfile,
         'image_base64': base64Encode(imageBytes),
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+      offlineQueue.add(entry);
+      await OfflineQueueService.instance.addScreening(entry);
       return _offlineScreeningFallback(
         localId: localId,
         patientId: patientId,
@@ -708,6 +738,7 @@ class ApiService {
       try {
         await _postPatient(p, queueOnOffline: false);
         offlinePatients.remove(p);
+        await OfflineQueueService.instance.removePatient('${p['patient_id']}');
         patientsSynced++;
       } catch (e) {
         failedPatients.add({
@@ -727,6 +758,7 @@ class ApiService {
       final pid = (item['patient_id'] ?? '').toString();
       if (b64.isEmpty || lid.isEmpty || pid.isEmpty) {
         offlineQueue.remove(item);
+        await OfflineQueueService.instance.removeScreening(lid);
         droppedCorrupt++;
         continue;
       }
@@ -794,9 +826,11 @@ class ApiService {
         }
       }
       // Remove ONLY server-confirmed items — failed items stay queued.
+      final syncedSet = syncedIds;
       offlineQueue.removeWhere(
-        (q) => syncedIds.contains('${q['local_screening_id']}'),
+        (q) => syncedSet.contains('${q['local_screening_id']}'),
       );
+      await OfflineQueueService.instance.removeSyncedScreenings(syncedSet);
       return {
         'total_received': totalReceived,
         'total_synced': totalSynced,

@@ -172,6 +172,10 @@ class ScreeningAnalysisModel {
   // AI_UNAVAILABLE | AI_TIMEOUT. AI_LOW_CONFIDENCE means the prediction is
   // provisional and must never be rendered as a confirmed finding.
   final String? errorCode;
+  // Full 5-class probability vector from on-device inference (null when the
+  // analysis came from a backend that does not expose it). Consumed by the
+  // de-identified referral payload builder (/sync/v2).
+  final List<double>? probabilities;
 
   ScreeningAnalysisModel({
     required this.screeningId,
@@ -200,6 +204,7 @@ class ScreeningAnalysisModel {
     this.isOffline = false,
     this.isFromFallback = false,
     this.errorCode,
+    this.probabilities,
   });
 
   factory ScreeningAnalysisModel.fromJson(Map<String, dynamic> json) {
