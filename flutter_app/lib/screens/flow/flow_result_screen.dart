@@ -144,6 +144,45 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                           color: FigmaColors.muted,
                         ),
                       ),
+                      // Rejection transparency: when the gate refuses an
+                      // image the operator must see WHY (reason codes are
+                      // the contract — a bare "pending" reads like a bug).
+                      if (ungraded && a.rejectionReasons.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: FigmaColors.danger),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Rejected — no DR grade assigned '
+                                '(${a.errorCode ?? 'IMG_UNGRADABLE'}):',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: FigmaColors.danger,
+                                ),
+                              ),
+                              for (final reason in a.rejectionReasons)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '• $reason',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: FigmaColors.text,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Text(
                         context.tr('severity_scale'),

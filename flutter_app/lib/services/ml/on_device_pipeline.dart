@@ -42,7 +42,9 @@ class OnDevicePipeline {
   /// screen so image usability is checked with airplane mode on. Returns
   /// null when the gate cannot run (caller falls back to the server).
   RetinalQualityModel? checkQualityOnDevice(Uint8List imageBytes) {
-    if (!_classifier.isReady) return null;
+    // The gate is pure Dart and needs no classifier — it MUST run
+    // unconditionally. (Gating it on model readiness silently skipped the
+    // capture-screen check and let random images through to grading.)
     try {
       final canonical = decodeCanonicalRgb(imageBytes);
       final res = const QualityGateDart().assess(
