@@ -76,3 +76,6 @@ flutter_app/build/
 !flutter_app/build/web/
 flutter_app/.flutter-plugins
 flutter_app/.flutter-plugins-dependencies
+
+# TFLite conversion build products (the gated artifact lives in flutter_app/assets/models/)
+scripts/convert/out/

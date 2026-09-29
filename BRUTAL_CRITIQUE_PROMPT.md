@@ -8,7 +8,7 @@ Be ruthless. Be specific. No flattery. No "good effort" nonsense.
 
 ## CONTEXT
 
-This is a submission for SIH 2026, Problem Statement SIH26038 (MathWorks). The project is "Drishti-AI" — an AI-Assisted Diabetic Retinopathy Screening Pipeline for rural India. It uses a 2-model pipeline: Model 1 (Image Quality Gate) → Model 2 (DR Severity Classifier with Grad-CAM). It also includes a clinical risk engine, retinal segmentation, Simulink simulation, PDF/FHIR reporting, and a Streamlit demo.
+This is a submission for SIH 2026, Problem Statement SIH26038 (MathWorks). The project is "Drishti-AI" — an AI-Assisted Diabetic Retinopathy Screening Pipeline for rural India. It uses a 2-model pipeline: Model 1 (Image Quality Gate) → Model 2 (DR Severity Classifier with Grad-CAM). It also includes a clinical risk engine, retinal segmentation, Simulink simulation, PDF/FHIR reporting, a FastAPI backend, and a Flutter mobile app (netra_ai_mobile).
 
 The project repository is at: `C:\Users\bezal\Downloads\SIH HACKATHON`
 
@@ -95,7 +95,7 @@ python -c "import torch; print('PyTorch OK:', torch.__version__)"
 python -c "import fastapi; print('FastAPI OK:', fastapi.__version__)"
 echo "Ready. Run: make run"
 ```
-- Runs the Streamlit app
+- Runs the FastAPI backend (uvicorn) and the Flutter mobile app
 - Works on any Docker-capable machine
 - Defines entry points
 - Makes the project installable as a package
@@ -110,4 +110,4 @@ echo "Ready. Run: make run"
 | Kaggle notebook | Xeon | 13GB | T4 x2 | Ubuntu | TEST IT | |
 | Raspberry Pi 4 | ARM Cortex | 4GB | None | Raspberry Pi OS | TEST IT | |
 - CUDA unavailable → CPU fallback confirmed
-- Streamlit version mismatch → compatibility layer
+- Flutter/LiteRT version mismatch → compatibility layer

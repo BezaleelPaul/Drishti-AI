@@ -18,10 +18,17 @@ Drishti-AI is architected from the ground up to **run 100% offline on consumer C
 
 ## 💻 Hardware Compatibility Matrix
 
+> **Status correction (2026-09-28):** "VERIFIED" below means **measured via `benchmark_latency.py` on PC-class
+> hardware** (laptop/desktop/edge profiles). The ASHA tablet row is an *engineering target*, NOT yet measured —
+> the mobile app currently performs analysis on a paired PC/edge workstation and syncs results opportunistically.
+> On-phone inference (int8 TFLite on A53-class devices) is the active v1.2 migration target; budget ≤1.5 s
+> end-to-end / ≤300 MB RSS is committed in `docs/TEAM_PLAN_NEXT_UPDATE.md`. Do not quote tablet latency as a
+> measured fact until the device-matrix run (Phase E) posts numbers to `results/tflite_benchmark.json`.
+
 | Hardware Tier | CPU / Specs | RAM | GPU | OS | Latency (E2E) | Status | Clinical Role |
 |:---|:---|:---:|:---:|:---|:---:|:---:|:---|
 | **Rural PHC Laptop** | Intel Core i3 (7th/8th Gen) | 4 GB | None (CPU) | Ubuntu / Win 10 | **< 180 ms** | **VERIFIED** | Primary screening workstation |
-| **ASHA Field Tablet** | Quad-Core ARM Cortex A53 | 3 GB | None | Android 11+ | **< 220 ms** | **VERIFIED** | Door-to-door check-in & triage |
+| **ASHA Field Tablet** | Quad-Core ARM Cortex A53 | 3 GB | None | Android 11+ | **< 220 ms** | **TARGET (v1.2, on-device TFLite)** | Door-to-door check-in & triage |
 | **Judge's Laptop** | Intel Core i5 / i7 / Ryzen 5 | 8–16 GB | Any / None | Windows 11 | **< 110 ms** | **VERIFIED** | Evaluation & live demo |
 | **MacBook Air M1/M2** | Apple Silicon M-series | 8 GB | Metal / CPU | macOS 14+ | **< 95 ms** | **VERIFIED** | Developer & specialist review |
 | **Edge Micro-Server** | Raspberry Pi 4 / 5 | 4–8 GB | None | Raspberry Pi OS | **< 320 ms** | **VERIFIED** | Offline clinic edge appliance |

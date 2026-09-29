@@ -99,6 +99,20 @@ jobs:
     - name: Install dependencies
       run: flutter pub get
 
+    # Privacy gate (docs/PRIVACY.md "Never" list): no analytics, crash
+    # reporting, telemetry or ads SDK may enter the app — not as a
+    # dependency, not as an import. Fails CI on the first match.
+    - name: Privacy gate — no analytics/telemetry SDKs
+      run: |
+        set -e
+        VIOLATIONS=$(grep -riE "firebase|crashlytics|sentry|mixpanel|amplitude|appsflyer|segment_analytics|google_analytics|admob" pubspec.yaml lib/ android/app/src/main/ 2>/dev/null || true)
+        if [ -n "$VIOLATIONS" ]; then
+          echo "::error::Analytics/telemetry SDK detected — privacy contract violation:"
+          echo "$VIOLATIONS"
+          exit 1
+        fi
+        echo "OK: no analytics/telemetry SDKs in pubspec, lib/ or manifest."
+
     - name: Static analysis
       run: flutter analyze
 

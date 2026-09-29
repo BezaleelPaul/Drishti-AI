@@ -213,6 +213,17 @@ calibration half only, reported once on the 1,407-image test half):
   the ones to quote). Full tables: `results/operating_point_sweep.csv`,
   `results/operating_point_sweep.json`.
 
+> **ADOPTED (X-0, 2026-09-28):** the release operating point moves from
+> argmax to **t\* = 0.09 on referable mass** (`p2+p3+p4 ≥ 0.09`), validated on
+> the held-out split (sens 0.623 / spec 0.775 / balanced acc 0.699). The app's
+> referral flag and UI copy must use this rule; concretely: a capture is
+> referable-flagged when `top1 ≥ 2` **OR** `p2+p3+p4 ≥ 0.09`. Flags produced
+> this way still route through mandatory human review; this changes where the
+> RECALL floor sits, not the trust model. Before adopting any future
+> operating-point change, re-verify red-team fixtures and re-run
+> `operating_point_sweep.py --holdout` so the quoted numbers stay the held-out
+> ones.
+
 ---
 
 ## 7. Limitations
@@ -228,6 +239,19 @@ calibration half only, reported once on the 1,407-image test half):
    *same* dataset; deployment would want external prospective calibration.
 5. **Not a clinical claim.** This is a hackathon research benchmark; the model
    card itself states "Not for clinical use".
+6. **XAI truthfulness: FAILED its own gate (X-1, 2026-09-28).** We built a
+   mathematical check for the explanations — insertion/deletion curves
+   (blur-baseline, RISE-style; `validate_xai.py`,
+   `results/xai_insertion_deletion.json`) — and the Grad-CAM ordering does
+   **not** beat random ordering on the deletion axis on ANY tested image
+   (insertion is also non-monotonic). The model's confidence is
+   texture-hypersensitive everywhere (same instability visible in the fp16
+   quantization drift of 0.29), so gradient attention does not causally
+   drive its output on this checkpoint. **Consequence (enforced):** heatmaps
+   remain labelled "model attention — not evidence" and are NOT presented to
+   operators as justification for a grade; the intended fix is the F-5
+   retrain, after which this gate must be re-run and pass before any
+   operator-facing heatmap ships.
 
 ## 8. What these numbers say the product should do
 

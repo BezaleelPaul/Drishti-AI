@@ -1245,7 +1245,7 @@ team = [
     (
         "Bezaleel",
         "Team Lead  ·  Full-Stack",
-        "Decision router, Streamlit, FastAPI, Docker, cross-platform zero-config.",
+        "Decision router, FastAPI, Flutter (on-device TFLite), Docker, cross-platform zero-config.",
     ),
     (
         "Madhu",

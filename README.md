@@ -83,7 +83,7 @@ Drishti-AI is structured around four architectural pillars explicitly formulated
 
 ### 1. ♻️ Sustainability (Modest Compute & Resource Longevity)
 The pipeline is engineered to run indefinitely on modest, low-power hardware rather than depending on recurring cloud subscriptions:
-- **Zero Cloud Compute Costs:** Inference runs on-device/on-edge, ensuring a Primary Health Centre (PHC) never pays an ongoing cloud compute or API bill just to keep screening citizens.
+- **Zero Cloud Compute Costs (PC/Edge workstation today; on-phone in v1.2):** Inference runs on-device/on-edge (validated on consumer laptops — see `docs/HARDWARE_COMPATIBILITY.md`), ensuring a Primary Health Centre (PHC) never pays an ongoing cloud compute or API bill just to keep screening citizens. The mobile app currently runs its AI at a paired laptop/edge workstation and ONLY syncs de-identified results opportunistically; full on-phone inference is the active v1.2 migration target (see `docs/TEAM_PLAN_NEXT_UPDATE.md` Phase A).
 - **99.1% Data Reduction:** Edge-filtering cuts data volume from 439.9 GB raw fundus imagery down to 3.8 GB of structured telemetry and flagged cases before transmission.
 - **Hardware Longevity:** Designed to operate on existing ₹15,000 laptops and legacy equipment for years without requiring forced hardware refresh cycles.
 - **Waste Elimination via Quality Gating:** Rejecting an ungradable image before it reaches the classifier prevents wasted compute cycles, avoids erroneous referrals, and eliminates costly repeat visits.
