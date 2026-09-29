@@ -125,7 +125,7 @@ class QualityGateDart {
   double _minMlBad(bool s) => s ? kStrictMinMlBad : kMinMlQualityBad;
 
   _DomainDecision _domainGate(Uint8List rgb, int w, int h) {
-    if (_channelVariances(rgb).every((v) => v < kFundusMinVariance)) {
+    if (_channelStdDevs(rgb).every((v) => v < kFundusMinVariance)) {
       return const _DomainDecision(
         _Verdict.notFundus,
         'Image has almost zero variance (blank or solid color)',
@@ -194,6 +194,7 @@ class QualityGateDart {
     var centerCount = 0;
     var illuminatedCount = 0;
     var rSum = 0.0;
+    var gSum = 0.0;
     var bSum = 0.0;
 
     for (var y = 0; y < h; y++) {
@@ -234,6 +235,7 @@ class QualityGateDart {
         }
 
         rSum += r;
+        gSum += g;
         bSum += b;
 
         final inRing =
@@ -274,7 +276,7 @@ class QualityGateDart {
       cornerMean: cornerMean,
       centerMean: centerMean,
       redBlueRatio: meanR / meanB,
-      brightness: (rSum + bSum) / (2.0 * n),
+      brightness: (rSum + gSum + bSum) / (3.0 * n),
     );
   }
 
@@ -356,7 +358,10 @@ class QualityGateDart {
     return g;
   }
 
-  List<double> _channelVariances(Uint8List rgb) {
+  /// Per-channel STANDARD DEVIATION (fundus_gate compares std < 2.0, not
+  /// variance — an earlier port compared variance here, which is more
+  /// lenient and let near-blank images through the blank-frame check).
+  List<double> _channelStdDevs(Uint8List rgb) {
     final n = rgb.length ~/ 3;
     final sums = List<double>.filled(3, 0);
     final sqs = List<double>.filled(3, 0);
@@ -370,7 +375,7 @@ class QualityGateDart {
     final out = List<double>.filled(3, 0);
     for (var c = 0; c < 3; c++) {
       final m = sums[c] / n;
-      out[c] = math.max(0.0, sqs[c] / n - m * m);
+      out[c] = math.sqrt(math.max(0.0, sqs[c] / n - m * m));
     }
     return out;
   }
@@ -667,15 +672,38 @@ CanonicalImage decodeCanonicalRgb(Uint8List encoded, {int maxDim = 4096}) {
 
 /// Extracts canonical RGB bytes from an already-decoded image without a
 /// second JPEG decode pass (router Node 1 shares one decode across stages).
-CanonicalImage canonicalRgbFromDecoded(img.Image decoded, {int maxDim = 4096}) {
-  final w = decoded.width;
-  final h = decoded.height;
+///
+/// Frames larger than [analysisMaxDim] on the longest side are downscaled
+/// BEFORE the metric passes: the pure-Dart gate is O(pixels) and a 12 MP
+/// capture would spend seconds on the phone. Documented deviation from the
+/// Python gate (which runs full-res) — verdict parity is enforced by the
+/// adversarial + phone-image test suites, not by byte equality.
+CanonicalImage canonicalRgbFromDecoded(
+  img.Image decoded, {
+  int maxDim = 4096,
+  int analysisMaxDim = 2048,
+}) {
+  var w = decoded.width;
+  var h = decoded.height;
   if (w <= 0 || h <= 0 || h > maxDim || w > maxDim) {
     throw FormatException('Invalid image dimensions: ${w}x$h');
   }
+  var source = decoded;
+  final longest = w > h ? w : h;
+  if (longest > analysisMaxDim) {
+    final scale = analysisMaxDim / longest;
+    source = img.copyResize(
+      decoded,
+      width: (w * scale).round().clamp(1, analysisMaxDim),
+      height: (h * scale).round().clamp(1, analysisMaxDim),
+      interpolation: img.Interpolation.cubic,
+    );
+    w = source.width;
+    h = source.height;
+  }
   final out = Uint8List(w * h * 3);
   var j = 0;
-  for (final p in decoded) {
+  for (final p in source) {
     out[j++] = p.r.toInt().clamp(0, 255);
     out[j++] = p.g.toInt().clamp(0, 255);
     out[j++] = p.b.toInt().clamp(0, 255);

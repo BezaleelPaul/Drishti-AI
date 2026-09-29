@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds previously had NO permissions here (INTERNET only
+         existed in debug/profile manifests), so the referral uplink and
+         sync silently failed on release APKs. INTERNET is the single
+         network permission the app needs; no CAMERA/LOCATION/storage. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="netra_ai_mobile"
         android:name="${applicationName}"
