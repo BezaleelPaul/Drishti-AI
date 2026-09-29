@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../services/api_service.dart';
 import '../../services/ml/on_device_pipeline.dart';
 import '../../theme/figma_theme.dart';
 import '../../widgets/workflow_bar.dart';
+import '../live_camera_screen.dart';
 import 'flow_analysis_screen.dart';
 import 'flow_state.dart';
 
@@ -75,18 +77,46 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
         );
         return;
       }
-      setState(() {
-        widget.state.imageBytes = bytes;
-        widget.state.filename = picked.name;
-        widget.state.quality = null;
-      });
-      unawaited(_runQuality());
+      await _useCapturedBytes(bytes, 'camera_capture.jpg');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Could not open photo: $e')));
     }
+  }
+
+  /// Live camera path (Ticket: camera integration): open the full-screen
+  /// back-camera preview, get JPEG bytes back, run the same on-device
+  /// quality gate as every other capture source.
+  Future<void> _openCamera() async {
+    try {
+      final bytes = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(builder: (_) => const LiveFundusCameraScreen()),
+      );
+      if (bytes == null || bytes.isEmpty) return; // user backed out
+      if (!mounted) return;
+      await _useCapturedBytes(
+        bytes,
+        'camera_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Camera unavailable: $e')));
+    }
+  }
+
+  Future<void> _useCapturedBytes(Uint8List bytes, String filename) async {
+    if (!mounted) return;
+    setState(() {
+      widget.state.imageBytes = bytes;
+      widget.state.filename = filename;
+      widget.state.quality = null;
+    });
+    unawaited(_runQuality());
   }
 
   Future<void> _runQuality() async {
@@ -228,6 +258,21 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
+                // Live camera is the primary capture path (Ticket: camera
+                // integration); upload + samples remain for demos/kiosks.
+                FilledButton.icon(
+                  onPressed: _openCamera,
+                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                  label: Text(
+                    'Use camera',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: FigmaColors.primaryDark,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(

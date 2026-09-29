@@ -2,8 +2,10 @@
     <!-- Release builds previously had NO permissions here (INTERNET only
          existed in debug/profile manifests), so the referral uplink and
          sync silently failed on release APKs. INTERNET is the single
-         network permission the app needs; no CAMERA/LOCATION/storage. -->
+         network permission the app needs; no LOCATION/storage. CAMERA is
+         required for live fundus capture (Ticket: camera integration). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:label="netra_ai_mobile"
         android:name="${applicationName}"
