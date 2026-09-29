@@ -1,3 +1,10 @@
+// Enum identifiers intentionally mirror src/pipeline/schema.py value strings
+// byte-for-byte: the server wire contract, SQLite CHECK constraints and the
+// QA corpus branch on these exact strings (GOOD/BORDERLINE/BAD,
+// CLINICAL_LEVEL/OPERATOR_LEVEL, ...). The Dart naming lint is waived for
+// this file only — renaming would break the parity contract.
+// ignore_for_file: constant_identifier_names
+
 import 'dart:math' as math;
 
 /// Byte-parity port of src/pipeline/schema.py.

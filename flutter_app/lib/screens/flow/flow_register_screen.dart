@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
 import '../../models/screening_models.dart';
@@ -73,11 +75,13 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
       // Best-effort registration; offline queue keeps the flow moving.
       await _api.registerPatient(patient).catchError((_) => patient.patientId);
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => FlowCaptureScreen(
-            state: FlowState(patient: patient, risk: risk),
+      unawaited(
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FlowCaptureScreen(
+              state: FlowState(patient: patient, risk: risk),
+            ),
           ),
         ),
       );

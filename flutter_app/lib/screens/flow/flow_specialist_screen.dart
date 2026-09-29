@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
 import '../../services/api_service.dart';
@@ -72,10 +74,12 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
         // Local verdict stands; sync covers the rest.
       }
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => FlowReferralScreen(state: widget.state),
+      unawaited(
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FlowReferralScreen(state: widget.state),
+          ),
         ),
       );
     } finally {
