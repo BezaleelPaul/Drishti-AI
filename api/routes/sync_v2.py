@@ -19,13 +19,14 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from api.auth import ApiPrincipal, require_auth, require_doctor
 from api.database import get_db
 from api.schemas import DeidentifiedSyncRequest, DeidentifiedSyncResponse
 from api.services.deid_linter import PHIRejectionError, assert_clean
+from api.services.whatsapp_notify import is_configured, notify_doctor_referral
 
 router = APIRouter(prefix="/sync/v2", tags=["De-identified Synchronization"])
 
@@ -61,6 +62,7 @@ def _audit(cursor, action: str, resource: str, detail: str) -> None:
 @router.post("", response_model=DeidentifiedSyncResponse)
 def sync_deidentified_batch(
     payload: DeidentifiedSyncRequest,
+    background_tasks: BackgroundTasks,
     _principal: ApiPrincipal = Depends(require_auth),
 ) -> DeidentifiedSyncResponse:
     """Receives consent-gated, pseudonymized screening results.
@@ -176,6 +178,21 @@ def sync_deidentified_batch(
                 )
                 conn.commit()
                 synced_ids.append(pseudo_id)
+                if is_configured():
+                    # Free doctor notification via the WhatsApp Cloud API
+                    # sandbox (pseudonym + grade only — see
+                    # api/services/whatsapp_notify.py). Background task:
+                    # storage never waits on the network.
+                    background_tasks.add_task(
+                        notify_doctor_referral,
+                        {
+                            "pseudo_screening_id": pseudo_id,
+                            "pseudonym": item.pseudonym,
+                            "dr_grade": item.dr_grade,
+                            "dr_label": item.dr_label,
+                            "requires_human_review": item.requires_human_review,
+                        },
+                    )
         except ValueError as e:
             failed_items.append({"pseudo_screening_id": pseudo_id, "error": str(e)[:200]})
         except Exception as e:  # noqa: BLE001 - stable per-item error code
