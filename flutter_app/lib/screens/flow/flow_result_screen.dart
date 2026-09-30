@@ -343,11 +343,13 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                         ),
                       ),
                       Text(
-                        context.tr('heatmap_caption'),
+                        _heatmap
+                            ? 'Model attention — not clinical evidence'
+                            : '',
                         style: const TextStyle(
                           fontSize: 11,
                           fontStyle: FontStyle.italic,
-                          color: Colors.white54,
+                          color: Colors.white70,
                         ),
                       ),
                     ],
