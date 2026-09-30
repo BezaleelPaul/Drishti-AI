@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../l10n/lang_scope.dart';
@@ -75,7 +77,7 @@ class _LiveFundusCameraScreenState extends State<LiveFundusCameraScreen> {
       await controller.dispose();
       return;
     }
-    previous?.dispose();
+    unawaited(previous?.dispose());
     if (mounted) setState(() => _initializing = false);
   }
 
