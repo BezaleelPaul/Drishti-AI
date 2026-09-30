@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/lang_scope.dart';
 import '../../services/referral_uplink_service.dart';
 import '../../theme/figma_theme.dart';
@@ -151,16 +152,65 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
     }
   }
 
-  void _sendSms() {
-    setState(() => _smsSent = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${context.tr('btn_send_sms')} (Demo): ${widget.state.patient.phone}',
-        ),
-        backgroundColor: FigmaColors.success,
-      ),
+  /// Real referral slip via the phone's own SMS app (no SEND_SMS permission,
+  /// no silent messaging — the operator sees and sends it themselves, which
+  /// is also the DPDP-friendly posture: the patient's own referral going to
+  /// their own number, explicitly).
+  Future<void> _sendSms() async {
+    final st = widget.state;
+    final grade = st.correctedGrade ?? st.analysis?.drGrade ?? 2;
+    final urgency = _urgencyFor(grade);
+    final backend = st.analysis?.modelBackend == 'tflite-fp32'
+        ? 'on-device'
+        : 'clinic';
+    final slip = [
+      'Drishti-AI Referral Slip',
+      'Patient: ${st.patient.name} (${st.patient.age}y)',
+      'Eye: ${st.eyeSide}  |  AI: ${st.analysis?.drLabel ?? "grade $grade"}',
+      'Urgency: ${urgency.label}',
+      'Screened: $backend, ${DateTime.now().toIso8601String().substring(0, 16)}',
+      'AI is a screening aid — final decision by an eye doctor.',
+      'District Eye Care Centre — Retina Clinic',
+    ].join('\n');
+    final phone = st.patient.phone.trim();
+    final uri = Uri(
+      scheme: 'sms',
+      path: phone.isEmpty ? null : phone,
+      queryParameters: phone.isEmpty ? null : {'body': slip},
     );
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!mounted) return;
+      if (launched) {
+        setState(() => _smsSent = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'SMS app opened with the referral slip — review and press send.',
+            ),
+            backgroundColor: FigmaColors.success,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No SMS app available on this device.'),
+            backgroundColor: FigmaColors.danger,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open SMS app: $e'),
+          backgroundColor: FigmaColors.danger,
+        ),
+      );
+    }
   }
 
   @override
@@ -300,7 +350,7 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                 OutlinedButton.icon(
                   onPressed: _smsSent ? null : _sendSms,
                   icon: const Icon(Icons.sms_outlined, size: 18),
-                  label: Text('${context.tr('btn_send_sms')} (Demo)'),
+                  label: Text(context.tr('btn_send_sms')),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton(
