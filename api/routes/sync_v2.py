@@ -26,6 +26,8 @@ from api.auth import ApiPrincipal, require_auth, require_doctor
 from api.database import get_db
 from api.schemas import DeidentifiedSyncRequest, DeidentifiedSyncResponse
 from api.services.deid_linter import PHIRejectionError, assert_clean
+from api.services.sms_gateway import is_configured as sms_is_configured
+from api.services.sms_gateway import send_doctor_sms
 from api.services.whatsapp_notify import is_configured, notify_doctor_referral
 
 router = APIRouter(prefix="/sync/v2", tags=["De-identified Synchronization"])
@@ -185,6 +187,20 @@ def sync_deidentified_batch(
                     # storage never waits on the network.
                     background_tasks.add_task(
                         notify_doctor_referral,
+                        {
+                            "pseudo_screening_id": pseudo_id,
+                            "pseudonym": item.pseudonym,
+                            "dr_grade": item.dr_grade,
+                            "dr_label": item.dr_label,
+                            "requires_human_review": item.requires_human_review,
+                        },
+                    )
+                if sms_is_configured():
+                    # DLT-legal SMS channel (production, TRAI-registered
+                    # gateway + approved template). Same background + fail-
+                    # safe discipline; disabled until env keys exist.
+                    background_tasks.add_task(
+                        send_doctor_sms,
                         {
                             "pseudo_screening_id": pseudo_id,
                             "pseudonym": item.pseudonym,
