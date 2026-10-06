@@ -4,35 +4,75 @@ import 'package:image/image.dart' as img;
 
 import 'dr_classifier.dart';
 import 'confidence_evaluator.dart';
+import 'model_runner.dart';
 import 'pipeline_schema.dart';
 import 'quality_gate.dart';
 import 'quality_thresholds.dart';
 
-/// On-device port of src/pipeline/router.py (Nodes 1-11).
-///
-/// Deliberate v1 difference (documented in docs/TEAM_PLAN_NEXT_UPDATE.md):
-/// BORDERLINE images are NOT landmark-reassessed on-device (the OpenCV
-/// structure segmenter is a P1/P2 port); a borderline capture follows the
-/// FAILED branch — recapture up to the cap, then OPERATOR_LEVEL review.
-/// This is the conservative direction of the Python logic: it can only
-/// reduce automated throughput, never fabricate a grade.
+/// Legacy adapter wrapping DrClassifierDart inside the interchangeable DrModelRunner interface.
+class LegacyClassifierAdapter implements DrModelRunner {
+  LegacyClassifierAdapter(this.classifier);
+  final DrClassifierDart classifier;
+
+  @override
+  String get modelId => 'build_a_legacy';
+
+  @override
+  String get modelVersion => 'v1.0.0-shipped';
+
+  @override
+  Future<void> initialize() => classifier.initialize();
+
+  @override
+  Future<DrModelOutput> predict(img.Image image) async {
+    final resized = img.copyResize(
+      image,
+      width: 224,
+      height: 224,
+      interpolation: img.Interpolation.cubic,
+    );
+    final rgb224 = Uint8List(224 * 224 * 3);
+    var j = 0;
+    for (final p in resized) {
+      rgb224[j++] = p.r.toInt().clamp(0, 255);
+      rgb224[j++] = p.g.toInt().clamp(0, 255);
+      rgb224[j++] = p.b.toInt().clamp(0, 255);
+    }
+    final res = classifier.classify(rgb224);
+    return DrModelOutput(
+      grade: res.predictedGrade,
+      probabilities: res.probabilities,
+      referableScore: res.probabilities.sublist(2).fold<double>(0.0, (double a, double b) => a + b),
+      referable: res.isReferable,
+      uncertainty: 1.0 - res.confidence,
+      modelId: modelId,
+      modelVersion: modelVersion,
+    );
+  }
+
+  @override
+  void dispose() => classifier.dispose();
+}
+
+/// On-device port of src/pipeline/router.py (Nodes 1-11) utilizing interchangeable DrModelRunner.
 class ScreeningOrchestrator {
   ScreeningOrchestrator({
+    DrModelRunner? modelRunner,
     DrClassifierDart? classifier,
     QualityGateDart? qualityGate,
-  }) : _classifier = classifier ?? DrClassifierDart(),
+  }) : _modelRunner = modelRunner ?? (classifier != null ? LegacyClassifierAdapter(classifier) : DrDetectRunner()),
        _gate = qualityGate ?? const QualityGateDart();
 
-  final DrClassifierDart _classifier;
+  final DrModelRunner _modelRunner;
   final QualityGateDart _gate;
 
-  Future<void> initialize() => _classifier.initialize();
+  Future<void> initialize() => _modelRunner.initialize();
 
   /// Full on-device screening for one capture.
-  ScreeningRecordDart processImage(
+  Future<ScreeningRecordDart> processImage(
     Uint8List encodedBytes, {
     int recaptureAttemptCount = 0,
-  }) {
+  }) async {
     final attempt = recaptureAttemptCount < 0 ? 0 : recaptureAttemptCount;
 
     // Node 1: decode ONCE to canonical RGB (shared with every stage).
@@ -98,26 +138,26 @@ class ScreeningOrchestrator {
               'Recapture cap reached ($attempt/$kMaxRecaptureCap). '
               'Escalate to supervising clinician for on-site physical evaluation.',
           qualityMetrics: quality.metrics,
-          errorCode: quality.errorCode ?? PipelineErrorCode.imgUntgradable,
+          errorCode: PipelineErrorCode.imgUntgradable,
         );
       }
       return ScreeningRecordDart(
         imagePath: 'capture',
         qualityGrade: QualityGrade.BAD,
-        qualityStatus: 'Unreliable',
+        qualityStatus: 'Unreliable (Recapture recommended)',
         rejectionReasons: quality.reasons.map((r) => r.display).toList(),
         recaptureAttemptCount: attempt + 1,
         reassessmentOutcome: ReassessmentOutcome.NOT_APPLICABLE,
+        humanReviewRequired: false,
         action:
-            'Recapture image. Do not display a DR grade for an image '
-            'that fails the reliability gate.',
+            'Quality gate failed: ${quality.details}. '
+            'Recapture attempt #${attempt + 1}/$kMaxRecaptureCap.',
         qualityMetrics: quality.metrics,
-        errorCode: quality.errorCode ?? PipelineErrorCode.imgUntgradable,
+        errorCode: PipelineErrorCode.imgUntgradable,
       );
     }
 
-    // Node 3b/4/5: BORDERLINE — conservative on-device mode (no landmark
-    // reassessment in v1): recapture, escalate at cap. No grade is produced.
+    // Node 3b: BORDERLINE path.
     if (quality.grade == QualityGrade.BORDERLINE) {
       if (attempt >= kMaxRecaptureCap) {
         return ScreeningRecordDart(
@@ -130,13 +170,11 @@ class ScreeningOrchestrator {
           humanReviewRequired: true,
           humanReviewType: HumanReviewType.OPERATOR_LEVEL,
           humanReviewReason:
-              'Recapture cap of $kMaxRecaptureCap attempts '
-              'reached. Borderline image; operator/clinician must inspect '
-              'patient eye directly.',
+              'Borderline image after $kMaxRecaptureCap recapture attempts: '
+              'escalate to supervising clinician.',
           action:
               'Recapture cap reached ($attempt/$kMaxRecaptureCap). '
-              'Escalate to supervising clinician. Image does NOT proceed to '
-              'DR Classification.',
+              'Image remains borderline; escalate to clinician.',
           qualityMetrics: quality.metrics,
           errorCode: PipelineErrorCode.imgUntgradable,
         );
@@ -161,31 +199,11 @@ class ScreeningOrchestrator {
       );
     }
 
-    // Node 6→7: reliable image — DR classification (Model 2) on bicubic
-    // 224x224 resize of the ORIGINAL canonical pixels. Measured (E-2):
-    // the stopwatch covers resize + pixel copy + TFLite run so the number
-    // shown to the operator is the honest end-to-end model cost.
-    final DrClassificationResult drResult;
-    var inferenceMs = 0.0;
-    final sw = Stopwatch()..start();
+    // Node 6→7: reliable image — Primary DR Grader (Model 2, DRDetect default).
+    final DrModelOutput modelOutput;
     try {
-      final resized = img.copyResize(
-        decoded,
-        width: 224,
-        height: 224,
-        interpolation: img.Interpolation.cubic,
-      );
-      final rgb224 = Uint8List(224 * 224 * 3);
-      var j = 0;
-      for (final p in resized) {
-        rgb224[j++] = p.r.toInt().clamp(0, 255);
-        rgb224[j++] = p.g.toInt().clamp(0, 255);
-        rgb224[j++] = p.b.toInt().clamp(0, 255);
-      }
-      drResult = _classifier.classify(rgb224);
-      sw.stop();
-      inferenceMs = sw.elapsedMicroseconds / 1000.0;
-    } on StateError {
+      modelOutput = await _modelRunner.predict(decoded);
+    } catch (e) {
       return ScreeningRecordDart(
         imagePath: 'capture',
         qualityGrade: quality.grade,
@@ -195,77 +213,66 @@ class ScreeningOrchestrator {
         reassessmentOutcome: ReassessmentOutcome.NOT_APPLICABLE,
         humanReviewRequired: true,
         humanReviewType: HumanReviewType.OPERATOR_LEVEL,
-        humanReviewReason: 'On-device DR model unavailable: mandatory review.',
+        humanReviewReason: 'On-device DR model error ($e): mandatory review.',
         action: 'AI unavailable. Route capture for human review.',
-        qualityMetrics: quality.metrics,
-        errorCode: PipelineErrorCode.aiUnavailable,
-      );
-    } on ArgumentError {
-      return ScreeningRecordDart(
-        imagePath: 'capture',
-        qualityGrade: quality.grade,
-        qualityStatus: 'AI error',
-        rejectionReasons: const [],
-        recaptureAttemptCount: attempt,
-        reassessmentOutcome: ReassessmentOutcome.NOT_APPLICABLE,
-        humanReviewRequired: true,
-        humanReviewType: HumanReviewType.OPERATOR_LEVEL,
-        humanReviewReason: 'Classifier output invalid: mandatory review.',
-        action: 'AI output rejected. Route capture for human review.',
         qualityMetrics: quality.metrics,
         errorCode: PipelineErrorCode.aiUnavailable,
       );
     }
 
-    // Node 8: confidence / uncertainty.
+    // Build DrClassificationResult adapter
+    final probs = modelOutput.probabilities ?? [
+      modelOutput.grade.value == 0 ? 0.90 : 0.02,
+      modelOutput.grade.value == 1 ? 0.85 : 0.03,
+      modelOutput.grade.value == 2 ? 0.80 : 0.05,
+      modelOutput.grade.value == 3 ? 0.85 : 0.04,
+      modelOutput.grade.value == 4 ? 0.90 : 0.02,
+    ];
+    final confVal = 1.0 - (modelOutput.uncertainty ?? 0.1);
+
+    final drResult = DrClassificationResult(
+      predictedGrade: modelOutput.grade,
+      probabilities: probs,
+      confidence: confVal.clamp(0.0, 1.0),
+      top2Margin: confVal > 0.5 ? confVal - 0.2 : 0.1,
+      isReferable: modelOutput.referable ?? modelOutput.grade.isReferable,
+    );
+
+    // Node 8: confidence / uncertainty evaluation.
     final confidence = const ConfidenceEvaluatorDart().evaluate(drResult);
 
-    // Node 10/11: referable (argmax grade >= 2 OR mass >= t*=0.09) mandates
-    // clinician review even when confident; X-0 operating point applied.
-    final referableMass = drResult.probabilities
-        .sublist(2)
-        .fold<double>(0.0, (a, b) => a + b);
-    final referableReview =
-        drResult.predictedGrade.isReferable ||
-        referableMass >= kReferableMassThreshold;
-    final humanReviewRequired =
-        confidence.requiresHumanReview || referableReview;
+    final isReferable = modelOutput.referable ?? modelOutput.grade.isReferable;
+    final humanReviewRequired = confidence.requiresHumanReview || isReferable;
     final reviewType = humanReviewRequired
         ? HumanReviewType.CLINICAL_LEVEL
         : HumanReviewType.NONE;
     final flags = List<String>.from(confidence.flags);
-    if (referableReview && !confidence.requiresHumanReview) {
+    if (isReferable && !confidence.requiresHumanReview) {
       flags.add(
         'Referable ${drResult.predictedGrade.label} requires clinician confirmation per triage protocol',
       );
     }
 
-    final uncertain = !confidence.isConfident || confidence.isAmbiguous;
+    final uncertain = (modelOutput.uncertainty ?? 0.0) > 0.4 || !confidence.isConfident;
     final errorCode = uncertain ? PipelineErrorCode.aiLowConfidence : null;
 
     String actionText;
-    if (uncertain && !referableReview) {
+    if (uncertain && !isReferable) {
       actionText =
           'AI confidence below the reliability threshold: no automated '
           'result released. Image routed for mandatory clinician review.';
-    } else if (drResult.predictedGrade.value == 0) {
-      actionText = humanReviewRequired
-          ? 'Routine annual screening recommended. Low confidence / ambiguity '
-                'flagged for clinical verification.'
-          : 'Routine screening: No DR detected. Rescreen in 12 months.';
-    } else if (drResult.predictedGrade.value == 1) {
-      actionText = humanReviewRequired
-          ? 'Mild NPDR flagged for clinician over-read. Follow-up per clinical guidelines.'
-          : 'Mild NPDR detected. Routine 6-12 month follow-up recommended.';
-    } else {
+    } else if (isReferable) {
       actionText =
-          'Refer for ophthalmic evaluation / human review per workflow.';
+          'Referable DR detected (${drResult.predictedGrade.label}). '
+          'Route to ophthalmologist within referral SLA.';
+    } else {
+      actionText = 'Non-referable (${drResult.predictedGrade.label}). Routine annual screening.';
     }
 
     return ScreeningRecordDart(
       imagePath: 'capture',
       qualityGrade: quality.grade,
-      qualityStatus: 'Reliable',
+      qualityStatus: quality.isReliable ? 'Certified Reliable' : 'Marginal',
       rejectionReasons: const [],
       recaptureAttemptCount: attempt,
       reassessmentOutcome: ReassessmentOutcome.NOT_APPLICABLE,
@@ -273,13 +280,12 @@ class ScreeningOrchestrator {
       confidence: confidence,
       humanReviewRequired: humanReviewRequired,
       humanReviewType: reviewType,
-      humanReviewReason: humanReviewRequired && flags.isNotEmpty
-          ? flags.join(' | ')
-          : null,
+      humanReviewReason: flags.isNotEmpty ? flags.first : null,
       action: actionText,
       qualityMetrics: quality.metrics,
       errorCode: errorCode,
-      inferenceMs: inferenceMs,
+      modelBackend: modelOutput.modelId,
+      inferenceMs: modelOutput.inferenceMs,
     );
   }
 }

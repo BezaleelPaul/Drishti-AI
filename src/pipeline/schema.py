@@ -104,9 +104,12 @@ class QualityAssessmentResult:
 class DRClassificationResult:
     predicted_grade: DRGrade
     probabilities: list[float]  # 5-class probability vector [P0, P1, P2, P3, P4]
-    confidence: float  # Top-1 softmax probability (uncalibrated)
-    top2_margin: float  # Top-1 minus Top-2 probability
+    confidence: float  # Top-1 confidence or certainty measure
+    top2_margin: float  # Top-1 minus Top-2 margin or boundary separation
     is_referable: bool  # Grade >= 2
+    raw_score: float | None = None  # Continuous regression severity score
+    uncertainty: float | None = None  # Uncertainty metric (e.g. boundary proximity / fold spread)
+    model_id: str = "drdetect_ordinal"
 
 
 @dataclass

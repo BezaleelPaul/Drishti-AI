@@ -40,26 +40,42 @@ class DRClassifier:
 
     def __init__(
         self,
+        onnx_model_path: str | None = None,
         keras_model_path: str | None = None,
         pytorch_model_path: str | None = None,
         device: str = "cpu",
     ):
         self.device = device
+        self.onnx_model_path = onnx_model_path
         self.keras_model_path = keras_model_path
         self.pytorch_model_path = pytorch_model_path
         self.model_backend = "mock"
         self.load_error: str | None = None
+        self._onnx_session = None
         self._keras_model = None
         self._torch_model = None
+        self.thresholds = [0.5, 1.5, 2.5, 3.5]
 
-        # Auto-detect pretrained model in root or external/DR-EfficientNetB0
+        # Auto-detect pretrained model candidates in models/, root, or external
         repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        candidate_paths = [
+        onnx_candidates = [
+            os.path.join(repo_root, "models", "efficientnet_b0_regression_512px.onnx"),
+            os.path.join(repo_root, "flutter_app", "assets", "models", "efficientnet_b0_regression_512px.onnx"),
+            os.path.join(repo_root, "release", "models", "efficientnet_b0_regression_512px.onnx"),
+            os.path.join(repo_root, "efficientnet_b0_regression_512px.onnx"),
+        ]
+        if not self.onnx_model_path:
+            for op in onnx_candidates:
+                if os.path.exists(op):
+                    self.onnx_model_path = op
+                    break
+
+        candidate_keras_paths = [
             os.path.join(repo_root, "final_model.keras"),
             os.path.join(repo_root, "external", "DR-EfficientNetB0", "final_model.keras"),
         ]
         if not self.keras_model_path:
-            for cp in candidate_paths:
+            for cp in candidate_keras_paths:
                 if os.path.exists(cp):
                     self.keras_model_path = cp
                     break
@@ -69,7 +85,22 @@ class DRClassifier:
     def _initialize_model(self):
         import logging
 
-        # 1. Try loading Keras model if available
+        # 1. Prioritize winning ONNX model (DRDetect Ordinal Regression)
+        if self.onnx_model_path and os.path.exists(self.onnx_model_path):
+            try:
+                import onnxruntime as ort
+
+                providers = ["CPUExecutionProvider"]
+                self._onnx_session = ort.InferenceSession(self.onnx_model_path, providers=providers)
+                self.model_backend = "onnx_drdetect"
+                self.load_error = None
+                logging.getLogger(__name__).info(f"Loaded DRDetect ONNX model: {self.onnx_model_path}")
+                return
+            except Exception as e:
+                self.load_error = f"onnx load failed ({self.onnx_model_path}): {type(e).__name__}: {e}"
+                logging.getLogger(__name__).warning(self.load_error)
+
+        # 2. Try loading Keras model if available
         if self.keras_model_path and os.path.exists(self.keras_model_path):
             try:
                 import keras
@@ -78,15 +109,13 @@ class DRClassifier:
                 self.model_backend = "keras"
                 self.load_error = None
                 return
-            except Exception as e:  # noqa: BLE001 - try the next available backend
-                # Fail LOUD in logs: Cloud log shows the exact cause
-                # (missing tensorflow/keras vs corrupt weights vs bad path).
+            except Exception as e:
                 self.load_error = (
                     f"keras load failed ({self.keras_model_path}): {type(e).__name__}: {e}"
                 )
                 logging.getLogger(__name__).warning(self.load_error)
 
-        # 2. Try loading PyTorch model
+        # 3. Try loading PyTorch model
         if self.pytorch_model_path and os.path.exists(self.pytorch_model_path):
             try:
                 import torch
@@ -96,7 +125,6 @@ class DRClassifier:
                         self.pytorch_model_path, map_location=self.device, weights_only=True
                     )
                 except TypeError:
-                    # Older torch without weights_only
                     self._torch_model = torch.load(
                         self.pytorch_model_path, map_location=self.device
                     )
@@ -104,20 +132,22 @@ class DRClassifier:
                 self.model_backend = "pytorch"
                 self.load_error = None
                 return
-            except Exception as e:  # noqa: BLE001 - simulation remains available
+            except Exception as e:
                 self.load_error = (
                     f"torch load failed ({self.pytorch_model_path}): {type(e).__name__}: {e}"
                 )
                 logging.getLogger(__name__).warning(self.load_error)
 
-        # 3. Deterministic simulation mode for testing / pipeline verification
+        # 4. Simulation fallback
         import logging
 
         logging.getLogger(__name__).warning(
-            "DRClassifier: no DL weights loaded, using simulated backend. "
-            "Do NOT use for clinical diagnosis without real model."
+            "DRClassifier: no DL weights loaded, using simulated backend."
         )
         self.model_backend = "simulated"
+
+    def get_onnx_session(self):
+        return self._onnx_session
 
     def get_keras_model(self):
         return self._keras_model
@@ -143,12 +173,89 @@ class DRClassifier:
         # Load image strictly without clinical enhancement (Section 20 Non-destructive rule)
         pil_img = self._load_as_pil(image_input)
 
-        if self.model_backend == "keras" and self._keras_model is not None:
+        if self.model_backend == "onnx_drdetect" and self._onnx_session is not None:
+            return self._predict_onnx_drdetect(pil_img)
+        elif self.model_backend == "keras" and self._keras_model is not None:
             return self._predict_keras(pil_img)
         elif self.model_backend == "pytorch" and self._torch_model is not None:
             return self._predict_pytorch(pil_img)
         else:
             return self._predict_simulated(pil_img)
+
+    def _predict_onnx_drdetect(self, pil_img: Image.Image) -> DRClassificationResult:
+        import cv2
+
+        # 1. Preprocessing: crop dark border (tol=7) -> circle crop -> Ben Graham -> resize 512x512
+        img_rgb = np.asarray(pil_img.convert("RGB"), dtype=np.uint8)
+        gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+        mask = gray > 7
+        if mask.any():
+            row_idx = np.where(mask.any(axis=1))[0]
+            col_idx = np.where(mask.any(axis=0))[0]
+            cropped = img_rgb[row_idx[0]:row_idx[-1] + 1, col_idx[0]:col_idx[-1] + 1]
+        else:
+            cropped = img_rgb
+
+        h, w = cropped.shape[:2]
+        radius = min(h, w) // 2
+        cx, cy = w // 2, h // 2
+        circ_mask = np.zeros((h, w), dtype=np.uint8)
+        cv2.circle(circ_mask, (cx, cy), radius, 255, -1)
+        circled = cv2.bitwise_and(cropped, cropped, mask=circ_mask)[cy - radius:cy + radius, cx - radius:cx + radius]
+
+        blurred = cv2.GaussianBlur(circled, (0, 0), 20)
+        enhanced = cv2.addWeighted(circled, 4, blurred, -4, 128)
+        resized = cv2.resize(enhanced, (512, 512), interpolation=cv2.INTER_AREA)
+
+        # ImageNet normalization
+        norm_01 = resized.astype(np.float32) / 255.0
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        normalized = (norm_01 - mean) / std
+
+        # NCHW format
+        chw = np.transpose(normalized, (2, 0, 1))
+        inp_tensor = np.expand_dims(chw, axis=0).astype(np.float32)
+
+        # 2. Run ONNX Inference
+        inp_name = self._onnx_session.get_inputs()[0].name
+        out = self._onnx_session.run(None, {inp_name: inp_tensor})[0]
+        score = float(np.squeeze(out))
+
+        # 3. Decode continuous ordinal regression score
+        grade_val = 0
+        for th in self.thresholds:
+            if score > th:
+                grade_val += 1
+        grade_val = min(4, max(0, grade_val))
+        grade = DRGrade(grade_val)
+
+        # 4. Uncertainty & Synthetic Soft Distribution for backward compatibility
+        dist_to_boundary = min(abs(score - th) for th in self.thresholds)
+        uncertainty = float(np.exp(-dist_to_boundary))
+
+        # Honest probabilities approximation centered around continuous grade score
+        sigma = 0.65
+        raw_probs = [float(np.exp(-0.5 * ((c - score) / sigma) ** 2)) for c in range(5)]
+        total_p = sum(raw_probs)
+        probs = [p / total_p for p in raw_probs]
+
+        sorted_indices = np.argsort(probs)[::-1]
+        top1_idx = int(sorted_indices[0])
+        top2_idx = int(sorted_indices[1])
+        top1_conf = float(probs[top1_idx])
+        margin = float(top1_conf - probs[top2_idx])
+
+        return DRClassificationResult(
+            predicted_grade=grade,
+            probabilities=probs,
+            confidence=top1_conf,
+            top2_margin=margin,
+            is_referable=score >= 1.5,
+            raw_score=score,
+            uncertainty=uncertainty,
+            model_id="drdetect_ordinal",
+        )
 
     def _load_as_pil(self, image_input: str | np.ndarray | Image.Image) -> Image.Image:
         try:

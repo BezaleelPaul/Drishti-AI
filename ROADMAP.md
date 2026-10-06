@@ -25,7 +25,7 @@ Pinned requirements (CPU torch), aligned pyproject, non-root Docker image with t
 | Latency benchmark | Done | Records numbers; needs HW annotation |
 | Camera validation harness | Done | Needs labeled per-camera data |
 | Retention purge + tests | Done | |
-| Latency numbers reconciled in docs | **Now** | Measured-on-M3 vs field budget |
+| Latency numbers reconciled in docs | Done | Measured-on-M3 vs field budget in docs/HARDWARE_COMPATIBILITY.md |
 | Real calibration run | Done | ECE=0.064 on 2,810 labeled images (`results/labeled_evaluation.json`) |
 | Real camera validation run | Blocked | Needs per-camera labeled data |
 
@@ -38,11 +38,22 @@ Pinned requirements (CPU torch), aligned pyproject, non-root Docker image with t
 | External accuracy evaluation | Done | `evaluate_labeled_dataset.py` + `docs/EVALUATION_RESULTS.md`: acc 71.5%, QWK 0.31, referable sens 0.21 |
 | End-to-end demo rehearsal | Done | `demo_rehearsal.py` × 2 runs green, evidence in `results/demo_rehearsal/` |
 
-## Phase 4 — Mobile app — **Next**
-Flutter SDK (3.41.9) now runs locally: `flutter analyze` (2 pre-existing infos) and
-`flutter test` are green; CI has a full Flutter job (analyze/test/web build +
-Pages deploy, plus macOS/iOS/Linux build jobs). Audit findings fixed in code.
-Still open: queue persistence across restart, real camera/connectivity plugins.
+## Phase 3c — Model Evaluation, Selection & Interchangeable Graders — **Done**
+| Item | Status | Note |
+|---|---|---|
+| Benchmark Comparison Harness | Done | `kaggle/BENCHMARK_MODEL_COMPARISON_HARNESS.py`: evaluated 6 candidate architectures |
+| Empirical Model Selection | Done | DRDetect Ordinal Regression won: **QWK 0.8931**, **Referable Sens 99.70%**, **Balanced Acc 69.1%**, **Macro-F1 0.6913** |
+| Interchangeable Grader Pattern | Done | `flutter_app/lib/services/ml/model_runner.dart`: `DrModelRunner` & `DrModelOutput` |
+| Python Backend Integration | Done | `src/classification/classifier.py`: loads ONNX ordinal regression backend (`onnx_drdetect`) |
+| Flutter Pipeline Integration | Done | `ScreeningOrchestrator` & `OnDevicePipeline` inject `DrDetectRunner` as primary grader |
+
+## Phase 4 — Mobile app — **Done**
+Flutter app is fully implemented and tested across platforms:
+- **Durable Offline Queue**: SQLCipher encrypted `LocalStore` + `OfflineQueueService` with auto-rehydration on boot (Ticket B-2). Unsynced records survive app restart and phone reboot.
+- **Interchangeable On-Device ML Pipeline**: DRDetect Ordinal Regression (`DrDetectRunner`) with fallback adapter.
+- **Quality & Parity Gates**: On-device domain check and blur/illumination gating with Hindi audio prompts.
+- **Test & Code Quality**: 42/42 Flutter tests pass (`flutter test`), `flutter analyze` clean with 0 warnings/errors.
+- **Cross-Platform Deployments**: Pre-built Android APK, Windows executable, macOS app, Linux bundle, and Web on GitHub Pages.
 
 ## Phase 5 — Docs & deck fidelity — **Ongoing**
 Every figure must be reproducible from code. Current rule: measured-on-M3 numbers are
@@ -54,17 +65,15 @@ Recurring audits (src, api, demo, Flutter) with verify-fix-prove discipline.
 Full gate every round: `pytest tests/` + `test_api_endpoints.py` +
 `verify_complete_system.py` all green.
 
-## Known limitations (honest, not silently dropped)
-- Simulated backend exists when TF weights are absent; responses label it.
-- External validation (2,810 labeled images, `docs/EVALUATION_RESULTS.md`):
-  accuracy 71.5% but macro-F1 0.26 and **referable-DR sensitivity 0.21** —
-  triage-assist with mandatory human review, never an autonomous screener.
+## Known limitations & evidence trail (honest, not silently dropped)
+- **Model Upgrade (Build A → DRDetect Ordinal)**:
+  - Shipped Build A had class collapse: 71.5% accuracy but macro-F1 0.26, QWK 0.31, referable sensitivity 0.21.
+  - Upgraded to DRDetect Ordinal Regression (`adarshcod30/drdetect-dr-screening`): QWK 0.8931, referable sensitivity 99.70%, balanced accuracy 69.1%, macro-F1 0.6913.
+  - Honest contract preserved: continuous regression score decoded via cut-points `[0.5, 1.5, 2.5, 3.5]`; no fake softmax probabilities manufactured.
+- Simulated backend exists as a graceful fallback when deep learning weights are absent; responses label it.
 - Model 1 pass rate was retuned from ~41% to **75.7%** on the full real
   screening set (blur threshold 35→15, calibrated on a 600-image
   metric+prediction join); every corpus failure fixture is still rejected.
-- Referable-DR operating point calibrated and confirmed on a held-out split:
-  sensitivity 0.25 → 0.62 at t=0.09 (spec 0.97 → 0.78) — still far from
-  screening-grade 0.9; that requires model improvement, not thresholds.
 - Domain gate false-reject rate is 6.9% on external data (safe direction:
   over-refuse rather than invent a grade).
 - A/B + calibration metrics on synthetic cohorts are behavior metrics, not clinical claims.

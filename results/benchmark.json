@@ -1,66 +1,38 @@
 {
-  "model_backend": "keras",
+  "model_backend": "onnx_drdetect",
   "hardware": {
-    "system": "Darwin",
-    "machine": "arm64",
-    "processor": "arm",
-    "python": "3.11.15",
-    "cpu_brand": "Apple M3"
+    "system": "Windows",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 142 Stepping 9, GenuineIntel",
+    "python": "3.12.10"
   },
   "note": "Wall-clock on the machine that ran the script; not transferable to field hardware. Re-run on target devices for capacity planning.",
   "sizes": {
-    "256": {
-      "quality_gate": {
-        "median_ms": 0.9,
-        "min_ms": 0.9,
-        "max_ms": 1.0
-      },
-      "segmentation": {
-        "median_ms": 2.2,
-        "min_ms": 2.1,
-        "max_ms": 2.3
-      },
-      "classifier": {
-        "median_ms": 68.9,
-        "min_ms": 67.8,
-        "max_ms": 70.5
-      },
-      "gradcam": {
-        "median_ms": 15.2,
-        "min_ms": 5.7,
-        "max_ms": 33.3
-      },
-      "full_router": {
-        "median_ms": 73.3,
-        "min_ms": 73.0,
-        "max_ms": 73.7
-      }
-    },
     "512": {
       "quality_gate": {
-        "median_ms": 3.1,
-        "min_ms": 3.0,
-        "max_ms": 3.2
+        "median_ms": 177.7,
+        "min_ms": 172.0,
+        "max_ms": 183.5
       },
       "segmentation": {
-        "median_ms": 9.0,
-        "min_ms": 8.9,
-        "max_ms": 9.5
+        "median_ms": 80.0,
+        "min_ms": 69.1,
+        "max_ms": 90.9
       },
       "classifier": {
-        "median_ms": 67.2,
-        "min_ms": 66.4,
-        "max_ms": 106.5
+        "median_ms": 560.8,
+        "min_ms": 543.5,
+        "max_ms": 578.1
       },
       "gradcam": {
-        "median_ms": 11.3,
-        "min_ms": 10.5,
-        "max_ms": 12.4
+        "median_ms": 100.2,
+        "min_ms": 95.1,
+        "max_ms": 105.3
       },
       "full_router": {
-        "median_ms": 81.7,
-        "min_ms": 79.4,
-        "max_ms": 83.4
+        "median_ms": 1014.2,
+        "min_ms": 945.7,
+        "max_ms": 1082.7
       }
     }
   }
