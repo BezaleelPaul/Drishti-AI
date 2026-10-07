@@ -27,7 +27,7 @@ class ApiService {
   /// because scanners flag any plaintext endpoint in the package.
   static const String defaultBaseUrl = String.fromEnvironment(
     'DRISHTI_BASE_URL',
-    defaultValue: 'https://api.drishti-ai.in',
+    defaultValue: 'https://drishti-ai-xg6w.onrender.com',
   );
 
   /// API key for the Drishti-AI backend (X-API-Key header).
