@@ -79,3 +79,6 @@ flutter_app/.flutter-plugins-dependencies
 
 # TFLite conversion build products (the gated artifact lives in flutter_app/assets/models/)
 scripts/convert/out/
+
+# Playwright MCP session artifacts
+.playwright-mcp/
