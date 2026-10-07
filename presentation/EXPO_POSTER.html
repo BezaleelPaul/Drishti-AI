@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drishti-AI — TechUtsav 2.0 Expo Poster</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0F172A;
+      --secondary: #1E293B;
+      --accent: #0284C7;
+      --accent-light: #38BDF8;
+      --accent-green: #10B981;
+      --accent-amber: #F59E0B;
+      --accent-rose: #F43F5E;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --card-bg: rgba(30, 41, 59, 0.85);
+      --card-border: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--primary);
+      color: var(--text-main);
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+
+    /* Print Setup for A1/A2/A3 Poster */
+    @page {
+      size: A2 landscape;
+      margin: 12mm;
+    }
+
+    @media print {
+      body {
+        padding: 0;
+        background: #0B1120 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .poster-container {
+        box-shadow: none !important;
+        border: none !important;
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+
+    .poster-container {
+      width: 1400px;
+      max-width: 100%;
+      background: radial-gradient(circle at top right, #1E293B 0%, #0F172A 100%);
+      border: 2px solid #334155;
+      border-radius: 20px;
+      padding: 36px 44px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+    }
+
+    /* Header Section */
+    .header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      border-bottom: 2px solid #334155;
+      padding-bottom: 24px;
+      margin-bottom: 28px;
+      gap: 24px;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(2, 132, 199, 0.2);
+      border: 1px solid var(--accent);
+      color: var(--accent-light);
+      padding: 4px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .header-title {
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #FFFFFF 0%, #BAE6FD 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-sub {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--accent-light);
+      margin-top: 6px;
+    }
+
+    .team-badge-box {
+      text-align: right;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 16px 20px;
+      border-radius: 14px;
+    }
+
+    .team-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--accent-light);
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .team-names {
+      font-size: 15px;
+      font-weight: 700;
+      color: #FFFFFF;
+      line-height: 1.5;
+    }
+
+    /* Grid Layout */
+    .grid-3col {
+      display: grid;
+      grid-template-columns: 31% 38% 31%;
+      gap: 24px;
+    }
+
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    /* Card Styling */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      position: relative;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #FFFFFF;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .card-title .icon {
+      font-size: 20px;
+    }
+
+    p, li {
+      font-size: 14px;
+      color: #E2E8F0;
+      line-height: 1.55;
+    }
+
+    ul {
+      list-style-type: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    li {
+      position: relative;
+      padding-left: 18px;
+    }
+
+    li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--accent-light);
+      font-weight: bold;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    /* Metric Callouts */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .metric-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid #334155;
+      padding: 12px 14px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .metric-val {
+      font-size: 28px;
+      font-weight: 900;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-light);
+      line-height: 1.1;
+    }
+
+    .metric-val.green { color: var(--accent-green); }
+    .metric-val.amber { color: var(--accent-amber); }
+
+    .metric-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+
+    /* Architecture Box */
+    .arch-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 8px 0;
+    }
+
+    .arch-node {
+      background: rgba(15, 23, 42, 0.8);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    .arch-node.model0 { border-left-color: var(--accent-amber); }
+    .arch-node.model1 { border-left-color: var(--accent-light); }
+    .arch-node.model2 { border-left-color: var(--accent-green); }
+    .arch-node.explain { border-left-color: #A855F7; }
+
+    .arch-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-bottom: 3px;
+    }
+
+    .arch-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Comparison Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    th {
+      text-align: left;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 8px 10px;
+      color: var(--accent-light);
+      font-weight: 700;
+      border-bottom: 2px solid #334155;
+    }
+
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #334155;
+      color: #E2E8F0;
+    }
+
+    /* QR Code and Footer */
+    .footer-bar {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 2px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .qr-section {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .qr-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 8px 14px;
+      border-radius: 10px;
+    }
+
+    .qr-box {
+      width: 60px;
+      height: 60px;
+      background: white;
+      padding: 4px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .qr-box img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .qr-text {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .qr-sub {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .print-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .print-btn:hover {
+      background: #0284c7;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="poster-container">
+
+    <!-- Top Action Bar -->
+    <div class="no-print" style="margin-bottom: 16px; display: flex; justify-content: flex-end;">
+      <button class="print-btn" onclick="window.print()">
+        🖨️ Print / Save as PDF (A1/A2/A3)
+      </button>
+    </div>
+
+    <!-- Header Section -->
+    <header class="header">
+      <div>
+        <div class="header-badge">TechUtsav 2.0 • MathWorks SIH26038 Finalist</div>
+        <h1 class="header-title">Drishti-AI: Universal Retinal Screening</h1>
+        <p class="header-sub">Clinically-Gated, Explainable AI for Rural Primary Health Centres</p>
+      </div>
+
+      <div class="team-badge-box">
+        <div class="team-title">Team Drishti • CMR SOET</div>
+        <div class="team-names">
+          Bezaleel • Madhu • Akshay<br>
+          Adithya • Sinduri • Megha
+        </div>
+      </div>
+    </header>
+
+    <!-- 3-Column Content Layout -->
+    <div class="grid-3col">
+
+      <!-- Column 1: Problem & Clinical Gate -->
+      <div class="col">
+        
+        <!-- Problem Statement -->
+        <div class="card">
+          <div class="card-title"><span class="icon">🚨</span> The Clinical Problem</div>
+          <p>
+            India has <strong>77+ million diabetic patients</strong>, yet rural areas suffer from only <strong>1 ophthalmologist per 100,000 citizens</strong>.
+          </p>
+          <ul style="margin-top: 10px;">
+            <li><strong>Asymptomatic Blindness:</strong> Diabetic Retinopathy causes irreversible capillary loss before vision drops.</li>
+            <li><strong>The AI Failure Mode:</strong> Commercial deep learning models force diagnoses even on blurry, ungradable handheld captures—causing catastrophic false triage.</li>
+            <li><strong>Hardware Monopoly:</strong> Standard tools require ₹20L tabletop machines and cloud GPUs unreachable by rural PHCs.</li>
+          </ul>
+        </div>
+
+        <!-- Architecture & Flow -->
+        <div class="card">
+          <div class="card-title"><span class="icon">⚡</span> 3-Stage Gated Architecture</div>
+          <div class="arch-flow">
+            <div class="arch-node model0">
+              <div class="arch-title">Stage 0: Fundus Domain Gate</div>
+              <div class="arch-desc">Rejects non-retinal fixtures (skin, documents, room backgrounds). 100% rejection rate on adversarial red-team corpus.</div>
+            </div>
+            <div class="arch-node model1">
+              <div class="arch-title">Stage 1: Model 1 Quality Gate</div>
+              <div class="arch-desc">Multi-scale Laplacian blur, illumination & FOV triage (<180ms). Biological root cause feedback (cataract vs. pupil dilation).</div>
+            </div>
+            <div class="arch-node model2">
+              <div class="arch-title">Stage 2: DRDetect Classifier</div>
+              <div class="arch-desc">EfficientNetB0 Ordinal Regression head on 512px. Continuous severity decoding (Grades 0 to 4).</div>
+            </div>
+            <div class="arch-node explain">
+              <div class="arch-title">Stage 3: Explainability & Biomarkers</div>
+              <div class="arch-desc">Grad-CAM++ visual heatmaps in <1.2s on CPU. Optic disc, fovea, & CSME macular risk segmentation.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Column 2: Results & Core Innovations -->
+      <div class="col">
+
+        <!-- Empirical Results -->
+        <div class="card">
+          <div class="card-title"><span class="icon">📊</span> Verified Benchmark Results</div>
+          
+          <div class="metric-grid">
+            <div class="metric-box">
+              <div class="metric-val green">0.8931</div>
+              <div class="metric-lbl">Quadratic Kappa (QWK)</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val green">99.70%</div>
+              <div class="metric-lbl">Referable Sensitivity</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val">< 180 ms</div>
+              <div class="metric-lbl">End-to-End CPU Latency</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val green">0%</div>
+              <div class="metric-lbl">Diagnostic Leakage</div>
+            </div>
+          </div>
+
+          <p style="margin-top: 14px; font-size: 13px;">
+            Evaluated across <strong>2,810 real clinical retinal fundus images</strong>. Surpasses the international clinical deployment threshold (0.80 QWK) with virtually zero referable diabetic cases missed.
+          </p>
+        </div>
+
+        <!-- Innovations / USPs -->
+        <div class="card">
+          <div class="card-title"><span class="icon">💡</span> Core Engineering Innovations</div>
+          <ul>
+            <li><strong>Zero Diagnostic Leakage:</strong> Enforces a strict fail-closed contract. Degraded captures are <em>never</em> assigned a speculative DR grade.</li>
+            <li><strong>100% Offline Edge Execution:</strong> Runs completely without internet or external cloud APIs on entry-level Intel Core i3 / AMD Ryzen 3 laptops.</li>
+            <li><strong>Real-Time Hindi Audio Guidance:</strong> Equips rural ASHA workers with instant spoken coaching on patient positioning and camera focus.</li>
+            <li><strong>Durable SQLCipher Offline Queue:</strong> Screenings and encrypted medical records survive phone power-off and sync automatically upon reconnection.</li>
+            <li><strong>MathWorks Telemedicine Model:</strong> 100,000-patient Simulink queuing simulation proves <strong>99.1% bandwidth savings</strong> across rural district networks.</li>
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- Column 3: Tech Stack, Applications & Scope -->
+      <div class="col">
+
+        <!-- Competitive Differentiation -->
+        <div class="card">
+          <div class="card-title"><span class="icon">🥊</span> Why Drishti-AI Wins</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Standard AI</th>
+                <th>Drishti-AI</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Camera</strong></td>
+                <td>₹20L Tabletop</td>
+                <td><strong>Any Handheld (₹15k+)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Internet</strong></td>
+                <td>High-speed Cloud</td>
+                <td><strong>100% Offline (Local CPU)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Bad Images</strong></td>
+                <td>Forced Diagnosis</td>
+                <td><strong>Model 1 Gate + Audio</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Explainability</strong></td>
+                <td>Black Box</td>
+                <td><strong>Sub-1.2s Grad-CAM++</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Standard</strong></td>
+                <td>Proprietary</td>
+                <td><strong>ABDM FHIR R4 Compliant</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Applications & Future Scope -->
+        <div class="card">
+          <div class="card-title"><span class="icon">🚀</span> Real-World Deployment & Scope</div>
+          <ul>
+            <li><strong>Frontline Rural Camps:</strong> Door-to-door triage by ASHA workers using Android smartphones with lens attachments.</li>
+            <li><strong>Primary Health Centres (PHCs):</strong> Dedicated offline screening stations running on existing government laptops.</li>
+            <li><strong>District Tele-Ophthalmology:</strong> Central doctors review flagged high-risk scans with ABDM FHIR R4 records and bilingual PDF slips.</li>
+            <li><strong>Next Steps:</strong> USB Video Class (UVC) direct fundus camera live-feed drivers and regional multicenter hospital trials.</li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Footer Bar & QR Codes -->
+    <footer class="footer-bar">
+      <div class="qr-section">
+        
+        <div class="qr-item">
+          <div class="qr-box">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://bezaleelpaul.github.io/Drishti-AI/" alt="Live Web App QR">
+          </div>
+          <div>
+            <div class="qr-text">Live Web Application</div>
+            <div class="qr-sub">bezaleelpaul.github.io/Drishti-AI</div>
+          </div>
+        </div>
+
+        <div class="qr-item">
+          <div class="qr-box">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://github.com/BezaleelPaul/Drishti-AI" alt="GitHub Repository QR">
+          </div>
+          <div>
+            <div class="qr-text">GitHub Open Source</div>
+            <div class="qr-sub">github.com/BezaleelPaul/Drishti-AI</div>
+          </div>
+        </div>
+
+        <div class="qr-item">
+          <div class="qr-box">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://drishti-ai-xg6w.onrender.com/docs" alt="API Documentation QR">
+          </div>
+          <div>
+            <div class="qr-text">Live FastAPI Cloud Docs</div>
+            <div class="qr-sub">drishti-ai-xg6w.onrender.com/docs</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="text-align: right;">
+        <div style="font-size: 14px; font-weight: 800; color: #FFFFFF;">Smart India Hackathon 2026 • Problem SIH26038</div>
+        <div style="font-size: 12px; color: var(--text-muted);">Empowering Rural Healthcare Delivery Across Bharat</div>
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>
