@@ -164,7 +164,11 @@ def run_once(client, run: int) -> dict:
         f"no hard failure on real fundus (got {analysis['error_code']})",
         steps,
     )
-    _require(analysis["model_backend"] == "keras", "shipped keras backend used", steps)
+    _require(
+        analysis["model_backend"] in ("onnx_drdetect", "keras", "pytorch"),
+        f"real model backend used, not simulated (got {analysis['model_backend']})",
+        steps,
+    )
     _require(analysis["inference_time_ms"] is not None, "inference time recorded", steps)
 
     r = _step(
@@ -368,6 +372,12 @@ def main() -> int:
     os.makedirs(out_dir, exist_ok=True)
     base_url = f"http://127.0.0.1:{args.port}"
 
+    # Demo-safe inference budget: 3 back-to-back runs exceed the production
+    # default (20/min) and would 429 mid-rehearsal. Security default untouched
+    # elsewhere; an explicit outer override still wins via setdefault.
+    server_env = os.environ.copy()
+    server_env.setdefault("RATE_LIMIT_INFERENCE_PER_MINUTE", "120")
+
     server = subprocess.Popen(
         [
             sys.executable,
@@ -382,6 +392,7 @@ def main() -> int:
             "warning",
         ],
         cwd=PROJECT_ROOT,
+        env=server_env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
     )

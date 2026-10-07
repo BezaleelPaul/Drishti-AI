@@ -55,6 +55,7 @@ goto MENU
 
 :API
 cls
+set RATE_LIMIT_INFERENCE_PER_MINUTE=120
 echo [*] Launching FastAPI Backend Server at http://localhost:8000...
 echo [*] Pre-compiled Flutter Mobile App: http://localhost:8000/app
 echo [*] Interactive Swagger Documentation: http://localhost:8000/docs

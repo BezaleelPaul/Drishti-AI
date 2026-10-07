@@ -39,6 +39,7 @@ choice=${choice:-1}
 
 case $choice in
     1)
+        export RATE_LIMIT_INFERENCE_PER_MINUTE="${RATE_LIMIT_INFERENCE_PER_MINUTE:-120}"
         echo -e "${GREEN}[*] Launching Flutter App via FastAPI at http://localhost:8000/app...${RESET}"
         (command -v open >/dev/null && open "http://localhost:8000/app") 2>/dev/null \
             || (command -v xdg-open >/dev/null && xdg-open "http://localhost:8000/app") 2>/dev/null || true

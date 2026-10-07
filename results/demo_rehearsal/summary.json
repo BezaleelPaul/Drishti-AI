@@ -1,20 +1,44 @@
 {
-  "runs": 1,
+  "runs": 3,
   "all_ok": true,
   "runs_detail": [
     {
       "run": 1,
-      "wall_seconds": 31.62,
-      "screening_id": "SCR-1B62B68F9E76",
-      "dr_grade": 0,
-      "error_code": null,
-      "inference_time_ms": 12173.2,
+      "wall_seconds": 5.84,
+      "screening_id": "SCR-B2FCEF92F02C",
+      "dr_grade": 1,
+      "error_code": "AI_LOW_CONFIDENCE",
+      "inference_time_ms": 597.6,
+      "adverse_error_code": "IMG_NOT_FUNDUS",
+      "assertions_passed": 23,
+      "steps": 13
+    },
+    {
+      "run": 2,
+      "wall_seconds": 3.02,
+      "screening_id": "SCR-F367C4FB29BB",
+      "dr_grade": 1,
+      "error_code": "AI_LOW_CONFIDENCE",
+      "inference_time_ms": 588.8,
+      "adverse_error_code": "IMG_NOT_FUNDUS",
+      "assertions_passed": 23,
+      "steps": 13
+    },
+    {
+      "run": 3,
+      "wall_seconds": 2.77,
+      "screening_id": "SCR-504107C9AC59",
+      "dr_grade": 1,
+      "error_code": "AI_LOW_CONFIDENCE",
+      "inference_time_ms": 496.1,
       "adverse_error_code": "IMG_NOT_FUNDUS",
       "assertions_passed": 23,
       "steps": 13
     }
   ],
   "evidence": [
-    "rehearsal_run1.json"
+    "rehearsal_run1.json",
+    "rehearsal_run2.json",
+    "rehearsal_run3.json"
   ]
 }
