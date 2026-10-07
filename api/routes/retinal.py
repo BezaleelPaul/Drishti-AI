@@ -8,7 +8,13 @@ from fastapi.concurrency import run_in_threadpool
 
 from api.auth import ApiPrincipal, audit_action, require_auth
 from api.database import get_db, save_screening_record
-from api.schemas import RetinalAnalysisResponse, RetinalQualityResponse
+from api.schemas import (
+    DashboardScreeningsResponse,
+    DashboardStats,
+    RecentScreeningItem,
+    RetinalAnalysisResponse,
+    RetinalQualityResponse,
+)
 from api.services.ai_bridge import AIBridge
 from src.classification.classifier import ClinicalModelUnavailableError
 
@@ -153,6 +159,103 @@ async def analyze_retinal_image(
         raise HTTPException(status_code=500, detail="Screening completed but persistence failed.")
 
     return RetinalAnalysisResponse(**analysis)
+
+
+_DASHBOARD_REJECTION_TEXT = {
+    "IMG_NOT_FUNDUS": "Not a fundus image",
+    "IMG_UNGRADABLE": "Ungradable image",
+}
+
+
+def _dashboard_row_item(r: sqlite3.Row) -> RecentScreeningItem:
+    error_code = r["error_code"] if "error_code" in r.keys() else None
+    ref = r["is_referable"]
+    grade_label = r["dr_grade_label"]
+    rejected = r["quality_grade"] == "BAD" or error_code in (
+        "IMG_NOT_FUNDUS",
+        "IMG_UNGRADABLE",
+    )
+    if rejected:
+        status = "rejected"
+    elif ref:
+        status = "referral"
+    elif r["requires_human_review"]:
+        status = "awaiting_specialist"
+    else:
+        status = "verified"
+    if grade_label:
+        result_text = grade_label
+    elif error_code in _DASHBOARD_REJECTION_TEXT:
+        result_text = _DASHBOARD_REJECTION_TEXT[error_code]
+    elif rejected:
+        result_text = "Quality rejected"
+    else:
+        result_text = "Pending"
+    return RecentScreeningItem(
+        screening_id=r["screening_id"],
+        patient_id=r["patient_id"],
+        patient_name=r["patient_name"],
+        created_at=r["created_at"],
+        dr_grade_num=r["dr_grade_num"],
+        dr_grade_label=grade_label,
+        result_text=result_text,
+        is_referable=None if ref is None else bool(ref),
+        requires_human_review=bool(r["requires_human_review"]),
+        status=status,
+    )
+
+
+@router.get("/screenings", response_model=DashboardScreeningsResponse)
+def get_dashboard_screenings(
+    limit: int = Query(6, ge=1, le=50),
+    _principal: ApiPrincipal = Depends(require_auth),
+):
+    """Live PHC dashboard feed: recent screenings (patient names joined)
+    plus the tile counters, all computed from the database at request time."""
+    audit_action(_principal, "screening_list_read", "global")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+        SELECT s.screening_id, s.patient_id, p.name AS patient_name,
+               s.created_at, s.dr_grade_num, s.dr_grade_label,
+               s.is_referable, s.requires_human_review, s.quality_grade,
+               s.error_code
+        FROM screenings s
+        LEFT JOIN patients p ON p.patient_id = s.patient_id
+        ORDER BY s.created_at DESC
+        LIMIT ?
+        """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+
+        cursor.execute(
+            """
+        SELECT COUNT(*) AS n FROM screenings
+        WHERE date(created_at, 'localtime') = date('now', 'localtime')
+        """
+        )
+        today_screenings = cursor.fetchone()["n"]
+
+        cursor.execute("SELECT COUNT(*) AS n FROM doctor_reviews WHERE status = 'PENDING'")
+        awaiting_specialist = cursor.fetchone()["n"]
+
+        cursor.execute("SELECT COUNT(*) AS n FROM screenings WHERE is_referable = 1")
+        urgent_referrals = cursor.fetchone()["n"]
+
+        cursor.execute("SELECT COUNT(*) AS n FROM screenings")
+        total_screenings = cursor.fetchone()["n"]
+
+    return DashboardScreeningsResponse(
+        items=[_dashboard_row_item(r) for r in rows],
+        stats=DashboardStats(
+            today_screenings=today_screenings,
+            awaiting_specialist=awaiting_specialist,
+            urgent_referrals=urgent_referrals,
+            total_screenings=total_screenings,
+        ),
+    )
 
 
 @router.get("/screenings/{patient_id}", response_model=list[RetinalAnalysisResponse])

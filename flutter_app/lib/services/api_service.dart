@@ -518,6 +518,23 @@ class ApiService {
     }
   }
 
+  /// Live PHC dashboard feed (GET /screenings): recent screenings with
+  /// patient names plus tile counters. Returns null when offline or on
+  /// unexpected responses so callers fall back to labeled demo fixtures.
+  Future<Map<String, dynamic>?> getDashboardScreenings({int limit = 6}) async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/screenings?limit=$limit'), headers: _headers)
+          .timeout(_shortTimeout);
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Submits a specialist verdict (POST /review/{id}).
   /// Maps demo-flow 'CONFIRMED' to the backend 'CONFIRM' allowlist.
   Future<Map<String, dynamic>> submitDoctorDecision({

@@ -379,3 +379,34 @@ class SystemStatusResponse(BaseModel):
     offline_queue_ready: bool = True
     models_loaded: dict[str, str]
     last_sync_time: str
+
+
+# -----------------------------------------------------------------------------
+# 7. PHC Dashboard Schemas
+# -----------------------------------------------------------------------------
+class RecentScreeningItem(BaseModel):
+    screening_id: str
+    patient_id: str
+    patient_name: str | None = None
+    created_at: str
+    dr_grade_num: int | None = None
+    dr_grade_label: str | None = None
+    result_text: str
+    is_referable: bool | None = None
+    requires_human_review: bool = False
+    status: str = Field(
+        ...,
+        description="One of: verified | referral | awaiting_specialist | rejected",
+    )
+
+
+class DashboardStats(BaseModel):
+    today_screenings: int = 0
+    awaiting_specialist: int = 0
+    urgent_referrals: int = 0
+    total_screenings: int = 0
+
+
+class DashboardScreeningsResponse(BaseModel):
+    items: list[RecentScreeningItem]
+    stats: DashboardStats

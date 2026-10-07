@@ -113,3 +113,38 @@ def test_empty_db_path_falls_back_to_default_location():
         "screening_platform.db",
     )
     assert _resolve_db_path("") == expected
+
+
+def test_dashboard_screenings_requires_auth():
+    response = client.get("/screenings")
+
+    assert response.status_code in (401, 403)
+
+
+def test_dashboard_screenings_returns_stats_and_recent_items():
+    response = client.get("/screenings", headers=OPERATOR_HEADERS)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    stats = body["stats"]
+    for key in (
+        "today_screenings",
+        "awaiting_specialist",
+        "urgent_referrals",
+        "total_screenings",
+    ):
+        assert isinstance(stats[key], int)
+        assert stats[key] >= 0
+    assert stats["today_screenings"] <= stats["total_screenings"]
+    assert isinstance(body["items"], list)
+    assert len(body["items"]) <= 50
+    for item in body["items"]:
+        for key in ("screening_id", "patient_id", "created_at", "result_text", "status"):
+            assert key in item
+        assert item["status"] in {
+            "verified",
+            "referral",
+            "awaiting_specialist",
+            "rejected",
+        }
+        assert item["result_text"]

@@ -32,6 +32,8 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   final _api = ApiService();
   bool? _online; // null = unknown (probing)
   int _queuedCount = 0;
+  int _queuedAi = 0;
+  Map<String, dynamic>? _live;
   Timer? _poll;
 
   @override
@@ -53,12 +55,53 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     final deid = await OfflineQueueService.instance.restoreKind(
       OfflineQueueService.kindDeidReferral,
     );
+    final live = online ? await _api.getDashboardScreenings() : null;
     if (!mounted) return;
     setState(() {
       _online = online;
       _queuedCount =
           persisted.screenings.length + persisted.patients.length + deid.length;
+      _queuedAi = persisted.screenings.length;
+      _live = live;
     });
+  }
+
+  bool get _liveReady {
+    final items = _live?['items'];
+    return items is List && items.isNotEmpty;
+  }
+
+  List<(String, String, String, String, FigmaStatus)> get _rows {
+    final items = _live?['items'];
+    if (_liveReady && items is List) {
+      return items.whereType<Map<String, dynamic>>().map(_liveRow).toList();
+    }
+    return _recent;
+  }
+
+  (String, String, String, String, FigmaStatus) _liveRow(
+    Map<String, dynamic> item,
+  ) {
+    final name = item['patient_name'];
+    final hasName = name is String && name.isNotEmpty;
+    final pid = (item['patient_id'] ?? '').toString();
+    final result = (item['result_text'] ?? '').toString();
+    final status = liveStatusFor(item['status'] as String?);
+    return (
+      hasName ? pid : '',
+      hasName ? name : pid,
+      formatScreeningDate(item['created_at'] as String?),
+      result,
+      status,
+    );
+  }
+
+  String _tileValue(String key, String fallback) {
+    final stats = _live?['stats'];
+    if (stats is Map<String, dynamic> && stats[key] is num) {
+      return (stats[key] as num).toString();
+    }
+    return fallback;
   }
 
   static const _recent = [
@@ -277,7 +320,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                         _statCard(
                           context,
                           'todays_screenings',
-                          '8',
+                          _tileValue('today_screenings', '8'),
                           FigmaColors.primaryDark,
                           FigmaColors.primarySoft,
                           FigmaColors.primaryBorder,
@@ -285,7 +328,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                         _statCard(
                           context,
                           'awaiting_ai',
-                          '2',
+                          '$_queuedAi',
                           const Color(0xFFB45309),
                           const Color(0xFFFFFBEB),
                           const Color(0xFFFDE68C),
@@ -293,7 +336,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                         _statCard(
                           context,
                           'awaiting_specialist',
-                          '3',
+                          _tileValue('awaiting_specialist', '3'),
                           FigmaColors.purple,
                           const Color(0xFFFAF5FF),
                           const Color(0xFFE9D5FF),
@@ -301,66 +344,67 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                         _statCard(
                           context,
                           'urgent_referrals',
-                          '1',
+                          _tileValue('urgent_referrals', '1'),
                           const Color(0xFFB91C1C),
                           const Color(0xFFFEF2F2),
                           const Color(0xFFFECACA),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    // Offline banner
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: FigmaColors.border),
-                      ),
-                      child: Row(
-                        children: [
-                          const Text('📡', style: TextStyle(fontSize: 20)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '1 ${context.tr('case_waiting')}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                    color: FigmaColors.text,
+                    if (_queuedCount > 0) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: FigmaColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('📡', style: TextStyle(fontSize: 20)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '$_queuedCount ${context.tr('case_waiting')}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      color: FigmaColors.text,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  context.tr('captured_offline'),
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: FigmaColors.muted,
+                                  Text(
+                                    context.tr('captured_offline'),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: FigmaColors.muted,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => _openQueue(context),
-                            child: Text(
-                              context.tr('view_arrow'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: FigmaColors.primaryDark,
+                                ],
                               ),
                             ),
-                          ),
-                        ],
+                            TextButton(
+                              onPressed: () => _openQueue(context),
+                              child: Text(
+                                context.tr('view_arrow'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: FigmaColors.primaryDark,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 16),
                     Text(
                       context.tr('recent_screenings'),
@@ -372,9 +416,9 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                     ),
                     const SizedBox(height: 8),
                     if (wide)
-                      _recentTable(context)
+                      _recentTable(context, _rows)
                     else
-                      ..._recent.map(
+                      ..._rows.map(
                         (s) => Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: _recentCard(context, s),
@@ -408,10 +452,11 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
           context.tr('dash_subtitle'),
           style: const TextStyle(fontSize: 13, color: FigmaColors.muted),
         ),
-        Text(
-          context.tr('demo_data'),
-          style: const TextStyle(fontSize: 11, color: FigmaColors.faint),
-        ),
+        if (!_liveReady)
+          Text(
+            context.tr('demo_data'),
+            style: const TextStyle(fontSize: 11, color: FigmaColors.faint),
+          ),
       ],
     );
   }
@@ -529,7 +574,10 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     );
   }
 
-  Widget _recentTable(BuildContext context) {
+  Widget _recentTable(
+    BuildContext context,
+    List<(String, String, String, String, FigmaStatus)> rows,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -553,7 +601,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
               ],
             ),
           ),
-          ..._recent.map(
+          ...rows.map(
             (s) => InkWell(
               onTap: () => _openHistory(context),
               child: Container(
@@ -621,4 +669,42 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
       ),
     );
   }
+}
+
+const _monthAbbrevs = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+FigmaStatus liveStatusFor(String? status) {
+  switch (status) {
+    case 'referral':
+      return FigmaStatus.referral;
+    case 'awaiting_specialist':
+      return FigmaStatus.awaitingSpecialist;
+    case 'rejected':
+      return FigmaStatus.rejected;
+    case 'awaiting_ai':
+      return FigmaStatus.awaitingAi;
+    default:
+      return FigmaStatus.verified;
+  }
+}
+
+String formatScreeningDate(String? raw) {
+  if (raw == null || raw.isEmpty) return '—';
+  final parsed = DateTime.tryParse(raw)?.toLocal();
+  if (parsed == null) return raw.length >= 10 ? raw.substring(0, 10) : raw;
+  final day = parsed.day.toString().padLeft(2, '0');
+  return '$day ${_monthAbbrevs[parsed.month - 1]} ${parsed.year}';
 }

@@ -58,6 +58,12 @@ enum FigmaStatus {
     Color(0xFFF8FAFC),
     Color(0xFF475569),
     Color(0xFFE2E8F0),
+  ),
+  rejected(
+    'badge_rejected',
+    Color(0xFFFFF7ED),
+    Color(0xFFC2410C),
+    Color(0xFFFED7AA),
   );
 
   final String labelKey;
