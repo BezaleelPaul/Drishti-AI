@@ -10,7 +10,7 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
   - _Boundary: ReviewMarkersResponse_
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 1.2 Add the typed Flutter marker model with JSON parsing
+- [x] 1.2 Add the typed Flutter marker model with JSON parsing
   - Mirror the payload contract in a typed Dart model with a `fromJson` factory.
   - Model carries source width/height for the display mapping and represents the unavailable vs empty distinction explicitly.
   - Done when the model parses a sample available payload and an unavailable payload without loss of the availability distinction.
@@ -93,4 +93,5 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
 ## Implementation Notes
 - Python interpreter for validation is `.\venv\Scripts\python.exe` (has pytest). Plain `python` is a different interpreter WITHOUT pytest — do not use it.
 - Task 1.1 review caught a real contract-level honesty hole: typing `source: str` with only a default let a caller set `source="model attention"`, fabricating provenance. Fixed with `Literal["classical_cv_segmentation"]`. Lesson for later tasks: honesty invariants must be STRUCTURALLY enforced (types/Literals), and tests must probe the override path, not just the default.
-- The git index already held unrelated pre-existing staged `demo/` files at feature start; they rode into commit `4d806f2`. Stage only explicit task files per commit; never rely on the existing index.
+- The git index already held unrelated pre-existing staged `demo/` files at feature start; they rode into commit `4d806f2`. Fixed for task 1.2: ran `git reset -- demo` to unstage, then staged explicit paths only (commit `450a7c2` = exactly 3 task files). Continue staging explicit paths only.
+- Task 1.2 review suggestions (optional hardening, not required by contract): Dart model silently coerces a present-but-non-list `ma_candidates` to `[]` (could show healthy instead of fail-closed) and doesn't mirror backend `ge=0` on dimensions/radius. Painters/viewers downstream MUST skip out-of-bounds markers regardless (Req 3.4) — tasks 3.1/4.3 must enforce this; consider hardening the model if it is touched again.
