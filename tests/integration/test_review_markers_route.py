@@ -12,6 +12,7 @@ so no typed exception had to be added to marker_service.
 """
 
 import os
+import shutil
 import sqlite3
 import tempfile
 from datetime import datetime, timezone
@@ -28,6 +29,16 @@ from api.main import app
 client = TestClient(app, raise_server_exceptions=False)
 DOCTOR_HEADERS = {"X-API-Key": "dev-doctor-key"}
 OPERATOR_HEADERS = {"X-API-Key": "dev-operator-key"}
+ADMIN_HEADERS = {"X-API-Key": "dev-admin-key"}
+
+_DEMO_GOOD_IMAGE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..",
+    "..",
+    "demo",
+    "sample_images",
+    "scenario_1_good.jpg",
+)
 
 W, H = 640, 480
 REVIEW_ID = "REV-ROUTE1"
@@ -77,7 +88,9 @@ def _write_fundus_file(root: str, screening_id: str = SCREENING_ID) -> str:
     return path
 
 
-def _seed_review_case(image_path: str | None) -> None:
+def _seed_review_case(image_path: str | None, quality_grade: str = "GOOD") -> None:
+    """Seed a patient + screening (with the GIVEN quality grade — the marker
+    route must be grade-blind) + a pending doctor review for it."""
     now = datetime.now(timezone.utc).isoformat()
     conn = sqlite3.connect(database.DB_PATH)
     try:
@@ -89,8 +102,8 @@ def _seed_review_case(image_path: str | None) -> None:
         conn.execute(
             "INSERT INTO screenings (screening_id, patient_id, eye_side, "
             "quality_grade, created_at, original_image_path) "
-            "VALUES (?, 'PT-ROUTE1', 'Right', 'GOOD', ?, ?)",
-            (SCREENING_ID, now, image_path),
+            "VALUES (?, 'PT-ROUTE1', 'Right', ?, ?, ?)",
+            (SCREENING_ID, quality_grade, now, image_path),
         )
         conn.execute(
             "INSERT INTO doctor_reviews (review_id, screening_id, patient_id, "
@@ -229,3 +242,111 @@ def test_segmentation_failure_is_200_unavailable_not_5xx(review_env, monkeypatch
     assert body["width"] == 0 and body["height"] == 0
     assert body["optic_disc"] is None and body["fovea"] is None
     assert body["ma_candidates"] == []
+
+
+def _copy_demo_good_image(root: str, screening_id: str = SCREENING_ID) -> str:
+    """Copy the REAL demo fundus photo into the temp image root so the test
+    exercises an actual photograph (not the synthetic segmenter exercise)."""
+    folder = os.path.join(root, "results", "api_screenings", screening_id)
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, f"{screening_id}_orig.jpg")
+    shutil.copyfile(_DEMO_GOOD_IMAGE, path)
+    return path
+
+
+def _assert_grade_blind_available(body: dict) -> None:
+    """Shared honesty assertions for the Req 1.2 grade-independence proof.
+
+    The segmenter on the real demo photo finds the optic disc and fovea but
+    ZERO microaneurysm candidates; per the service's honesty mapping an
+    empty `ma_candidates` list with available=True means "computed, none
+    found" — a different state from available=False (not computed).
+    """
+    assert body["available"] is True
+    assert (body["width"], body["height"]) == (512, 512)
+    assert body["optic_disc"] is not None and body["optic_disc"]["r"] > 0
+    assert body["fovea"] is not None
+    assert body["ma_candidates"] == []
+    assert body["reason"] == "No microaneurysm candidates found"
+
+
+# Code-change falsifier: if compute_review_markers ever becomes
+# BORDERLINE-only again (e.g. a grade gate or a precomputed-caches-only
+# path is reintroduced, like the historical router gap at
+# src/pipeline/router.py:163), both of these tests
+# swing to available=False with a "path/decode" style reason and FAIL.
+
+
+def test_good_quality_case_gets_markers_on_demand(review_env):
+    """Req 1.2 proof: a quality-passed (GOOD, NOT BORDERLINE) review case
+    still gets markers computed on demand from the stored image. Passing
+    proves the route does NOT depend on the BORDERLINE-only reassessment
+    branch (the historical gap this feature closes)."""
+    image_path = _copy_demo_good_image(review_env)
+    _seed_review_case(image_path, quality_grade="GOOD")
+
+    first = client.get(f"/review/{REVIEW_ID}/markers", headers=DOCTOR_HEADERS)
+    assert first.status_code == 200, first.text
+    body = first.json()
+    assert set(body.keys()) == EXPECTED_KEYS
+    assert first.json() == body
+    _assert_grade_blind_available(body)
+
+    # Idempotent read: the same case yields an identical payload on a
+    # second GET (design MarkerRoute contract: advisory deterministic read).
+    second = client.get(f"/review/{REVIEW_ID}/markers", headers=DOCTOR_HEADERS)
+    assert second.status_code == 200, second.text
+    assert second.json() == body
+
+    reads = _audit_rows("review_markers_read")
+    assert len(reads) == 2
+    assert all(r["actor"].startswith("doctor:") for r in reads)
+
+
+def test_borderline_quality_case_also_gets_markers(review_env):
+    """Completes the grade-independence proof: the BORDERLINE grade produces
+    markers too — segment() quality grade does not change the marker route
+    (Req 1.2). Any grade difference in outcome would falsify this test."""
+    image_path = _copy_demo_good_image(review_env)
+    _seed_review_case(image_path, quality_grade="BORDERLINE")
+
+    response = client.get(f"/review/{REVIEW_ID}/markers", headers=DOCTOR_HEADERS)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["available"] is True
+    _assert_grade_blind_available(body)
+
+
+def test_admin_key_is_accepted_by_require_doctor(review_env):
+    """Auth matrix (honest to require_doctor semantics): the role hierarchy
+    ranks admin >= doctor, so require_role('doctor','admin') ACCEPTS an
+    admin key. Read audit proves the real handler ran (not just auth)."""
+    image_path = _write_fundus_file(review_env)
+    _seed_review_case(image_path)
+
+    response = client.get(f"/review/{REVIEW_ID}/markers", headers=ADMIN_HEADERS)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["available"] is True
+    reads = _audit_rows("review_markers_read")
+    assert len(reads) == 1
+    assert reads[0]["actor"].startswith("admin:")
+
+
+def test_absurdly_long_format_valid_review_id_is_clean_404(review_env):
+    """Abuse surface (read-only sanity): 'REV-' + 200 A's is format-VALID
+    (regex allows {6,}) so it reaches the DB pre-check — but nothing has
+    that id. Current behavior: clean uniform 404, handler miss audited,
+    and no crash. A future length cap would turn this into a
+    format-reject 404 BEFORE the DB lookup — still 404, still audited,
+    so this test must stay green either way."""
+    long_id = "REV-" + "A" * 200
+    _seed_review_case(None)
+
+    response = client.get(f"/review/{long_id}/markers", headers=DOCTOR_HEADERS)
+
+    assert response.status_code == 404, response.text
+    assert "not found" in response.json()["detail"].lower()
+    assert len(_audit_rows("review_markers_read_404")) == 1
