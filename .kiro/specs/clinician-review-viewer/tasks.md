@@ -77,7 +77,7 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
   - _Depends: 2.2_
   - _Requirements: 1.2, 6.3, 7.1_
 
-- [ ] 4.3 Test coordinate mapping across zoom and honest viewer states
+- [x] 4.3 Test coordinate mapping across zoom and honest viewer states
   - Verify a marker at a known source coordinate maps to the expected displayed position across multiple zoom levels, and that an unavailable payload renders no markers and no decorative overlay.
   - Done when the painter and viewer tests pass and confirm markers stay aligned under zoom.
   - _Boundary: LesionMarkerPainter, ClinicianMarkerViewer_
