@@ -32,18 +32,35 @@ RetinalMarkers _markers({
   );
 }
 
+/// Payload built for the cross-component mapping tests: a square 1000x1000
+/// source keeps the fitted rect a clean centering problem, and the optic disc
+/// sits at the exact source centre so its chained display position must be
+/// the fitted rect's centre in whatever viewport the viewer is pumped into.
+RetinalMarkers _e2eMarkers() {
+  return RetinalMarkers(
+    reviewId: 'REV-E2E',
+    available: true,
+    width: 1000,
+    height: 1000,
+    opticDisc: MarkerCircle(x: 500, y: 500, r: 100),
+    fovea: MarkerPoint(x: 750, y: 800),
+    maCandidates: [MarkerCircle(x: 200, y: 150, r: 20)],
+  );
+}
+
 Future<void> _pumpViewer(
   WidgetTester tester, {
   MarkerFetcher? fetchMarkers,
   ReviewImageFetcher? fetchImage,
+  double surface = 400,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: Center(
           child: SizedBox(
-            width: 400,
-            height: 400,
+            width: surface,
+            height: surface,
             child: ClinicianMarkerViewer(
               reviewId: 'REV-TEST',
               fetchMarkers: fetchMarkers,
@@ -280,5 +297,227 @@ void main() {
     expect(find.textContaining('Loading markers'), findsNothing);
     expect(_markerPaintFinder, findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
+  });
+
+  group(
+    'Req 7.1 cross-component coordinate mapping (viewer fitRect -> painter)',
+    () {
+      testWidgets(
+        'a marker at a known source coordinate lands on its chained display position in a real pumped viewer',
+        (tester) async {
+          await _pumpViewer(
+            tester,
+            fetchMarkers: (_) async => _e2eMarkers(),
+            fetchImage: (_) async => _pngBytes(),
+          );
+
+          final paint = tester.widget<CustomPaint>(_markerPaintFinder);
+          final painter = paint.painter! as LesionMarkerPainter;
+
+          // The painter's canvas is the zoom child's viewport: it sits in
+          // Positioned.fill under the ONE shared InteractiveViewer transform.
+          final viewport = tester.getSize(_markerPaintFinder);
+
+          // The viewer must hand the painter the REAL fitted rect of that
+          // viewport, and the scale must follow from the same math - the
+          // composition that the 3.1-only and 3.2-only tests verify apart.
+          final fitted = ClinicianMarkerViewer.fittedImageRect(
+            viewport,
+            1000,
+            1000,
+          );
+          expect(painter.imageRect, fitted);
+          expect(painter.scale, closeTo(fitted.width / 1000, 1e-9));
+
+          // The painter carries the fetched payload with source space intact.
+          expect(painter.markers.width, 1000);
+          expect(painter.markers.height, 1000);
+
+          // Chain the mapping through: a marker at source (500,500) - the
+          // image centre - maps exactly onto the fitted rect's centre.
+          final centreSeen = LesionMarkerPainter.mapToDisplay(
+            const Offset(500, 500),
+            painter.imageRect,
+            painter.scale,
+          );
+          expect(centreSeen.dx, closeTo(fitted.center.dx, 1e-9));
+          expect(centreSeen.dy, closeTo(fitted.center.dy, 1e-9));
+
+          // And the painter's drawable set places every fetched marker at
+          // its chained position: fitted topLeft + source coordinate x viewed
+          // scale, with the zoom-scaled radius.
+          final drawable = LesionMarkerPainter.drawableMarkers(
+            painter.markers,
+            painter.imageRect,
+            painter.scale,
+          );
+          expect(drawable, hasLength(3));
+          expect(drawable[0].kind, MarkerKind.opticDisc);
+          expect(
+            drawable[0].position.dx,
+            closeTo(fitted.left + 500 * painter.scale, 1e-9),
+          );
+          expect(
+            drawable[0].position.dy,
+            closeTo(fitted.top + 500 * painter.scale, 1e-9),
+          );
+          expect(drawable[0].radius, closeTo(100 * painter.scale, 1e-9));
+
+          expect(drawable[1].kind, MarkerKind.fovea);
+          expect(
+            drawable[1].position.dx,
+            closeTo(fitted.left + 750 * painter.scale, 1e-9),
+          );
+          expect(
+            drawable[1].position.dy,
+            closeTo(fitted.top + 800 * painter.scale, 1e-9),
+          );
+
+          expect(drawable[2].kind, MarkerKind.candidate);
+          expect(
+            drawable[2].position.dx,
+            closeTo(fitted.left + 200 * painter.scale, 1e-9),
+          );
+          expect(
+            drawable[2].position.dy,
+            closeTo(fitted.top + 150 * painter.scale, 1e-9),
+          );
+          expect(drawable[2].radius, closeTo(20 * painter.scale, 1e-9));
+
+          // Default wipe is fully revealed, so the chained positions are on
+          // screen in the marked layer, not hidden behind the wipe edge.
+          expect(_wipeClip(tester), Rect.fromLTWH(0, 0, 400, 400));
+        },
+      );
+
+      testWidgets(
+        'the fitRect -> painter -> display chain holds on differently sized surfaces (fit scale tracks the viewport)',
+        (tester) async {
+          double? previousScale;
+          for (final surface in const [300.0, 600.0]) {
+            await _pumpViewer(
+              tester,
+              fetchMarkers: (_) async => _e2eMarkers(),
+              fetchImage: (_) async => _pngBytes(),
+              surface: surface,
+            );
+
+            final painter =
+                tester.widget<CustomPaint>(_markerPaintFinder).painter!
+                    as LesionMarkerPainter;
+            final viewport = tester.getSize(_markerPaintFinder);
+
+            // Same chained invariant as the 400-surface test, on a fresh fit.
+            final fitted = ClinicianMarkerViewer.fittedImageRect(
+              viewport,
+              1000,
+              1000,
+            );
+            expect(painter.imageRect, fitted, reason: 'surface $surface');
+            expect(
+              painter.scale,
+              closeTo(fitted.width / 1000, 1e-9),
+              reason: 'surface $surface',
+            );
+
+            // The known disc source (500,500) still maps to the fitted
+            // centre under the new scale - nothing was hardcoded to 400.
+            final centre = LesionMarkerPainter.mapToDisplay(
+              const Offset(500, 500),
+              painter.imageRect,
+              painter.scale,
+            );
+            expect(
+              centre.dx,
+              closeTo(fitted.center.dx, 1e-9),
+              reason: 'surface $surface',
+            );
+            expect(
+              centre.dy,
+              closeTo(fitted.center.dy, 1e-9),
+              reason: 'surface $surface',
+            );
+
+            // The fitted scale must actually track the surface: growing the
+            // viewport surface grows the fit scale (both surfaces here fit
+            // strictly inside the viewport, so the ordering is reliable).
+            if (previousScale != null) {
+              expect(
+                painter.scale,
+                greaterThan(previousScale),
+                reason: 'the fitted scale must grow with the surface',
+              );
+            }
+            previousScale = painter.scale;
+          }
+        },
+      );
+    },
+  );
+
+  group('Req 5.1/5.3 unavailable states draw no decorative overlay', () {
+    testWidgets(
+      'unavailable payload: honest text only over the plain image - no shader masks, no gradient boxes, no placeholder spectacle',
+      (tester) async {
+        await _pumpViewer(
+          tester,
+          fetchMarkers: (_) async =>
+              _markers(available: false, reason: 'segmentation failed'),
+          fetchImage: (_) async => _pngBytes(),
+        );
+
+        expect(find.textContaining('unavailable'), findsWidgets);
+        expect(find.textContaining('segmentation failed'), findsOneWidget);
+
+        // The real image stays; nothing painted in place of markers.
+        expect(find.byType(Image), findsOneWidget);
+        expect(_markerPaintFinder, findsNothing);
+        expect(find.byType(Slider), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(find.byType(ShaderMask), findsNothing);
+        expect(
+          find.byWidgetPredicate(
+            (w) =>
+                w is DecoratedBox &&
+                w.decoration is BoxDecoration &&
+                ((w.decoration as BoxDecoration).gradient != null ||
+                    (w.decoration as BoxDecoration).boxShadow != null),
+          ),
+          findsNothing,
+          reason:
+              'a decorative gradient/glow box would be a synthetic overlay '
+              'where markers are expected but unavailable (Req 5.3)',
+        );
+      },
+    );
+
+    testWidgets('marker fetch failure passes the same decorative sweep', (
+      tester,
+    ) async {
+      await _pumpViewer(
+        tester,
+        fetchMarkers: (_) async => throw Exception('network down'),
+        fetchImage: (_) async => _pngBytes(),
+      );
+
+      expect(find.textContaining('unavailable'), findsWidgets);
+      expect(find.textContaining('Marker load failed'), findsOneWidget);
+
+      expect(find.byType(Image), findsOneWidget);
+      expect(_markerPaintFinder, findsNothing);
+      expect(find.byType(Slider), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(ShaderMask), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is DecoratedBox &&
+              w.decoration is BoxDecoration &&
+              ((w.decoration as BoxDecoration).gradient != null ||
+                  (w.decoration as BoxDecoration).boxShadow != null),
+        ),
+        findsNothing,
+      );
+    });
   });
 }
