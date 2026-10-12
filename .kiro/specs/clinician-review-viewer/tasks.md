@@ -18,7 +18,7 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
   - _Requirements: 2.1, 2.4, 3.1_
 
 - [ ] 2. Backend: on-demand marker computation and route
-- [ ] 2.1 (P) Build the marker service that decodes the image and runs the segmenter
+- [x] 2.1 (P) Build the marker service that decodes the image and runs the segmenter
   - Load the review's stored fundus image from its screening record and decode it with the same capped decode the pipeline uses.
   - Run the existing retinal-structure segmenter and map its output to the payload contract, keeping coordinates in the decoded source pixel space.
   - Fail closed to an unavailable payload with a reason on missing image, decode failure, segmenter exception, or timeout — never fabricate or partially populate markers.
@@ -94,4 +94,4 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
 - Python interpreter for validation is `.\venv\Scripts\python.exe` (has pytest). Plain `python` is a different interpreter WITHOUT pytest — do not use it.
 - Task 1.1 review caught a real contract-level honesty hole: typing `source: str` with only a default let a caller set `source="model attention"`, fabricating provenance. Fixed with `Literal["classical_cv_segmentation"]`. Lesson for later tasks: honesty invariants must be STRUCTURALLY enforced (types/Literals), and tests must probe the override path, not just the default.
 - The git index already held unrelated pre-existing staged `demo/` files at feature start; they rode into commit `4d806f2`. Fixed for task 1.2: ran `git reset -- demo` to unstage, then staged explicit paths only (commit `450a7c2` = exactly 3 task files). Continue staging explicit paths only.
-- Task 1.2 review suggestions (optional hardening, not required by contract): Dart model silently coerces a present-but-non-list `ma_candidates` to `[]` (could show healthy instead of fail-closed) and doesn't mirror backend `ge=0` on dimensions/radius. Painters/viewers downstream MUST skip out-of-bounds markers regardless (Req 3.4) — tasks 3.1/4.3 must enforce this; consider hardening the model if it is touched again.
+- Task 2.1 review notes (recorded per reviewer request): marker_service constructs its OWN locked segmenter singleton instead of literally reusing `router.structure_segmenter` — deliberate deviation from design letter, honoring design substance: reuse via `AIBridge.get_instance()` would pull classifier/GradCAM/risk-model init into the advisory marker path (against Req 6.3). One-time ~20s cold-init per process (DL toolbox import attempt then geometric fallback), 0ms warm. Task 2.2 must dispatch marker requests without blocking route startup. Timeout hardening explicitly deferred: routes (task 2.2) may add a wall-clock timeout; the service catches all exceptions but cannot preempt a hung segmentation. Painter must drop OOB markers (Req 3.4) — service passes segmenter output through unvalidated by contract.
