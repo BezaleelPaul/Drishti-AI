@@ -89,3 +89,8 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
   - Done when the backend suite, the Flutter suite, and analysis all pass with no new issues.
   - _Depends: 2.2, 3.3, 4.1, 4.2, 4.3_
   - _Requirements: 7.3_
+
+## Implementation Notes
+- Python interpreter for validation is `.\venv\Scripts\python.exe` (has pytest). Plain `python` is a different interpreter WITHOUT pytest — do not use it.
+- Task 1.1 review caught a real contract-level honesty hole: typing `source: str` with only a default let a caller set `source="model attention"`, fabricating provenance. Fixed with `Literal["classical_cv_segmentation"]`. Lesson for later tasks: honesty invariants must be STRUCTURALLY enforced (types/Literals), and tests must probe the override path, not just the default.
+- The git index already held unrelated pre-existing staged `demo/` files at feature start; they rode into commit `4d806f2`. Stage only explicit task files per commit; never rely on the existing index.
