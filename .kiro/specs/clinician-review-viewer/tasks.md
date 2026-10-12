@@ -27,7 +27,7 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
   - _Depends: 1.1_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 2.2 (P) Add the doctor-authenticated marker route for a review case
+- [x] 2.2 (P) Add the doctor-authenticated marker route for a review case
   - Expose a read-only route keyed by review case that reuses the existing doctor authorization and returns the marker payload.
   - Unknown review returns not-found; missing or insufficient auth returns the existing auth failure. A segmentation failure is a successful response carrying an unavailable payload, not a server error.
   - Done when an authorised doctor key retrieves markers for an existing case, an unknown case returns 404, and an unauthenticated request is rejected.
