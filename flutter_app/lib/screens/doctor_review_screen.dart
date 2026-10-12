@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../models/retinal_markers.dart';
 import '../services/api_service.dart';
+import '../widgets/review/marker_viewer.dart';
 
 class DoctorReviewScreen extends StatefulWidget {
   final ApiService apiService;
@@ -61,6 +63,7 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
               'abha_id': item['abha_id'] ?? 'Unknown',
               'screening_id': item['screening_id'] ?? 'Unknown',
               'eye_side': item['eye_side'] ?? 'Unknown',
+              'original_image_url': item['original_image_url'] ?? '',
               'dr_grade': parsedGrade,
               'dr_label': item['dr_grade_label'] ?? 'Unknown',
               'reason':
@@ -130,6 +133,54 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
     }
   }
 
+  /// Opens the clinician marker viewer for the case in its own route.
+  /// Marker/image loading is fully async inside the viewer and never
+  /// blocks returning to the queue (instant back) or the sign-off flow.
+  void _openMarkerViewer(Map<String, dynamic> caseItem) {
+    final reviewId = caseItem['review_id']?.toString() ?? 'Unknown';
+    final imageUrl = caseItem['original_image_url']?.toString() ?? '';
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: Text('Case Markers — $reviewId'),
+            backgroundColor: const Color(0xFF1E3A8A),
+            foregroundColor: Colors.white,
+          ),
+          body: ClinicianMarkerViewer(
+            reviewId: reviewId,
+            fetchMarkers: (rid) async {
+              final markers = await widget.apiService.getReviewMarkers(rid);
+              return markers ??
+                  RetinalMarkers(
+                    reviewId: rid,
+                    available: false,
+                    reason:
+                        'Marker data could not be loaded (check connectivity '
+                        'and try again).',
+                  );
+            },
+            fetchImage: (rid) async {
+              if (imageUrl.isEmpty) {
+                throw StateError(
+                  'No fundus image URL was recorded for this case.',
+                );
+              }
+              final bytes = await widget.apiService.fetchReviewImage(imageUrl);
+              if (bytes == null) {
+                throw StateError(
+                  'The fundus image is not available from the server right '
+                  'now.',
+                );
+              }
+              return bytes;
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final queueBody = Center(
@@ -186,6 +237,9 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
                               : int.tryParse(c['dr_grade'].toString()) ?? 0;
                           final isHigh = grade >= 3;
 
+                          final reviewId = c['review_id']?.toString() ?? '';
+                          final hasRealReviewId =
+                              reviewId.isNotEmpty && reviewId != 'Unknown';
                           return Card(
                             elevation: 1,
                             shape: RoundedRectangleBorder(
@@ -301,23 +355,18 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
+                                      // Anatomical/lesion markers from a
+                                      // server endpoint — never a
+                                      // "Grad-CAM heatmap" claim.
                                       TextButton.icon(
-                                        onPressed: () {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Viewing High-Resolution Grad-CAM Heatmap...',
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                        onPressed: hasRealReviewId
+                                            ? () => _openMarkerViewer(c)
+                                            : null,
                                         icon: const Icon(
-                                          Icons.remove_red_eye_outlined,
+                                          Icons.my_location,
                                           size: 18,
                                         ),
-                                        label: const Text('View Heatmap'),
+                                        label: const Text('View Markers'),
                                       ),
                                       const SizedBox(width: 8),
                                       ElevatedButton.icon(

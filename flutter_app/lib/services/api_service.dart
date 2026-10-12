@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import '../models/patient.dart';
+import '../models/retinal_markers.dart';
 import '../models/screening.dart';
 import '../models/screening_models.dart' as ui;
 import 'offline_queue_service.dart';
@@ -69,6 +71,11 @@ class ApiService {
   ApiService({this.baseUrl = defaultBaseUrl, this.key = apiKey}) {
     _requireHttps(baseUrl);
   }
+
+  /// Test-only instance: skips the HTTPS gate so tests can point at a
+  /// local in-memory [HttpServer]. Never wire this into production.
+  @visibleForTesting
+  ApiService.forTesting({required this.baseUrl, required this.key});
 
   /// Fail closed on plaintext endpoints. Only `https` (or wss-derived
   /// https) is allowed. Emulator loopback for local dev must be an
@@ -515,6 +522,61 @@ class ApiService {
       rethrow;
     } catch (_) {
       return [];
+    }
+  }
+
+  /// Advisory marker data for one review case (GET
+  /// /review/{id}/markers). Simple contract: non-null = parsed markers,
+  /// null = unavailable for ANY reason (offline, server error, bad key,
+  /// unparseable body). Never throws: this is advisory context and loading
+  /// it must never delay or block the doctor's sign-off path.
+  Future<RetinalMarkers?> getReviewMarkers(String reviewId) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '$baseUrl/review/${Uri.encodeComponent(reviewId)}/markers',
+            ),
+            headers: _headers,
+          )
+          .timeout(_shortTimeout);
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body is Map<String, dynamic>) {
+          return RetinalMarkers.fromJson(body);
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fetches the reviewer-visible fundus image. [imageUrlPath] is the
+  /// server-relative path the pending-reviews payload carries (e.g.
+  /// `/results/SCR-1/SCR-1_orig.jpg`); an already-absolute http(s) URL is
+  /// used as-is. Returns null on any non-200, empty input, timeout or
+  /// network error — the viewer renders an honest failure state.
+  Future<Uint8List?> fetchReviewImage(String imageUrlPath) async {
+    final path = imageUrlPath.trim();
+    if (path.isEmpty) return null;
+    try {
+      final Uri uri;
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        uri = Uri.parse(path);
+      } else {
+        final base = baseUrl.endsWith('/')
+            ? baseUrl.substring(0, baseUrl.length - 1)
+            : baseUrl;
+        uri = Uri.parse(path.startsWith('/') ? '$base$path' : '$base/$path');
+      }
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(_shortTimeout);
+      if (response.statusCode == 200) return response.bodyBytes;
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 
