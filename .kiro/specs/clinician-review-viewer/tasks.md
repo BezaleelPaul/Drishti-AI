@@ -62,14 +62,14 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
 - [ ] 4. Validation: honesty, mapping, and regression coverage
-- [ ] 4.1 (P) Test marker service honesty and fail-closed behaviour
+- [x] 4.1 (P) Test marker service honesty and fail-closed behaviour
   - Verify a stored review image yields real coordinates plus dimensions, and that a missing image, decode failure, and segmenter exception each yield an unavailable payload with a reason and no fabricated marker.
   - Done when the test suite covers the available case and each failure mode and passes.
   - _Boundary: marker_service_
   - _Depends: 2.1_
   - _Requirements: 1.1, 1.3, 1.4, 7.1_
 
-- [ ] 4.2 (P) Test marker route access control and on-demand computation for quality-passed cases
+- [x] 4.2 (P) Test marker route access control and on-demand computation for quality-passed cases
   - Verify an authorised doctor key retrieves markers, an unknown review returns not-found, and an unauthenticated request is rejected.
   - Verify a quality-passed (non-borderline) review case still returns markers, proving markers are computed on demand rather than only on the borderline path.
   - Done when these route tests pass.
