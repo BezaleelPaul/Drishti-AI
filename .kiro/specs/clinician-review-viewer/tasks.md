@@ -53,7 +53,7 @@ Order implies dependency: task N depends on all prior tasks unless marked `(P)`.
   - _Depends: 1.2, 3.1_
   - _Requirements: 3.1, 3.2, 3.3, 3.5, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3_
 
-- [ ] 3.3 Wire the viewer into the review case, replacing the dead heatmap stub
+- [x] 3.3 Wire the viewer into the review case, replacing the dead heatmap stub
   - Replace the review case's dead "View Heatmap" affordance with a "View Markers" action that opens the viewer for that case, loading markers and the image for the selected case.
   - Marker loading must never block or delay the doctor's ability to return to the queue or submit a sign-off decision.
   - Done when opening a case's markers shows the viewer for that case, and a failed marker load leaves the queue and sign-off action fully usable.
