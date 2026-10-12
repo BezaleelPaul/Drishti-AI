@@ -6,7 +6,7 @@ and ABDM tele-ophthalmology requirements.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -282,6 +282,54 @@ class DoctorDecisionResponse(BaseModel):
     message: str
     review_id: str
     updated_status: str
+
+
+# -----------------------------------------------------------------------------
+# 4b. Clinician Review Marker Schemas
+# -----------------------------------------------------------------------------
+class MarkerCircle(BaseModel):
+    """A circular marker (optic disc or lesion candidate) in source-image pixel space."""
+
+    x: int = Field(..., json_schema_extra={"example": 412})
+    y: int = Field(..., json_schema_extra={"example": 862})
+    r: int = Field(..., ge=0, json_schema_extra={"example": 168})
+
+
+class MarkerPoint(BaseModel):
+    """A point marker (fovea centre) in source-image pixel space."""
+
+    x: int = Field(..., json_schema_extra={"example": 1385})
+    y: int = Field(..., json_schema_extra={"example": 805})
+
+
+class ReviewMarkersResponse(BaseModel):
+    # Marker payload for GET /review/{review_id}/markers. Advisory only: a
+    # marker failure never blocks the sign-off decision path.
+    review_id: str = Field(..., json_schema_extra={"example": "REV-8F3A21C0B4D7"})
+    # Honesty invariant: available=false (could not compute) is a DIFFERENT
+    # state from available=true with an explicitly empty ma_candidates list
+    # (healthy retina, no lesion candidates). Never conflate the two.
+    available: bool = Field(..., json_schema_extra={"example": True})
+    reason: str | None = Field(
+        None,
+        json_schema_extra={"example": "No microaneurysm candidates found"},
+    )
+    # Provenance: structurally pinned to classical CV segmentation — never
+    # model attention, Grad-CAM, or a diagnosis. Literal rejects any other
+    # value at construction time so the honesty invariant cannot be violated
+    # by a dishonest payload (Req 2.2).
+    source: Literal["classical_cv_segmentation"] = Field(
+        "classical_cv_segmentation",
+        json_schema_extra={"example": "classical_cv_segmentation"},
+    )
+    # Decoded source dimensions; 0 when unavailable (image never decoded).
+    width: int = Field(0, ge=0, json_schema_extra={"example": 2240})
+    height: int = Field(0, ge=0, json_schema_extra={"example": 1680})
+    optic_disc: MarkerCircle | None = None
+    fovea: MarkerPoint | None = None
+    # Coordinates only — no vessel/exudate mask pixel data in this payload.
+    # Always present; explicitly [] when there are no candidates (never null).
+    ma_candidates: list[MarkerCircle] = Field(default_factory=list)
 
 
 # -----------------------------------------------------------------------------
