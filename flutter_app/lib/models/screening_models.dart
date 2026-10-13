@@ -1,3 +1,5 @@
+import 'result_status.dart';
+
 class PatientModel {
   final String patientId;
   final String name;
@@ -176,6 +178,15 @@ class ScreeningAnalysisModel {
   // analysis came from a backend that does not expose it). Consumed by the
   // de-identified referral payload builder (/sync/v2).
   final List<double>? probabilities;
+  // Provenance of the result relative to the screening service
+  // (requirements 6.1-6.7): null when no status was derived — legacy
+  // payloads and quality/decode rejections keep the existing presentation.
+  // Never defaulted to a value the producing backend did not report.
+  final ScreeningResultStatus? resultStatus;
+  // What the screening service returned when confirming a preliminary
+  // on-device grade; null until an on-device result was confirmed, or when
+  // the result was not confirmed at all.
+  final ServiceConfirmation? confirmation;
 
   ScreeningAnalysisModel({
     required this.screeningId,
@@ -205,6 +216,8 @@ class ScreeningAnalysisModel {
     this.isFromFallback = false,
     this.errorCode,
     this.probabilities,
+    this.resultStatus,
+    this.confirmation,
   });
 
   factory ScreeningAnalysisModel.fromJson(Map<String, dynamic> json) {
@@ -238,6 +251,66 @@ class ScreeningAnalysisModel {
       isOffline: json['is_offline'] ?? false,
       isFromFallback: json['is_from_fallback'] ?? false,
       errorCode: json['error_code']?.toString(),
+      resultStatus: ScreeningResultStatus.tryParse(
+        json['result_status']?.toString(),
+      ),
+      confirmation: _confirmationFromJson(json['confirmation']),
+    );
+  }
+
+  /// Reads the optional confirmation object from a payload. A dict without
+  /// the agreement flag is not a confirmation and is dropped rather than
+  /// fabricated; the agreement fact is the only required value.
+  static ServiceConfirmation? _confirmationFromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final agreed = raw['agreed'];
+    if (agreed is! bool) return null;
+    return ServiceConfirmation(
+      agreed: agreed,
+      serverBackend: raw['server_backend']?.toString(),
+      serverGrade: (raw['server_grade'] as num?)?.toInt(),
+      serverScreeningId: raw['server_screening_id']?.toString(),
+    );
+  }
+
+  /// Returns a NEW immutable instance carrying this confirmation with the
+  /// status merged per the pure derivation rule; the original instance is
+  /// never mutated (requirements 6.3, 6.6, 6.7; design "Models Layer").
+  ScreeningAnalysisModel withConfirmation(ServiceConfirmation confirmation) {
+    return ScreeningAnalysisModel(
+      screeningId: screeningId,
+      patientId: patientId,
+      eyeSide: eyeSide,
+      cameraProfile: cameraProfile,
+      qualityGrade: qualityGrade,
+      qualityScore: qualityScore,
+      qualityPassed: qualityPassed,
+      rejectionReasons: rejectionReasons,
+      drGrade: drGrade,
+      drLabel: drLabel,
+      predictionScore: predictionScore,
+      isReferable: isReferable,
+      requiresHumanReview: requiresHumanReview,
+      humanReviewType: humanReviewType,
+      humanReviewReason: humanReviewReason,
+      originalImageUrl: originalImageUrl,
+      gradcamOverlayUrl: gradcamOverlayUrl,
+      gradcamTargetLayer: gradcamTargetLayer,
+      modelBackend: modelBackend,
+      actionRecommendation: actionRecommendation,
+      plainLanguageAdvice: plainLanguageAdvice,
+      smsReferralSlip: smsReferralSlip,
+      biomarkers: biomarkers,
+      isOffline: isOffline,
+      isFromFallback: isFromFallback,
+      errorCode: errorCode,
+      probabilities: probabilities,
+      resultStatus: deriveResultStatus(
+        drGrade: drGrade,
+        errorCode: errorCode,
+        confirmation: confirmation,
+      ),
+      confirmation: confirmation,
     );
   }
 }
