@@ -15,6 +15,10 @@ class PatientModel {
   final double? bmi;
   final bool familyHistory;
 
+  /// Measured at check-in (SYS/DIA mmHg, e.g. '145/90'); null when not
+  /// measured — the value is never fabricated downstream.
+  final String? bloodPressure;
+
   PatientModel({
     required this.patientId,
     required this.name,
@@ -29,6 +33,7 @@ class PatientModel {
     this.fastingGlucose,
     this.bmi,
     this.familyHistory = false,
+    this.bloodPressure,
   });
 
   factory PatientModel.fromJson(Map<String, dynamic> json) {
@@ -47,6 +52,7 @@ class PatientModel {
       fastingGlucose: (json['fasting_glucose'] as num?)?.toDouble(),
       bmi: (json['bmi'] as num?)?.toDouble(),
       familyHistory: json['family_history'] ?? false,
+      bloodPressure: json['blood_pressure']?.toString(),
     );
   }
 
@@ -65,6 +71,7 @@ class PatientModel {
       'fasting_glucose': fastingGlucose,
       'bmi': bmi,
       'family_history': familyHistory,
+      'blood_pressure': bloodPressure,
     };
   }
 }

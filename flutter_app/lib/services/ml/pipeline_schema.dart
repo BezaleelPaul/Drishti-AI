@@ -28,10 +28,18 @@ enum DrGrade {
   final int value;
 
   static DrGrade fromValue(int value) {
-    final match = DrGrade.values.where((g) => g.value == value).toList();
-    if (match.isEmpty) {
+    final match = tryFromValue(value);
+    if (match == null) {
       throw ArgumentError('Invalid DR grade: $value');
     }
+    return match;
+  }
+
+  /// Non-throwing variant for defensive callers (stored rows may predate the
+  /// grade range contract); null means "not a valid DR grade".
+  static DrGrade? tryFromValue(int value) {
+    final match = DrGrade.values.where((g) => g.value == value).toList();
+    if (match.isEmpty) return null;
     return match.first;
   }
 
@@ -142,6 +150,57 @@ class DrClassificationResult {
     required this.isReferable,
   });
 
+  /// The ONE shared score derivation for every 5-class model-provided score
+  /// vector: sum-normalise, argmax grade, top-1 confidence, top-1 minus
+  /// top-2 margin. DrClassifierDart's own result building delegates here,
+  /// and the orchestrator conversion (task 2.2) consumes the same factory,
+  /// so the two can never disagree.
+  ///
+  /// Measurement-only contract: every output value is derived from [probs]
+  /// itself — never substituted, padded or synthesized. Malformed vectors
+  /// (wrong length, non-positive/NaN/infinite sum) throw instead of
+  /// fabricating a result.
+  ///
+  /// Arithmetic is intentionally identical to the classifier's former
+  /// inline derivation (normalisation order, argmax scan, margin) so
+  /// existing results keep bit-identical numbers.
+  static DrClassificationResult fromProbabilities(List<double> probs) {
+    if (probs.length != 5) {
+      throw ArgumentError(
+        'Expected 5-class probability vector, got ${probs.length}',
+      );
+    }
+    final total = probs.fold<double>(0.0, (a, b) => a + b);
+    if (total <= 0 || total.isNaN || total.isInfinite) {
+      throw ArgumentError(
+        'Invalid probability vector: sum must be positive and finite',
+      );
+    }
+    final normalized = probs.map((p) => p / total).toList();
+
+    var top1Idx = 0;
+    var top2Idx = 1;
+    for (var i = 0; i < 5; i++) {
+      if (normalized[i] > normalized[top1Idx]) {
+        top2Idx = top1Idx;
+        top1Idx = i;
+      } else if (normalized[i] > normalized[top2Idx]) {
+        top2Idx = i;
+      }
+    }
+
+    final top1Conf = normalized[top1Idx];
+    final margin = top1Conf - normalized[top2Idx];
+    final grade = DrGrade.fromValue(top1Idx);
+    return DrClassificationResult(
+      predictedGrade: grade,
+      probabilities: normalized,
+      confidence: top1Conf,
+      top2Margin: margin,
+      isReferable: grade.isReferable,
+    );
+  }
+
   final DrGrade predictedGrade;
   final List<double> probabilities; // [P0..P4]
   final double confidence; // top-1 probability
@@ -206,7 +265,7 @@ class ScreeningRecordDart {
     this.action = '',
     this.qualityMetrics,
     this.errorCode,
-    this.modelBackend = 'tflite-fp32',
+    this.modelBackend,
     this.inferenceMs,
   });
 
@@ -225,7 +284,12 @@ class ScreeningRecordDart {
   final String action;
   final QualityMetrics? qualityMetrics;
   final PipelineErrorCode? errorCode;
-  final String modelBackend;
+
+  /// Backend identity of the model that actually executed and produced this
+  /// record's grade. Null when no model ran (decode/quality rejection, model
+  /// unavailable) — a record must never claim a backend it did not use.
+  /// No default: writing a record without a model run cannot assert one did.
+  final String? modelBackend;
 
   /// Measured resize + pixel-copy + TFLite run time in ms (E-2); null when
   /// classification never ran (BAD/BORDERLINE/unavailable paths).

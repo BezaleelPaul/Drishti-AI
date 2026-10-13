@@ -1,11 +1,12 @@
-import 'dart:math' as math;
-
 import 'package:image/image.dart' as img;
 
 import 'pipeline_schema.dart';
 
 /// Normalized model output contract across interchangeable graders.
-/// Does not manufacture synthetic probabilities for ordinal/regression heads.
+///
+/// Honesty contract: [probabilities] and [top2Margin] are only populated when
+/// the grader produced a real, calibrated probability vector. Callers must
+/// fail closed when they are null — never substitute synthetic values.
 class DrModelOutput {
   const DrModelOutput({
     required this.grade,
@@ -15,16 +16,21 @@ class DrModelOutput {
     required this.uncertainty,
     required this.modelId,
     required this.modelVersion,
+    this.top2Margin,
     this.inferenceMs = 0.0,
   });
 
   final DrGrade grade;
-  final List<double>? probabilities; // null for ordinal regression models
+  final List<double>? probabilities; // null when the grader cannot produce one
   final double? referableScore; // continuous severity or referable mass
   final bool? referable; // true if referable DR (grade >= 2)
-  final double? uncertainty; // distance to boundary or fold spread
+  final double? uncertainty; // 1 - top-1 probability, or fold spread
   final String modelId;
   final String modelVersion;
+
+  /// top-1 minus top-2 probability margin. Null when [probabilities] is null.
+  /// Feeds ConfidenceEvaluator Rule 2 (class ambiguity) downstream.
+  final double? top2Margin;
   final double inferenceMs;
 }
 
@@ -38,13 +44,25 @@ abstract class DrModelRunner {
   void dispose();
 }
 
-/// DRDetect Ordinal Regression Runner (Empirical Winner: QWK 0.8931, Sens 99.7%).
-/// Applies circular crop + Ben Graham enhancement + 512px ordinal regression.
+/// DRDetect Ordinal Regression Runner (server-side winner: QWK 0.8931).
+///
+/// RESERVED SLOT — NOT WIRED ON-DEVICE. The ONNX artifact
+/// (`assets/models/efficientnet_b0_regression_512px.onnx`, NCHW
+/// [batch,3,512,512]) ships in the repo but is NOT bundled in pubspec assets
+/// and no on-device ONNX runtime is integrated. Until one is, `initialize()`
+/// throws so the orchestrator fails closed to AI_UNAVAILABLE + human review.
+/// It must NEVER simulate a severity score from pixel statistics — a previous
+/// red/green channel-ratio stand-in was removed because fabricated clinical
+/// output is a safety defect, not a fallback.
 class DrDetectRunner implements DrModelRunner {
   DrDetectRunner({
-    this.modelAssetPath = 'assets/models/drdetect_regression_512px.onnx',
+    this.modelAssetPath = defaultOnnxAsset,
     this.thresholds = const [0.5, 1.5, 2.5, 3.5],
   });
+
+  /// Repo location of the ONNX weights (not bundled; server/desktop use only).
+  static const defaultOnnxAsset =
+      'assets/models/efficientnet_b0_regression_512px.onnx';
 
   @override
   String get modelId => 'drdetect_ordinal';
@@ -54,169 +72,111 @@ class DrDetectRunner implements DrModelRunner {
 
   final String modelAssetPath;
   final List<double> thresholds;
-  bool _initialized = false;
 
   @override
   Future<void> initialize() async {
-    _initialized = true;
+    throw StateError(
+      'DrDetectRunner has no on-device ONNX runtime wired. '
+      'The ordinal artifact ($modelAssetPath) is not bundled in pubspec '
+      'assets and cannot be executed here. Use DrClassifierDart '
+      '(TFLite fp32) or the server /retinal/analyze path. '
+      'Never substitute a simulated score for a model output.',
+    );
   }
 
   @override
   Future<DrModelOutput> predict(img.Image image) async {
-    if (!_initialized) {
-      await initialize();
-    }
-    final sw = Stopwatch()..start();
-
-    // 1. Preprocessing: Crop border -> Circle crop -> Ben Graham -> Resize 512x512
-    final preprocessed = _preprocessFundus(image, 512);
-
-    // 2. Continuous Ordinal Regression Prediction
-    // In production/benchmarking: executes onnx runtime / inference backend.
-    final double rawScore = _inferOrdinalRegression(preprocessed);
-    sw.stop();
-
-    // 3. Cut-point Decoding
-    int gradeValue = 0;
-    for (final th in thresholds) {
-      if (rawScore > th) {
-        gradeValue++;
-      }
-    }
-    gradeValue = gradeValue.clamp(0, 4);
-    final grade = DrGrade.fromValue(gradeValue);
-
-    // 4. Uncertainty: Distance to nearest classification threshold
-    double minDistance = double.infinity;
-    for (final th in thresholds) {
-      final dist = (rawScore - th).abs();
-      if (dist < minDistance) {
-        minDistance = dist;
-      }
-    }
-    final uncertainty = math.exp(-minDistance);
-
-    return DrModelOutput(
-      grade: grade,
-      probabilities: null, // Honest ordinal contract: no manufactured probabilities
-      referableScore: rawScore,
-      referable: rawScore >= thresholds[1], // Grade >= 2 boundary (threshold 1.5)
-      uncertainty: uncertainty,
-      modelId: modelId,
-      modelVersion: modelVersion,
-      inferenceMs: sw.elapsedMicroseconds / 1000.0,
+    throw StateError(
+      'DrDetectRunner.predict called before initialize(); initialize() '
+      'always throws because no on-device ONNX runtime is integrated.',
     );
-  }
-
-  /// Preprocesses fundus image using circular mask + Ben Graham contrast enhancement.
-  img.Image _preprocessFundus(img.Image source, int targetSize) {
-    // Circle crop center
-    final minDim = math.min(source.width, source.height);
-    final cropX = (source.width - minDim) ~/ 2;
-    final cropY = (source.height - minDim) ~/ 2;
-    final cropped = img.copyCrop(
-      source,
-      x: cropX,
-      y: cropY,
-      width: minDim,
-      height: minDim,
-    );
-
-    // Resize to target size (512x512)
-    final resized = img.copyResize(
-      cropped,
-      width: targetSize,
-      height: targetSize,
-      interpolation: img.Interpolation.cubic,
-    );
-
-    // Ben Graham enhancement: img * 4 - GaussianBlur * 4 + 128
-    final blurred = img.gaussianBlur(resized, radius: 10);
-    final enhanced = img.Image(width: targetSize, height: targetSize);
-
-    for (var y = 0; y < targetSize; y++) {
-      for (var x = 0; x < targetSize; x++) {
-        final p = resized.getPixel(x, y);
-        final b = blurred.getPixel(x, y);
-
-        final r = (p.r * 4 - b.r * 4 + 128).clamp(0, 255).toInt();
-        final g = (p.g * 4 - b.g * 4 + 128).clamp(0, 255).toInt();
-        final bl = (p.b * 4 - b.b * 4 + 128).clamp(0, 255).toInt();
-
-        enhanced.setPixelRgb(x, y, r, g, bl);
-      }
-    }
-    return enhanced;
-  }
-
-  /// Simulates / invokes ordinal regression model output.
-  double _inferOrdinalRegression(img.Image preprocessed) {
-    // Computes image luminance & texture metric as regression basis if running standalone
-    double redSum = 0;
-    double greenSum = 0;
-    for (final p in preprocessed) {
-      redSum += p.r;
-      greenSum += p.g;
-    }
-    final rgRatio = (redSum / (greenSum + 1e-5)).clamp(0.0, 4.0);
-    return rgRatio;
   }
 
   @override
-  void dispose() {
-    _initialized = false;
-  }
+  void dispose() {}
 }
 
-/// Legacy Baseline Runner (Build A - Shipped Keras / TFLite 224px).
-class BuildARunner implements DrModelRunner {
-  BuildARunner({this.modelAssetPath = 'assets/models/dr_efficientnet_b0_fp32.tflite'});
+/// Ordered failover chain of graders, mirroring the server-side backend
+/// priority (src/classification/classifier.py: ONNX DRDetect first,
+/// Keras TFLite second). [initialize] succeeds when at least ONE runner
+/// initializes; [predict] tries runners in order and returns the first
+/// successful real output. If every runner fails, both methods throw —
+/// callers must map total failure to AI_UNAVAILABLE + human review and
+/// never substitute a fabricated grade.
+class FallbackModelRunner implements DrModelRunner {
+  FallbackModelRunner(this.runners)
+    : assert(runners.isNotEmpty, 'FallbackModelRunner needs >= 1 runner');
+
+  final List<DrModelRunner> runners;
+
+  DrModelRunner? _active;
+
+  /// The runner that initialized successfully (null before [initialize]).
+  DrModelRunner? get active => _active;
 
   @override
-  String get modelId => 'build_a';
+  String get modelId => _active?.modelId ?? 'unavailable';
 
   @override
-  String get modelVersion => 'v1.0.0-shipped';
-
-  final String modelAssetPath;
-  bool _initialized = false;
-  bool get isInitialized => _initialized;
+  String get modelVersion => _active?.modelVersion ?? 'unavailable';
 
   @override
   Future<void> initialize() async {
-    _initialized = true;
+    if (_active != null) return;
+    final errors = <String>[];
+    for (final runner in runners) {
+      try {
+        await runner.initialize();
+        _active = runner;
+        return;
+      } catch (e) {
+        errors.add('${runner.modelId}: $e');
+      }
+    }
+    throw StateError(
+      'All model runners failed to initialize: ${errors.join(' | ')}',
+    );
   }
 
+  /// Runs the first runner that was successfully initialized. If [predict]
+  /// throws at runtime (e.g. interpreter crash), falls through to remaining
+  /// initialized-capable runners before rethrowing.
   @override
   Future<DrModelOutput> predict(img.Image image) async {
-    final sw = Stopwatch()..start();
-    img.copyResize(
-      image,
-      width: 224,
-      height: 224,
-      interpolation: img.Interpolation.cubic,
-    );
-    sw.stop();
-
-    // Default 5-class distribution
-    final probs = [0.70, 0.15, 0.08, 0.04, 0.03];
-    final grade = DrGrade.noDr;
-    final refScore = probs.sublist(2).fold(0.0, (a, b) => a + b);
-
-    return DrModelOutput(
-      grade: grade,
-      probabilities: probs,
-      referableScore: refScore,
-      referable: refScore >= 0.09,
-      uncertainty: 1.0 - probs[0],
-      modelId: modelId,
-      modelVersion: modelVersion,
-      inferenceMs: sw.elapsedMicroseconds / 1000.0,
-    );
+    final active = _active;
+    if (active == null) {
+      throw StateError('FallbackModelRunner not initialized');
+    }
+    try {
+      return await active.predict(image);
+    } catch (primaryError) {
+      // Runtime failure of the primary: attempt remaining runners.
+      for (final runner in runners) {
+        if (runner == active) continue;
+        try {
+          await runner.initialize();
+          final out = await runner.predict(image);
+          _active = runner;
+          return out;
+        } catch (_) {
+          continue;
+        }
+      }
+      throw StateError(
+        'All model runners failed on predict (primary error: $primaryError)',
+      );
+    }
   }
 
   @override
   void dispose() {
-    _initialized = false;
+    for (final runner in runners) {
+      try {
+        runner.dispose();
+      } catch (_) {
+        // Best-effort cleanup; never mask a dispose error to the caller.
+      }
+    }
+    _active = null;
   }
 }

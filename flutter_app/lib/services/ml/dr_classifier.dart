@@ -25,6 +25,19 @@ class DrClassifierDart {
   static const defaultModelAsset =
       'assets/models/dr_efficientnet_b0_fp32.tflite';
 
+  /// Backend identity recorded in screening rows / reports for traceability.
+  /// Must stay in sync with the assets/models/README.md shipped artifact.
+  static const backendId = 'tflite-fp32';
+
+  /// Artifact version identity for audit trails.
+  static const artifactVersion = 'efficientnet_b0_fp32_v1';
+
+  /// SHA-256 of the shipped fp32 artifact. Used to record model identity in
+  /// auditable screening rows; verification against the asset is a build/
+  /// release-time check (scripts/convert + validate_tflite_quantized.py).
+  static const assetSha256 =
+      'CEB819EA01D2FFC3F0C89CC92A66540B04F2711594421ED0B2A391F3620CEB09';
+
   final String assetPath;
   final int numThreads;
 
@@ -87,40 +100,12 @@ class DrClassifierDart {
   }
 
   /// Port of classifier._build_result: sum-normalize, top-1/top-2, margin.
-  DrClassificationResult _buildResult(List<double> probs) {
-    if (probs.length != 5) {
-      throw ArgumentError(
-        'Expected 5-class probability vector, got ${probs.length}',
-      );
-    }
-    final total = probs.fold<double>(0.0, (a, b) => a + b);
-    if (total <= 0 || total.isNaN || total.isInfinite) {
-      throw ArgumentError(
-        'Invalid probability vector: sum must be positive and finite',
-      );
-    }
-    final normalized = probs.map((p) => p / total).toList();
-
-    var top1Idx = 0;
-    var top2Idx = 1;
-    for (var i = 0; i < 5; i++) {
-      if (normalized[i] > normalized[top1Idx]) {
-        top2Idx = top1Idx;
-        top1Idx = i;
-      } else if (normalized[i] > normalized[top2Idx]) {
-        top2Idx = i;
-      }
-    }
-
-    final top1Conf = normalized[top1Idx];
-    final margin = top1Conf - normalized[top2Idx];
-    final grade = DrGrade.fromValue(top1Idx);
-    return DrClassificationResult(
-      predictedGrade: grade,
-      probabilities: normalized,
-      confidence: top1Conf,
-      top2Margin: margin,
-      isReferable: grade.isReferable,
-    );
-  }
+  ///
+  /// Delegates to the ONE shared derivation
+  /// [DrClassificationResult.fromProbabilities] (task 1.2) so the
+  /// classifier's result building and the orchestrator conversion (task 2.2)
+  /// are computed by the same code and can never disagree. Numbers are
+  /// bit-identical to the former inline derivation.
+  DrClassificationResult _buildResult(List<double> probs) =>
+      DrClassificationResult.fromProbabilities(probs);
 }

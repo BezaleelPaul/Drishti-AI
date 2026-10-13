@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../../models/screening_models.dart';
 import 'dr_classifier.dart';
+import 'drdetect_ordinal_runner.dart';
 import 'model_runner.dart';
 import 'pipeline_schema.dart';
 import 'quality_gate.dart';
@@ -9,27 +10,52 @@ import 'quality_thresholds.dart';
 import 'screening_orchestrator.dart';
 
 /// Bridges the on-device ML layer into the app's existing [ScreeningAnalysisModel] contract.
-/// Defaults to the benchmark-winning DRDetect Ordinal Regression model.
+///
+/// Default grader chain (mirrors server backend priority in
+/// src/classification/classifier.py): DRDetect ordinal TFLite
+/// (`drdetect_ordinal_512_fp32.tflite`, parity-gated vs ONNX) first,
+/// falling back to the Keras TFLite classifier
+/// (`dr_efficientnet_b0_fp32.tflite`) when the primary artifact cannot load
+/// or predict. When NO runner is usable, [analyze] returns null so callers
+/// fall through to the server path — it never fabricates a grade on-device.
 class OnDevicePipeline {
-  OnDevicePipeline({
+  OnDevicePipeline({DrModelRunner? modelRunner, DrClassifierDart? classifier})
+    : this.withRunner(_resolveRunner(modelRunner, classifier));
+
+  /// Explicit runner injection (also used by tests).
+  OnDevicePipeline.withRunner(DrModelRunner runner)
+    : _modelRunner = runner,
+      _orchestrator = ScreeningOrchestrator(modelRunner: runner);
+
+  static DrModelRunner _resolveRunner(
     DrModelRunner? modelRunner,
     DrClassifierDart? classifier,
-  }) : _modelRunner = modelRunner ?? (classifier != null ? LegacyClassifierAdapter(classifier) : DrDetectRunner()),
-       _orchestrator = ScreeningOrchestrator(modelRunner: modelRunner, classifier: classifier);
+  ) {
+    if (modelRunner != null) return modelRunner;
+    return FallbackModelRunner([
+      DrDetectOrdinalTfliteRunner(),
+      LegacyClassifierAdapter(classifier ?? DrClassifierDart()),
+    ]);
+  }
 
   final DrModelRunner _modelRunner;
   DrModelRunner get modelRunner => _modelRunner;
   final ScreeningOrchestrator _orchestrator;
   bool _initTried = false;
+  bool _orchestratorReady = false;
 
   /// True when the on-device model runner is initialized and usable.
   Future<bool> ensureReady() async {
-    if (_initTried) return true;
+    if (_initTried) return _orchestratorReady;
     _initTried = true;
     try {
       await _orchestrator.initialize();
+      _orchestratorReady = true;
       return true;
     } catch (_) {
+      // Missing/corrupt TFLite asset or unsupported platform: fail closed so
+      // the caller falls through to the server. Never substitute a grade.
+      _orchestratorReady = false;
       return false;
     }
   }

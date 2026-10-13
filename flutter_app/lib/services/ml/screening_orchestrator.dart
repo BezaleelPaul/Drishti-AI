@@ -9,22 +9,24 @@ import 'pipeline_schema.dart';
 import 'quality_gate.dart';
 import 'quality_thresholds.dart';
 
-/// Legacy adapter wrapping DrClassifierDart inside the interchangeable DrModelRunner interface.
+/// Adapter wrapping DrClassifierDart inside the interchangeable DrModelRunner
+/// interface. Reports the exact deployed artifact identity for audit trails.
 class LegacyClassifierAdapter implements DrModelRunner {
   LegacyClassifierAdapter(this.classifier);
   final DrClassifierDart classifier;
 
   @override
-  String get modelId => 'build_a_legacy';
+  String get modelId => DrClassifierDart.backendId;
 
   @override
-  String get modelVersion => 'v1.0.0-shipped';
+  String get modelVersion => DrClassifierDart.artifactVersion;
 
   @override
   Future<void> initialize() => classifier.initialize();
 
   @override
   Future<DrModelOutput> predict(img.Image image) async {
+    // PIL-parity bicubic resize on the ORIGINAL image, then raw RGB bytes.
     final resized = img.copyResize(
       image,
       width: 224,
@@ -38,15 +40,26 @@ class LegacyClassifierAdapter implements DrModelRunner {
       rgb224[j++] = p.g.toInt().clamp(0, 255);
       rgb224[j++] = p.b.toInt().clamp(0, 255);
     }
+    final sw = Stopwatch()..start();
     final res = classifier.classify(rgb224);
+    sw.stop();
+    final top1 = res.confidence;
+    var top2 = 0.0;
+    for (final p in res.probabilities) {
+      if (p < top1 && p > top2) top2 = p;
+    }
     return DrModelOutput(
       grade: res.predictedGrade,
       probabilities: res.probabilities,
-      referableScore: res.probabilities.sublist(2).fold<double>(0.0, (double a, double b) => a + b),
+      referableScore: res.probabilities
+          .sublist(2)
+          .fold<double>(0.0, (double a, double b) => a + b),
       referable: res.isReferable,
-      uncertainty: 1.0 - res.confidence,
+      uncertainty: 1.0 - top1,
       modelId: modelId,
       modelVersion: modelVersion,
+      top2Margin: top1 - top2,
+      inferenceMs: sw.elapsedMicroseconds / 1000.0,
     );
   }
 
@@ -54,13 +67,22 @@ class LegacyClassifierAdapter implements DrModelRunner {
   void dispose() => classifier.dispose();
 }
 
-/// On-device port of src/pipeline/router.py (Nodes 1-11) utilizing interchangeable DrModelRunner.
+/// On-device port of src/pipeline/router.py (Nodes 1-11) utilizing
+/// interchangeable DrModelRunner.
+///
+/// Default grader: the parity-gated TFLite fp32 classifier (DrClassifierDart
+/// via LegacyClassifierAdapter). Fallback order is enforced by callers:
+/// on-device -> server /retinal/analyze -> PENDING_SYNC (no grade).
 class ScreeningOrchestrator {
   ScreeningOrchestrator({
     DrModelRunner? modelRunner,
     DrClassifierDart? classifier,
     QualityGateDart? qualityGate,
-  }) : _modelRunner = modelRunner ?? (classifier != null ? LegacyClassifierAdapter(classifier) : DrDetectRunner()),
+  }) : _modelRunner =
+           modelRunner ??
+           (classifier != null
+               ? LegacyClassifierAdapter(classifier)
+               : LegacyClassifierAdapter(DrClassifierDart())),
        _gate = qualityGate ?? const QualityGateDart();
 
   final DrModelRunner _modelRunner;
@@ -76,6 +98,9 @@ class ScreeningOrchestrator {
     final attempt = recaptureAttemptCount < 0 ? 0 : recaptureAttemptCount;
 
     // Node 1: decode ONCE to canonical RGB (shared with every stage).
+    // Catch-all (not just FormatException): image decoders may throw
+    // RangeError/other errors on corrupt input while probing formats —
+    // every failure mode must map to IMG_INVALID, never crash the pipeline.
     final img.Image decoded;
     try {
       final raw = img.decodeImage(encodedBytes);
@@ -83,7 +108,7 @@ class ScreeningOrchestrator {
         throw const FormatException('Could not decode image');
       }
       decoded = raw;
-    } on FormatException {
+    } catch (_) {
       return ScreeningRecordDart(
         imagePath: 'capture',
         qualityGrade: QualityGrade.BAD,
@@ -99,7 +124,7 @@ class ScreeningOrchestrator {
     CanonicalImage canonical;
     try {
       canonical = canonicalRgbFromDecoded(decoded);
-    } on FormatException {
+    } catch (_) {
       return ScreeningRecordDart(
         imagePath: 'capture',
         qualityGrade: QualityGrade.BAD,
@@ -199,7 +224,9 @@ class ScreeningOrchestrator {
       );
     }
 
-    // Node 6→7: reliable image — Primary DR Grader (Model 2, DRDetect default).
+    // Node 6→7: reliable image — Primary DR Grader (Model 2, TFLite fp32
+    // classifier by default). On any failure the orchestrator returns
+    // AI_UNAVAILABLE and mandatory review — never a substitute grade.
     final DrModelOutput modelOutput;
     try {
       modelOutput = await _modelRunner.predict(decoded);
@@ -220,21 +247,51 @@ class ScreeningOrchestrator {
       );
     }
 
-    // Build DrClassificationResult adapter
-    final probs = modelOutput.probabilities ?? [
-      modelOutput.grade.value == 0 ? 0.90 : 0.02,
-      modelOutput.grade.value == 1 ? 0.85 : 0.03,
-      modelOutput.grade.value == 2 ? 0.80 : 0.05,
-      modelOutput.grade.value == 3 ? 0.85 : 0.04,
-      modelOutput.grade.value == 4 ? 0.90 : 0.02,
-    ];
-    final confVal = 1.0 - (modelOutput.uncertainty ?? 0.1);
+    // Fail-closed: a grader that cannot produce a real, calibrated
+    // probability vector + top-2 margin must not yield an automated grade.
+    // (A previous version manufactured a near-one-hot probability vector for
+    // ordinal outputs here — removed: fabricated clinical output is a safety
+    // defect. Ordinal runners must either supply probabilities or route to
+    // mandatory review.)
+    final probs = modelOutput.probabilities;
+    final margin = modelOutput.top2Margin;
+    if (probs == null ||
+        probs.length != 5 ||
+        probs.any((p) => p.isNaN || p.isInfinite || p < 0 || p > 1.0000001) ||
+        margin == null ||
+        margin.isNaN ||
+        margin.isInfinite) {
+      return ScreeningRecordDart(
+        imagePath: 'capture',
+        qualityGrade: quality.grade,
+        qualityStatus: 'AI unavailable (no calibrated probabilities)',
+        rejectionReasons: const [],
+        recaptureAttemptCount: attempt,
+        reassessmentOutcome: ReassessmentOutcome.NOT_APPLICABLE,
+        humanReviewRequired: true,
+        humanReviewType: HumanReviewType.OPERATOR_LEVEL,
+        humanReviewReason:
+            'On-device grader ${modelOutput.modelId} returned no valid '
+            'probability vector. Automated grading withheld; mandatory review.',
+        action:
+            'Automated grading withheld: the on-device model did not produce '
+            'a calibrated probability output. Route capture for human review.',
+        qualityMetrics: quality.metrics,
+        errorCode: PipelineErrorCode.aiUnavailable,
+        modelBackend: modelOutput.modelId,
+        inferenceMs: modelOutput.inferenceMs,
+      );
+    }
+
+    // Confidence = top-1 probability (== max(probs) by classifier contract);
+    // top-2 margin is the real measured margin, never synthesized.
+    final confVal = probs.reduce((a, b) => a > b ? a : b);
 
     final drResult = DrClassificationResult(
       predictedGrade: modelOutput.grade,
       probabilities: probs,
       confidence: confVal.clamp(0.0, 1.0),
-      top2Margin: confVal > 0.5 ? confVal - 0.2 : 0.1,
+      top2Margin: margin,
       isReferable: modelOutput.referable ?? modelOutput.grade.isReferable,
     );
 
@@ -253,7 +310,8 @@ class ScreeningOrchestrator {
       );
     }
 
-    final uncertain = (modelOutput.uncertainty ?? 0.0) > 0.4 || !confidence.isConfident;
+    final uncertain =
+        (modelOutput.uncertainty ?? 0.0) > 0.4 || !confidence.isConfident;
     final errorCode = uncertain ? PipelineErrorCode.aiLowConfidence : null;
 
     String actionText;
@@ -266,7 +324,8 @@ class ScreeningOrchestrator {
           'Referable DR detected (${drResult.predictedGrade.label}). '
           'Route to ophthalmologist within referral SLA.';
     } else {
-      actionText = 'Non-referable (${drResult.predictedGrade.label}). Routine annual screening.';
+      actionText =
+          'Non-referable (${drResult.predictedGrade.label}). Routine annual screening.';
     }
 
     return ScreeningRecordDart(
