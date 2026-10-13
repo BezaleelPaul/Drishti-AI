@@ -82,3 +82,8 @@ scripts/convert/out/
 
 # Playwright MCP session artifacts
 .playwright-mcp/
+
+# Session artifacts: logs, office lockfiles, misc tool droppings
+streamlit_*.log
+presentation/~$*
+const
