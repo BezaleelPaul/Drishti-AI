@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'l10n/lang_scope.dart';
-import 'screens/figma_dashboard_screen.dart';
+import 'screens/splash/futuristic_splash_screen.dart';
 import 'services/api_service.dart';
 import 'services/db/local_store.dart';
 import 'services/offline_queue_service.dart';
@@ -48,18 +48,19 @@ Future<void> _initOfflinePersistence() async {
 
 class NetraAiApp extends StatelessWidget {
   final LangController langController;
+  final Widget? initialHome;
 
-  const NetraAiApp({super.key, required this.langController});
+  const NetraAiApp({super.key, required this.langController, this.initialHome});
 
   @override
   Widget build(BuildContext context) {
     return LangScope(
       notifier: langController,
       child: MaterialApp(
-        title: 'Netra-AI Rural Health Screening',
+        title: 'Drishti-AI Rural Health Screening',
         debugShowCheckedModeBanner: false,
         theme: buildFigmaTheme(),
-        home: const FigmaDashboardScreen(),
+        home: initialHome ?? const FuturisticSplashScreen(),
       ),
     );
   }

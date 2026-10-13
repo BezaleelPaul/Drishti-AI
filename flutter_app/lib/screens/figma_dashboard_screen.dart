@@ -3,9 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../l10n/lang_scope.dart';
 import '../services/api_service.dart';
+import '../services/db/local_store.dart';
+import '../services/ml/pipeline_schema.dart';
 import '../services/offline_queue_service.dart';
 import '../theme/figma_theme.dart';
-import '../widgets/figma_drawer.dart';
+import '../widgets/charts/severity_distribution_chart.dart';
+import '../widgets/futuristic/futuristic_ui.dart';
+import '../widgets/nav/neon_nav_rail.dart';
+import '../widgets/orbit/orbit.dart';
+import '../widgets/scanner/scanner_theme.dart';
 import '../widgets/status_badge.dart';
 import 'flow/flow_register_screen.dart';
 import 'figma_history_screen.dart';
@@ -34,6 +40,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   int _queuedCount = 0;
   int _queuedAi = 0;
   Map<String, dynamic>? _live;
+  List<Map<String, Object?>> _localRows = const [];
   Timer? _poll;
 
   @override
@@ -56,6 +63,13 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
       OfflineQueueService.kindDeidReferral,
     );
     final live = online ? await _api.getDashboardScreenings() : null;
+    // Offline fallback feed: the REAL screenings recorded on this device via
+    // LocalStore — never fabricated patient rows. Loaded only when the server
+    // feed is unavailable or empty so device data can never mask live data.
+    List<Map<String, Object?>> localRows = const [];
+    if (!_liveReadyOf(live)) {
+      localRows = await _loadLocalScreenings(limit: 6);
+    }
     if (!mounted) return;
     setState(() {
       _online = online;
@@ -63,11 +77,32 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
           persisted.screenings.length + persisted.patients.length + deid.length;
       _queuedAi = persisted.screenings.length;
       _live = live;
+      _localRows = localRows;
     });
   }
 
-  bool get _liveReady {
-    final items = _live?['items'];
+  Future<List<Map<String, Object?>>> _loadLocalScreenings({
+    required int limit,
+  }) async {
+    try {
+      final password = await OfflineQueueService.resolveDbPassword();
+      final store = await LocalStore.open(dbPassword: password);
+      try {
+        return await store.recentScreenings(limit: limit);
+      } finally {
+        await store.close();
+      }
+    } catch (_) {
+      // Storage unavailable (first run, locked DB): an empty honest feed —
+      // never demo rows in its place.
+      return const [];
+    }
+  }
+
+  bool get _liveReady => _liveReadyOf(_live);
+
+  bool _liveReadyOf(dynamic live) {
+    final items = live is Map<String, dynamic> ? live['items'] : null;
     return items is List && items.isNotEmpty;
   }
 
@@ -76,7 +111,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     if (_liveReady && items is List) {
       return items.whereType<Map<String, dynamic>>().map(_liveRow).toList();
     }
-    return _recent;
+    return _localRows.map(localScreeningRow).toList();
   }
 
   (String, String, String, String, FigmaStatus) _liveRow(
@@ -96,51 +131,35 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     );
   }
 
-  String _tileValue(String key, String fallback) {
+  // ---- Real local stat fallbacks (zero when nothing was captured) ----
+
+  int get _localTodayCount {
+    final now = DateTime.now();
+    return _localRows.where((r) {
+      final created = DateTime.tryParse('${r['created_at'] ?? ''}');
+      if (created == null) return false;
+      final localCreated = created.toLocal();
+      return localCreated.year == now.year &&
+          localCreated.month == now.month &&
+          localCreated.day == now.day;
+    }).length;
+  }
+
+  int get _localAwaitingReviewCount => _localRows
+      .where((r) => ((r['requires_human_review'] as num?)?.toInt() ?? 0) == 1)
+      .length;
+
+  int get _localUrgentCount => _localRows
+      .where((r) => ((r['dr_grade_num'] as num?)?.toInt() ?? 0) >= 3)
+      .length;
+
+  String _tileValue(String key, String Function() localFallback) {
     final stats = _live?['stats'];
     if (stats is Map<String, dynamic> && stats[key] is num) {
       return (stats[key] as num).toString();
     }
-    return fallback;
+    return localFallback();
   }
-
-  static const _recent = [
-    (
-      'PHC-2026-1024',
-      'Meena Devi',
-      '11 Sep 2026',
-      'Moderate NPDR',
-      FigmaStatus.verified,
-    ),
-    (
-      'PHC-2026-1023',
-      'Rajan Kumar',
-      '11 Sep 2026',
-      'Severe NPDR',
-      FigmaStatus.referral,
-    ),
-    (
-      'PHC-2026-1022',
-      'Sunita Bai',
-      '10 Sep 2026',
-      'Mild NPDR',
-      FigmaStatus.awaitingSpecialist,
-    ),
-    (
-      'PHC-2026-1021',
-      'Ashok Singh',
-      '10 Sep 2026',
-      'No DR',
-      FigmaStatus.verified,
-    ),
-    (
-      'PHC-2026-1020',
-      'Kamla Yadav',
-      '09 Sep 2026',
-      'Pending',
-      FigmaStatus.offline,
-    ),
-  ];
 
   void _startScreening(BuildContext context) {
     Navigator.push(
@@ -167,30 +186,38 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   Widget build(BuildContext context) {
     final online = _online;
     final badgeColor = online == null
-        ? FigmaColors.muted
-        : (online ? FigmaColors.success : FigmaColors.danger);
+        ? const Color(0xFF94A3B8)
+        : (online ? ScannerHUDTheme.success : ScannerHUDTheme.danger);
     final badgeBg = online == null
-        ? const Color(0xFFF1F5F9)
-        : (online ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2));
+        ? const Color(0xFF1E293B)
+        : (online ? const Color(0xFF052E16) : const Color(0xFF2A0F0F));
     final badgeText = online == null
         ? '…' // probing — language-neutral; resolves within one ping
         : (online ? context.tr('online') : context.tr('offline'));
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
-      drawer: const FigmaDrawer(),
+      backgroundColor: ScannerHUDTheme.background,
+      drawer: NeonNavRail(
+        entries: buildNavEntries(context),
+        activeLabel: context.tr('nav_dashboard'),
+        queuedCount: _queuedCount,
+        online: _online,
+      ),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
         elevation: 0,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: const [
-            Icon(Icons.remove_red_eye_outlined, color: FigmaColors.primaryDark),
+            Icon(
+              Icons.remove_red_eye_outlined,
+              color: ScannerHUDTheme.neonCyan,
+            ),
             SizedBox(width: 6),
             Text(
               'Drishti-AI',
               style: TextStyle(
-                color: FigmaColors.primaryDark,
+                color: Colors.white,
                 fontWeight: FontWeight.w800,
                 fontSize: 18,
               ),
@@ -251,7 +278,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
           PopupMenuButton<AppLang>(
             icon: const Icon(
               Icons.language,
-              color: FigmaColors.primaryDark,
+              color: ScannerHUDTheme.neonCyan,
               size: 20,
             ),
             tooltip: 'Language',
@@ -307,6 +334,11 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                               _startButton(context),
                             ],
                           ),
+                    const SizedBox(height: 12),
+                    // Orbit hero centered under the header; keeps the header
+                    // row's baseline layout intact on every width.
+                    Center(child: _orbitHero(context)),
+                    const SizedBox(height: 4),
                     const SizedBox(height: 16),
                     // Stat cards
                     GridView.count(
@@ -320,34 +352,43 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                         _statCard(
                           context,
                           'todays_screenings',
-                          _tileValue('today_screenings', '8'),
-                          FigmaColors.primaryDark,
-                          FigmaColors.primarySoft,
-                          FigmaColors.primaryBorder,
+                          _tileValue(
+                            'today_screenings',
+                            () => '$_localTodayCount',
+                          ),
+                          ScannerHUDTheme.neonCyan,
+                          ScannerHUDTheme.darkSurface,
+                          const Color(0xFF1E293B),
                         ),
                         _statCard(
                           context,
                           'awaiting_ai',
                           '$_queuedAi',
-                          const Color(0xFFB45309),
-                          const Color(0xFFFFFBEB),
-                          const Color(0xFFFDE68C),
+                          const Color(0xFFF59E0B),
+                          ScannerHUDTheme.darkSurface,
+                          const Color(0xFF1E293B),
                         ),
                         _statCard(
                           context,
                           'awaiting_specialist',
-                          _tileValue('awaiting_specialist', '3'),
-                          FigmaColors.purple,
-                          const Color(0xFFFAF5FF),
-                          const Color(0xFFE9D5FF),
+                          _tileValue(
+                            'awaiting_specialist',
+                            () => '$_localAwaitingReviewCount',
+                          ),
+                          const Color(0xFFA855F7),
+                          ScannerHUDTheme.darkSurface,
+                          const Color(0xFF1E293B),
                         ),
                         _statCard(
                           context,
                           'urgent_referrals',
-                          _tileValue('urgent_referrals', '1'),
-                          const Color(0xFFB91C1C),
-                          const Color(0xFFFEF2F2),
-                          const Color(0xFFFECACA),
+                          _tileValue(
+                            'urgent_referrals',
+                            () => '$_localUrgentCount',
+                          ),
+                          const Color(0xFFEF4444),
+                          ScannerHUDTheme.darkSurface,
+                          const Color(0xFF1E293B),
                         ),
                       ],
                     ),
@@ -359,9 +400,9 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                           vertical: 12,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: ScannerHUDTheme.darkSurface,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: FigmaColors.border),
+                          border: Border.all(color: const Color(0xFF1E293B)),
                         ),
                         child: Row(
                           children: [
@@ -376,14 +417,14 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13,
-                                      color: FigmaColors.text,
+                                      color: Colors.white,
                                     ),
                                   ),
                                   Text(
                                     context.tr('captured_offline'),
                                     style: const TextStyle(
                                       fontSize: 11,
-                                      color: FigmaColors.muted,
+                                      color: Color(0xFF94A3B8),
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -397,7 +438,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                                 context.tr('view_arrow'),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  color: FigmaColors.primaryDark,
+                                  color: ScannerHUDTheme.neonCyan,
                                 ),
                               ),
                             ),
@@ -405,17 +446,49 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                         ),
                       ),
                     ],
+                    SeverityDistributionChart(
+                      buckets: buildSeverityBuckets(_rows.map((r) => r.$4)),
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       context.tr('recent_screenings'),
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
-                        color: FigmaColors.text,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    if (wide)
+                    if (_rows.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: ScannerHUDTheme.darkSurface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF1E293B)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.folder_off_outlined,
+                              color: FigmaColors.faint,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'No screenings on this device yet — '
+                                'capture one to begin.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (wide)
                       _recentTable(context, _rows)
                     else
                       ..._rows.map(
@@ -438,6 +511,43 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: ScannerHUDTheme.neonCyan,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'RETINAL DIAGNOSTIC HUD // AI V1.2',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ScannerHUDTheme.hudMonoStyle.copyWith(
+                    fontSize: 9,
+                    letterSpacing: 1.0,
+                    color: ScannerHUDTheme.neonCyan,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         Text(
           context.tr('dash_title'),
           textAlign: TextAlign.start,
@@ -445,38 +555,48 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
           style: const TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 22,
-            color: FigmaColors.text,
+            color: Colors.white,
           ),
         ),
         Text(
           context.tr('dash_subtitle'),
-          style: const TextStyle(fontSize: 13, color: FigmaColors.muted),
+          style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
         ),
-        if (!_liveReady)
-          Text(
-            context.tr('demo_data'),
-            style: const TextStyle(fontSize: 11, color: FigmaColors.faint),
+        if (_localRows.isNotEmpty && !_liveReady)
+          const Text(
+            'On-device records · sync pending',
+            style: TextStyle(fontSize: 11, color: FigmaColors.faint),
           ),
       ],
     );
   }
 
   Widget _startButton(BuildContext context) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: FigmaColors.primary,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    return FuturisticGlowButton(
+      label: context.tr('start_screening'),
+      glowColor: FigmaColors.primary,
+      backgroundColor: FigmaColors.primary,
       onPressed: () => _startScreening(context),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          context.tr('start_screening'),
-          maxLines: 2,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+    );
+  }
+
+  /// Ambient orbit hero: idle rings plus an honest link-state label derived
+  /// from the real ping result (never claims readiness it does not have).
+  Widget _orbitHero(BuildContext context) {
+    final online = _online;
+    return SizedBox(
+      width: 220,
+      height: 220,
+      // The orbit sizes its central slot from ambient screen width; scope the
+      // MediaQuery so the embed fits its container instead of the viewport.
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(size: const Size(480, 480)),
+        child: OrbitScanner(
+          state: OrbitScannerState.idle,
+          statusText: online == null
+              ? 'PROBING LINK'
+              : (online ? 'LINK ONLINE' : 'LINK OFFLINE'),
+          technicalLabel: _queuedCount > 0 ? 'queued: $_queuedCount' : null,
         ),
       ),
     );
@@ -514,7 +634,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF475569),
+              color: Color(0xFF94A3B8),
             ),
           ),
         ],
@@ -532,9 +652,9 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ScannerHUDTheme.darkSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: FigmaColors.border),
+          border: Border.all(color: const Color(0xFF1E293B)),
         ),
         child: Row(
           children: [
@@ -547,21 +667,21 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
-                      color: FigmaColors.text,
+                      color: Colors.white,
                     ),
                   ),
                   Text(
                     s.$1,
                     style: const TextStyle(
                       fontSize: 11,
-                      color: FigmaColors.faint,
+                      color: Color(0xFF94A3B8),
                     ),
                   ),
                   Text(
                     '${s.$4} · ${s.$3}',
                     style: const TextStyle(
                       fontSize: 11,
-                      color: FigmaColors.muted,
+                      color: Color(0xFFCBD5E1),
                     ),
                   ),
                 ],
@@ -580,17 +700,17 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ScannerHUDTheme.darkSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: FigmaColors.border),
+        border: Border.all(color: const Color(0xFF1E293B)),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              border: Border(bottom: BorderSide(color: FigmaColors.border)),
+              color: Color(0xFF1E293B),
+              border: Border(bottom: BorderSide(color: Color(0xFF334155))),
             ),
             child: Row(
               children: [
@@ -610,7 +730,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                   vertical: 10,
                 ),
                 decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                  border: Border(bottom: BorderSide(color: Color(0xFF1E293B))),
                 ),
                 child: Row(
                   children: [
@@ -623,14 +743,14 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                             s.$2,
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
-                              color: FigmaColors.text,
+                              color: Colors.white,
                             ),
                           ),
                           Text(
                             s.$1,
                             style: const TextStyle(
                               fontSize: 11,
-                              color: FigmaColors.faint,
+                              color: Color(0xFF94A3B8),
                             ),
                           ),
                         ],
@@ -639,13 +759,13 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                     Expanded(
                       child: Text(
                         s.$3,
-                        style: const TextStyle(color: Color(0xFF475569)),
+                        style: const TextStyle(color: Color(0xFF94A3B8)),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         s.$4,
-                        style: const TextStyle(color: FigmaColors.text),
+                        style: const TextStyle(color: Color(0xFFCBD5E1)),
                       ),
                     ),
                     Expanded(child: StatusBadge(status: s.$5)),
@@ -665,7 +785,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
       style: const TextStyle(
         fontWeight: FontWeight.w700,
         fontSize: 12,
-        color: Color(0xFF475569),
+        color: Color(0xFF94A3B8),
       ),
     );
   }
@@ -699,6 +819,65 @@ FigmaStatus liveStatusFor(String? status) {
     default:
       return FigmaStatus.verified;
   }
+}
+
+/// The two quality/domain gate codes that mean "this capture can never be
+/// graded locally" — shown as rejected, not as pending.
+bool _isRejectionCode(String? code) =>
+    code == PipelineErrorCode.imgInvalid.code ||
+    code == PipelineErrorCode.imgNotFundus.code ||
+    code == PipelineErrorCode.imgUntgradable.code;
+
+/// Result text derived ONLY from what the local row actually contains:
+/// the stored DR label (or the grade-derived canonical label) when graded,
+/// the gate code when rejected, an honest "pending / unavailable" otherwise.
+String localScreeningResult(Map<String, Object?> row) {
+  final label = (row['dr_label'] ?? '').toString();
+  if (label.isNotEmpty) return label;
+  final gradeNum = (row['dr_grade_num'] as num?)?.toInt();
+  if (gradeNum != null) {
+    final grade = DrGrade.tryFromValue(gradeNum);
+    if (grade != null) return grade.label;
+  }
+  final code = (row['error_code'] ?? '').toString();
+  if (_isRejectionCode(code)) return code;
+  final review = ((row['requires_human_review'] as num?)?.toInt() ?? 0) == 1;
+  return review ? 'Awaiting review' : 'Pending AI';
+}
+
+/// Honest badge for a locally stored screening. Sync state is the source of
+/// truth for verification — a row on this device is NEVER labelled as
+/// server-verified while it is still local-only.
+FigmaStatus localScreeningStatus(Map<String, Object?> row) {
+  final errorCode = (row['error_code'] ?? '').toString();
+  if (_isRejectionCode(errorCode)) return FigmaStatus.rejected;
+  final review = ((row['requires_human_review'] as num?)?.toInt() ?? 0) == 1;
+  if (review) return FigmaStatus.awaitingSpecialist;
+  switch ((row['sync_state'] ?? '').toString()) {
+    case 'acked':
+    case 'review_received':
+      return FigmaStatus.verified;
+    case 'syncing':
+      return FigmaStatus.awaitingAi;
+    default:
+      return FigmaStatus.offline;
+  }
+}
+
+/// Maps a `LocalStore.recentScreenings` row onto the dashboard/history
+/// row-tuple so the offline feed renders the same contract as the server feed.
+(String, String, String, String, FigmaStatus) localScreeningRow(
+  Map<String, Object?> row,
+) {
+  final name = (row['name'] ?? '').toString();
+  final pid = (row['local_patient_id'] ?? '').toString();
+  return (
+    pid,
+    name.isNotEmpty ? name : pid,
+    formatScreeningDate((row['created_at'] ?? '').toString()),
+    localScreeningResult(row),
+    localScreeningStatus(row),
+  );
 }
 
 String formatScreeningDate(String? raw) {

@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/lang_scope.dart';
 import '../../services/referral_uplink_service.dart';
 import '../../theme/figma_theme.dart';
+import '../../widgets/scanner/scanner.dart';
 import '../../widgets/workflow_bar.dart';
 import '../consent_screen.dart';
 import 'flow_report_screen.dart';
@@ -219,15 +220,18 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
     final grade = st.correctedGrade ?? st.analysis?.drGrade ?? 2;
     final urgency = _urgencyFor(grade);
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
-        elevation: 1,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         automaticallyImplyLeading: false,
         title: Text(
           context.tr('referral_title'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
         ),
       ),
       body: Center(
@@ -238,14 +242,14 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const WorkflowBar(step: 4),
+                const WorkflowBar(step: 4, dark: true),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.danger),
+                    border: Border.all(color: FigmaColors.danger, width: 1.5),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,7 +268,7 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                       Text(
@@ -272,7 +276,7 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                         '${urgency.hindi}',
                         style: const TextStyle(
                           fontSize: 13,
-                          color: FigmaColors.text,
+                          color: Color(0xFFE2E8F0),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -280,7 +284,7 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                         context.tr('referral_msg'),
                         style: const TextStyle(
                           fontSize: 12,
-                          color: FigmaColors.text,
+                          color: Color(0xFF94A3B8),
                         ),
                       ),
                     ],
@@ -290,9 +294,9 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,7 +305,7 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                         context.tr('recommended_specialist'),
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -309,14 +313,14 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                         'District Eye Care Centre — Retina & Vitreous Clinic',
                         style: TextStyle(
                           fontSize: 12,
-                          color: FigmaColors.muted,
+                          color: Color(0xFF94A3B8),
                         ),
                       ),
                       Text(
                         '${st.patient.name} • ${st.patient.phone}',
                         style: const TextStyle(
                           fontSize: 12,
-                          color: FigmaColors.muted,
+                          color: Color(0xFF94A3B8),
                         ),
                       ),
                     ],

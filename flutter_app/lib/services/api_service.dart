@@ -779,9 +779,9 @@ class ApiService {
         actionRecommendation: result.actionRecommendation,
         plainLanguageAdvice: result.patientPlainLanguageSummary,
         smsReferralSlip: hasErrorCode
-            ? 'Netra-AI: no result assigned (${result.errorCode}). '
+            ? 'Drishti-AI: no result assigned (${result.errorCode}). '
                   '${result.actionRecommendation} Screening:${result.screeningId}'
-            : 'Netra-AI: ${result.drLabel ?? 'Screening complete'} (Grade ${grade ?? '-'}). '
+            : 'Drishti-AI: ${result.drLabel ?? 'Screening complete'} (Grade ${grade ?? '-'}). '
                   '${result.actionRecommendation} Screening:${result.screeningId}',
         biomarkers: {
           'microaneurysm_count': result.microaneurysmCount,

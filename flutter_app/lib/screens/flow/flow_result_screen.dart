@@ -2,13 +2,21 @@ import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
 import '../../models/screening_models.dart' as ui;
 import '../../theme/figma_theme.dart';
+import '../../widgets/orbit/orbit.dart';
+import '../../widgets/scanner/scanner.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/workflow_bar.dart';
 import 'flow_specialist_screen.dart';
 import 'flow_state.dart';
 
 /// Figma "AI Screening Result" (Workflow step 3):
-/// severity scale, findings, explainability toggle.
+/// severity scale, findings, explainability.
+///
+/// Honest-visibility rules enforced here:
+/// - preliminary on-device results are never labeled service-confirmed;
+/// - no synthetic "attention" overlay is ever drawn over the fundus;
+/// - an explanation section either shows a real model-derived artifact or
+///   an explicit unavailable state.
 class FlowResultScreen extends StatefulWidget {
   final FlowState state;
 
@@ -19,8 +27,6 @@ class FlowResultScreen extends StatefulWidget {
 }
 
 class _FlowResultScreenState extends State<FlowResultScreen> {
-  bool _heatmap = true;
-
   static const _sevKeys = [
     'sev_no_dr',
     'sev_mild',
@@ -55,14 +61,17 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
     final pending = widget.state.analysis == null;
     if (pending) {
       return Scaffold(
-        backgroundColor: FigmaColors.surface,
+        backgroundColor: ScannerHUDTheme.background,
         appBar: AppBar(
-          backgroundColor: Colors.white,
-          foregroundColor: FigmaColors.primaryDark,
-          elevation: 1,
+          backgroundColor: ScannerHUDTheme.darkSurface,
+          foregroundColor: ScannerHUDTheme.neonCyan,
+          elevation: 0,
           title: Text(
             context.tr('ai_result_title'),
-            style: const TextStyle(fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
           ),
         ),
         body: Center(
@@ -89,15 +98,18 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
     final ma = (a.biomarkers?['microaneurysm_count'] as num?)?.toInt() ?? 0;
 
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
-        elevation: 1,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         automaticallyImplyLeading: false,
         title: Text(
           context.tr('ai_result_title'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
         ),
       ),
       body: Center(
@@ -108,20 +120,40 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const WorkflowBar(step: 3),
+                const WorkflowBar(step: 3, dark: true),
                 const SizedBox(height: 12),
                 // Result card
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const StatusBadge(status: FigmaStatus.awaitingSpecialist),
+                      const SizedBox(height: 8),
+                      // Provenance/limitation markers: what this result is
+                      // (preliminary) and how it reached us (offline queue).
+                      // Backend identity stays in the confidence line below.
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (!ungraded)
+                            const OrbitChip(
+                              label: 'PRELIMINARY',
+                              color: Color(0xFFA855F7),
+                            ),
+                          if (a.isOffline)
+                            const OrbitChip(
+                              label: 'OFFLINE — PENDING SYNC',
+                              color: Color(0xFFF59E0B),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         ungraded
@@ -141,7 +173,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                         '${_backendSuffix(a)}',
                         style: const TextStyle(
                           fontSize: 12,
-                          color: FigmaColors.muted,
+                          color: Color(0xFF94A3B8),
                         ),
                       ),
                       // Rejection transparency: when the gate refuses an
@@ -152,7 +184,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
+                            color: ScannerHUDTheme.darkSurface,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: FigmaColors.danger),
                           ),
@@ -165,7 +197,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
-                                  color: FigmaColors.danger,
+                                  color: Color(0xFFF87171),
                                 ),
                               ),
                               for (final reason in a.rejectionReasons)
@@ -175,7 +207,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                                     '• $reason',
                                     style: const TextStyle(
                                       fontSize: 12,
-                                      color: FigmaColors.text,
+                                      color: Color(0xFFE2E8F0),
                                     ),
                                   ),
                                 ),
@@ -189,7 +221,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: FigmaColors.muted,
+                          color: Color(0xFF94A3B8),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -203,7 +235,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                                 decoration: BoxDecoration(
                                   color: !ungraded && i <= idx
                                       ? _sevColors[idx]
-                                      : const Color(0xFFF1F5F9),
+                                      : const Color(0xFF1E293B),
                                   borderRadius: BorderRadius.circular(5),
                                 ),
                               ),
@@ -217,14 +249,14 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                             context.tr('sev_no_dr'),
                             style: const TextStyle(
                               fontSize: 10,
-                              color: FigmaColors.faint,
+                              color: Color(0xFF94A3B8),
                             ),
                           ),
                           Text(
                             context.tr('sev_pdr'),
                             style: const TextStyle(
                               fontSize: 10,
-                              color: FigmaColors.faint,
+                              color: Color(0xFF94A3B8),
                             ),
                           ),
                         ],
@@ -235,7 +267,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                     ],
@@ -246,9 +278,9 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,7 +289,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                         context.tr('ai_findings'),
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -272,84 +304,97 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                // Explainability
+                // Explainability — honest state only: real fundus image plus
+                // an explicit unavailable notice (no synthetic overlay).
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: Colors.black,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              context.tr('xai_label'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                                color: Colors.white,
-                              ),
+                      Text(
+                        context.tr('xai_label'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (widget.state.imageBytes != null)
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            child: ScannerView(
+                              imageBytes: widget.state.imageBytes,
+                              isInteractive: true,
+                              state:
+                                  a.qualityGrade.toUpperCase() == 'BORDERLINE'
+                                  ? ScannerAnimationState.reviewRequired
+                                  : ScannerAnimationState.resultReady,
+                              customStatusText:
+                                  a.qualityGrade.toUpperCase() == 'BORDERLINE'
+                                  ? 'REVIEW REQUIRED'
+                                  : 'ORIGINAL FUNDUS',
                             ),
                           ),
-                          Switch(
-                            value: _heatmap,
-                            activeThumbColor: FigmaColors.primary,
-                            onChanged: (v) => setState(() => _heatmap = v),
-                          ),
-                        ],
+                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        context.tr('original_fundus'),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white70,
+                        ),
                       ),
-                      const SizedBox(height: 6),
-                      if (widget.state.imageBytes != null)
-                        ClipRRect(
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: ScannerHUDTheme.darkSurface,
                           borderRadius: BorderRadius.circular(8),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Image.memory(
-                                widget.state.imageBytes!,
-                                height: 180,
-                                width: double.infinity,
-                                fit: BoxFit.contain,
-                              ),
-                              if (_heatmap)
-                                Container(
-                                  height: 180,
-                                  decoration: BoxDecoration(
-                                    gradient: RadialGradient(
-                                      center: Alignment.center,
-                                      radius: 0.8,
-                                      colors: [
-                                        Colors.red.withValues(alpha: 0.40),
-                                        Colors.amber.withValues(alpha: 0.25),
-                                        Colors.transparent,
-                                      ],
+                          border: Border.all(color: const Color(0xFF1E293B)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: ScannerHUDTheme.neonCyan,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Explanation unavailable',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      Text(
-                        _heatmap
-                            ? context.tr('ai_attn')
-                            : context.tr('original_fundus'),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      Text(
-                        _heatmap
-                            ? 'Model attention — not clinical evidence'
-                            : '',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.white70,
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'No verified model-derived explanation exists '
+                                    'for this result. Attention maps are only '
+                                    'shown when generated by the model that '
+                                    'produced this grade.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -360,7 +405,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                   '${context.tr('ai_note_label')} ${context.tr('ai_note_text')}',
                   style: const TextStyle(
                     fontSize: 11,
-                    color: FigmaColors.faint,
+                    color: Color(0xFF94A3B8),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -373,6 +418,8 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                   ),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: FigmaColors.primary,
+                    foregroundColor: Colors.white,
                   ),
                   child: Text(
                     context.tr('btn_proceed_specialist'),
@@ -397,7 +444,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: FigmaColors.text),
+              style: const TextStyle(fontSize: 12, color: Color(0xFFE2E8F0)),
             ),
           ),
           Text(
@@ -405,7 +452,7 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: FigmaColors.muted,
+              color: Color(0xFF94A3B8),
             ),
           ),
         ],

@@ -366,10 +366,15 @@ risk_model, router, enhancer, segmenter = get_screening_engine(camera_hardware, 
 # -------------------------------------------------------------------------
 _model_backend = router.dr_classifier.get_backend()
 _model_err = getattr(router.dr_classifier, "load_error", None)
-if _model_backend in ("keras", "pytorch"):
+if _model_backend in ("keras", "pytorch", "onnx_drdetect"):
+    _model_desc = (
+        "`efficientnet_b0_regression_512px.onnx` DRDetect Ordinal Regression"
+        if _model_backend == "onnx_drdetect"
+        else "`final_model.keras` EfficientNetB0"
+    )
     st.success(
         f"● MODEL STATUS: Real AI Model Loaded (`{_model_backend}` backend — "
-        "`final_model.keras` EfficientNetB0, 5-class DR grading active)."
+        f"{_model_desc}, 5-class DR grading active)."
     )
 else:
     st.error(

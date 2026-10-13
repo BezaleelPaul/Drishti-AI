@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import '../l10n/lang_scope.dart';
 import '../services/api_service.dart';
+import '../widgets/fx/particle_field.dart';
+import '../widgets/scanner/scanner_theme.dart';
 
+/// Offline Queue — store-and-forward sync status, dark HUD chrome consistent
+/// with the rest of the clinical shell. Status colours keep semantic meaning
+/// (amber = awaiting sync, green = all clear, red = rejected) but render on
+/// the dark surface instead of light pastels.
 class QueueScreen extends StatefulWidget {
   const QueueScreen({super.key});
 
@@ -14,6 +21,10 @@ class _QueueScreenState extends State<QueueScreen> {
   bool _isSyncing = false;
   String? _syncMessage;
   bool _syncFailed = false;
+
+  static const _amber = Color(0xFFF59E0B);
+  static const _green = Color(0xFF10B981);
+  static const _danger = Color(0xFFEF4444);
 
   Future<void> _handleSync() async {
     setState(() {
@@ -63,194 +74,248 @@ class _QueueScreenState extends State<QueueScreen> {
     final hasPending = queue.isNotEmpty || pendingPatients > 0;
 
     return Scaffold(
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         title: Text(
           context.tr('offline_title'),
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Summary Banner
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: !hasPending
-                      ? Colors.green.shade50
-                      : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: !hasPending
-                        ? Colors.green.shade300
-                        : Colors.orange.shade300,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      !hasPending ? Icons.cloud_done : Icons.cloud_queue,
-                      color: !hasPending
-                          ? Colors.green
-                          : Colors.orange.shade800,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            !hasPending
-                                ? context.tr('sync_complete')
-                                : '${queue.length} ${context.tr('cases_waiting')}${pendingPatients > 0 ? ' + $pendingPatients' : ''}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: !hasPending
-                                  ? Colors.green.shade800
-                                  : Colors.orange.shade900,
-                            ),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: ParticleField(
+              particleCount: 16,
+              opacity: 0.2,
+              speed: 0.55,
+              seed: 29,
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 672),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Summary Banner — dark surface with a semantic accent bar.
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: ScannerHUDTheme.darkSurface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: !hasPending
+                                ? _green.withValues(alpha: 0.5)
+                                : _amber.withValues(alpha: 0.5),
                           ),
-                          Text(
-                            !hasPending
-                                ? context.tr('sync1')
-                                : context.tr('offline_subtitle'),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              if (_syncMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _syncFailed
-                        ? Colors.red.shade50
-                        : Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _syncFailed
-                          ? Colors.red.shade300
-                          : Colors.blue.shade300,
-                    ),
-                  ),
-                  child: Text(
-                    _syncMessage!,
-                    style: TextStyle(
-                      color: _syncFailed
-                          ? Colors.red.shade900
-                          : const Color(0xFF1A56DB),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Queue List
-              Expanded(
-                child: queue.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
+                        ),
+                        child: Row(
+                          children: [
                             Icon(
-                              Icons.check_circle_outline,
-                              size: 60,
-                              color: Colors.green,
+                              !hasPending
+                                  ? Icons.cloud_done
+                                  : Icons.cloud_queue,
+                              color: !hasPending ? _green : _amber,
+                              size: 28,
                             ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Queue is Empty',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
-                            ),
-                            Text(
-                              'All rural field scans have been safely stored.',
-                              style: TextStyle(
-                                color: Colors.black45,
-                                fontSize: 13,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    !hasPending
+                                        ? context.tr('sync_complete')
+                                        : '${queue.length} ${context.tr('cases_waiting')}${pendingPatients > 0 ? ' + $pendingPatients' : ''}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: !hasPending ? _green : _amber,
+                                    ),
+                                  ),
+                                  Text(
+                                    !hasPending
+                                        ? context.tr('sync1')
+                                        : context.tr('offline_subtitle'),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: queue.length,
-                        itemBuilder: (context, index) {
-                          final item = queue[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: Color(0xFF1A56DB),
-                                child: Icon(
-                                  Icons.remove_red_eye,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              title: Text(
-                                '${item['patient_id']} • ${item['eye_side']} Eye',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              subtitle: Text(
-                                "Preset: ${item['camera_profile']}\nCaptured: ${item['timestamp'] ?? item['captured_at'] ?? '-'}",
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              isThreeLine: true,
-                            ),
-                          );
-                        },
                       ),
-              ),
+                      const SizedBox(height: 16),
 
-              // Sync Button
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A56DB),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                      if (_syncMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: ScannerHUDTheme.darkSurface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _syncFailed
+                                  ? _danger.withValues(alpha: 0.55)
+                                  : _green.withValues(alpha: 0.55),
+                            ),
+                          ),
+                          child: Text(
+                            _syncMessage!,
+                            style: TextStyle(
+                              color: _syncFailed ? _danger : _green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Queue List
+                      Expanded(
+                        child: queue.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Icon(
+                                      Icons.check_circle_outline,
+                                      size: 60,
+                                      color: _green,
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Queue is Empty',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      'All rural field scans have been safely stored.',
+                                      style: TextStyle(
+                                        color: Color(0xFF94A3B8),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                itemCount: queue.length,
+                                itemBuilder: (context, index) {
+                                  final item = queue[index];
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: ScannerHUDTheme.darkSurface,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: const Color(0xFF1E293B),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundColor: ScannerHUDTheme
+                                              .neonCyan
+                                              .withValues(alpha: 0.16),
+                                          child: Icon(
+                                            Icons.remove_red_eye,
+                                            color: ScannerHUDTheme.neonCyan,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${item['patient_id']} • ${item['eye_side']} Eye',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                "Preset: ${item['camera_profile']}\nCaptured: ${item['timestamp'] ?? item['captured_at'] ?? '-'}",
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  height: 1.35,
+                                                  color: Color(0xFF94A3B8),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+
+                      // Sync Button
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ScannerHUDTheme.neonCyan,
+                          foregroundColor: ScannerHUDTheme.background,
+                          disabledBackgroundColor: ScannerHUDTheme.darkSurface,
+                          disabledForegroundColor: const Color(0xFF475569),
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: _isSyncing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: SpinKitFadingCube(
+                                  color: ScannerHUDTheme.background,
+                                  size: 18,
+                                ),
+                              )
+                            : const Icon(Icons.sync),
+                        label: Text(
+                          _isSyncing
+                              ? context.tr('syncing')
+                              : context.tr('btn_sync'),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: _isSyncing || !hasPending
+                            ? null
+                            : _handleSync,
+                      ),
+                    ],
                   ),
                 ),
-                icon: _isSyncing
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.sync),
-                label: Text(
-                  _isSyncing ? context.tr('syncing') : context.tr('btn_sync'),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onPressed: _isSyncing || !hasPending ? null : _handleSync,
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

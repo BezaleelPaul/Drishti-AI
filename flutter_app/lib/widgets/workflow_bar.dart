@@ -8,7 +8,11 @@ class WorkflowBar extends StatelessWidget {
   /// 1-based active step.
   final int step;
 
-  const WorkflowBar({super.key, required this.step});
+  /// Renders light-on-dark colors for midnight-navy orbit screens.
+  /// Defaults to false so existing light screens are unchanged.
+  final bool dark;
+
+  const WorkflowBar({super.key, required this.step, this.dark = false});
 
   static const _keys = [
     'wf_patient',
@@ -31,6 +35,8 @@ class WorkflowBar extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 22, left: 4, right: 4),
                 color: (i + 1) < step
                     ? FigmaColors.success
+                    : dark
+                    ? const Color(0xFF334155)
                     : FigmaColors.border,
               ),
             ),
@@ -46,8 +52,14 @@ class WorkflowBar extends StatelessWidget {
         ? FigmaColors.success
         : active
         ? FigmaColors.primary
+        : dark
+        ? const Color(0xFF1E293B)
         : const Color(0xFFF1F5F9);
-    final fg = (done || active) ? Colors.white : FigmaColors.faint;
+    final fg = (done || active)
+        ? Colors.white
+        : dark
+        ? const Color(0xFF94A3B8)
+        : FigmaColors.faint;
     return Column(
       children: [
         Container(
@@ -74,9 +86,13 @@ class WorkflowBar extends StatelessWidget {
             fontSize: 10,
             fontWeight: FontWeight.w600,
             color: active
-                ? FigmaColors.primaryDark
+                ? dark
+                      ? Colors.white
+                      : FigmaColors.primaryDark
                 : done
                 ? FigmaColors.success
+                : dark
+                ? const Color(0xFF94A3B8)
                 : FigmaColors.faint,
           ),
         ),

@@ -169,7 +169,10 @@ void main() {
       await _pumpQueue(tester, api);
 
       await tester.tap(find.text('View Markers'));
-      await tester.pumpAndSettle();
+      // Bounded pumps: the pushed viewer's marker pulse is an intentional
+      // looping animation, so an unbounded pumpAndSettle would never settle.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
 
       final viewer = tester.widget<ClinicianMarkerViewer>(
         find.byType(ClinicianMarkerViewer),
@@ -197,7 +200,9 @@ void main() {
       expect(button.onPressed, isNull);
 
       await tester.tap(find.text('View Markers'));
-      await tester.pumpAndSettle();
+      // Bounded pumps (the viewer's looping pulse must not be settled on).
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
       expect(find.byType(ClinicianMarkerViewer), findsNothing);
     });
   });

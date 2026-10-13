@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
 import '../../services/consent_service.dart';
 import '../../theme/figma_theme.dart';
+import '../../widgets/scanner/scanner_theme.dart';
 
 /// Consent gate for the referral uplink (Ticket C-3, DPDP S.5/S.6).
 ///
@@ -56,14 +57,14 @@ class _ConsentScreenState extends State<ConsentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
-        elevation: 1,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         title: const Text(
           'Consent / सहमति',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white),
         ),
       ),
       body: Center(
@@ -77,9 +78,9 @@ class _ConsentScreenState extends State<ConsentScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,7 +90,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -97,7 +98,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         'प्रेषण के लिए सहमति',
                         style: TextStyle(
                           fontSize: 13,
-                          color: FigmaColors.muted,
+                          color: const Color(0xFF94A3B8),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -106,7 +107,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         '(${widget.localPatientId})',
                         style: const TextStyle(
                           fontSize: 12,
-                          color: FigmaColors.muted,
+                          color: Color(0xFF94A3B8),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -127,7 +128,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         style: TextStyle(
                           fontSize: 13,
                           height: 1.35,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -139,7 +140,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         style: const TextStyle(
                           fontSize: 11,
                           fontStyle: FontStyle.italic,
-                          color: FigmaColors.faint,
+                          color: Color(0xFF64748B),
                         ),
                       ),
                       if (_existingGranted == true) ...[
@@ -191,7 +192,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   style: const TextStyle(
                     fontSize: 11,
                     fontStyle: FontStyle.italic,
-                    color: FigmaColors.faint,
+                    color: Color(0xFF64748B),
                   ),
                   textAlign: TextAlign.center,
                 ),

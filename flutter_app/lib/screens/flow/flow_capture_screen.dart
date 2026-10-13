@@ -8,6 +8,8 @@ import '../../models/screening_models.dart';
 import '../../services/api_service.dart';
 import '../../services/ml/on_device_pipeline.dart';
 import '../../theme/figma_theme.dart';
+import '../../widgets/orbit/orbit.dart';
+import '../../widgets/scanner/scanner.dart';
 import '../../widgets/workflow_bar.dart';
 import '../live_camera_screen.dart';
 import 'flow_analysis_screen.dart';
@@ -162,14 +164,17 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
     final good = q != null && q.qualityGrade == 'GOOD';
     final bad = q != null && q.qualityGrade == 'BAD';
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
-        elevation: 1,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         title: Text(
           context.tr('capture_title'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
         ),
       ),
       body: Center(
@@ -180,13 +185,13 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const WorkflowBar(step: 2),
+                const WorkflowBar(step: 2, dark: true),
                 const SizedBox(height: 12),
                 Text(
                   context.tr('select_eye'),
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: FigmaColors.text,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -204,55 +209,43 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                   selected: {st.eyeSide},
                   onSelectionChanged: (s) =>
                       setState(() => st.eyeSide = s.first),
+                  style: SegmentedButton.styleFrom(
+                    backgroundColor: ScannerHUDTheme.darkSurface,
+                    foregroundColor: const Color(0xFF94A3B8),
+                    selectedBackgroundColor: ScannerHUDTheme.neonCyan
+                        .withValues(alpha: 0.14),
+                    selectedForegroundColor: ScannerHUDTheme.neonCyan,
+                    side: const BorderSide(color: Color(0xFF334155)),
+                  ),
                 ),
                 const SizedBox(height: 12),
-                // Viewfinder
-                Container(
-                  height: 240,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
+                // Orbit viewfinder / retinal scanner reticle
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    child: OrbitScanner(
+                      state: _checking
+                          ? OrbitScannerState.qualityCheck
+                          : (st.quality != null && !st.quality!.isReliable)
+                          ? OrbitScannerState.failure
+                          : OrbitScannerState.idle,
+                      imageBytes: st.imageBytes,
+                      statusText: st.imageBytes == null
+                          ? 'RETINAL VIEWFINDER READY'
+                          : _checking
+                          ? 'CALIBRATING OPTICS'
+                          : (st.quality != null && !st.quality!.isReliable)
+                          ? 'QUALITY REJECTED'
+                          : 'IMAGE ALIGNED',
+                    ),
                   ),
-                  child: st.imageBytes == null
-                      ? Center(
-                          child: Text(
-                            context.tr('viewfinder_msg'),
-                            style: const TextStyle(color: Colors.white70),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Image.memory(
-                                st.imageBytes!,
-                                fit: BoxFit.contain,
-                                width: double.infinity,
-                                height: double.infinity,
-                              ),
-                              Container(
-                                width: 150,
-                                height: 150,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white54,
-                                    width: 1.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '${context.tr('viewfinder_msg')}. ${context.tr('viewfinder_sub')}',
                   style: const TextStyle(
                     fontSize: 11,
-                    color: FigmaColors.muted,
+                    color: Color(0xFF94A3B8),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -267,7 +260,7 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                     style: const TextStyle(fontSize: 12),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: FigmaColors.primaryDark,
+                    backgroundColor: ScannerHUDTheme.neonCyan,
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -288,9 +281,32 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _sample,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(
+                        isDense: true,
+                        isExpanded: true,
+                        dropdownColor: ScannerHUDTheme.darkSurface,
+                        style: const TextStyle(color: Color(0xFFE2E8F0)),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: ScannerHUDTheme.darkSurface,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: ScannerHUDTheme.neonCyan,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 8,
                           ),
@@ -301,7 +317,10 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                                 value: s.$1,
                                 child: Text(
                                   s.$2,
-                                  style: const TextStyle(fontSize: 11),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFFE2E8F0),
+                                  ),
                                 ),
                               ),
                             )
@@ -318,9 +337,9 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: _checking
                       ? const Center(
@@ -332,7 +351,7 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                       : q == null
                       ? Text(
                           context.tr('analyzing'),
-                          style: const TextStyle(color: FigmaColors.muted),
+                          style: const TextStyle(color: Color(0xFF94A3B8)),
                         )
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,7 +360,7 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                               context.tr('quality_title'),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
-                                color: FigmaColors.text,
+                                color: Colors.white,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -398,12 +417,12 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
           Icon(
             ok ? Icons.check_circle : Icons.radio_button_unchecked,
             size: 16,
-            color: ok ? FigmaColors.success : FigmaColors.faint,
+            color: ok ? FigmaColors.success : const Color(0xFF64748B),
           ),
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: FigmaColors.text),
+            style: const TextStyle(fontSize: 12, color: Color(0xFFE2E8F0)),
           ),
         ],
       ),

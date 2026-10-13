@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../l10n/lang_scope.dart';
-import '../theme/figma_theme.dart';
-import '../widgets/figma_drawer.dart';
+import '../widgets/fx/particle_field.dart';
+import '../widgets/nav/neon_nav_rail.dart';
+import '../widgets/scanner/scanner_theme.dart';
 
-/// Figma "Help" screen: 4 FAQ accordions + support card.
-/// FAQ bodies are English in the Figma source itself — mirrored as-is.
+/// Help & Guidelines — dark HUD chrome matching the dashboard/about pages.
+/// 4 FAQ accordions + support card. FAQ bodies are English in the Figma
+/// source itself — mirrored as-is.
 class FigmaHelpScreen extends StatelessWidget {
   const FigmaHelpScreen({super.key});
 
@@ -53,101 +55,144 @@ class FigmaHelpScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
-      drawer: const FigmaDrawer(),
+      backgroundColor: ScannerHUDTheme.background,
+      drawer: NeonNavRail(
+        entries: buildNavEntries(context),
+        activeLabel: 'Help & Guidelines',
+      ),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
-        elevation: 1,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         title: Text(
           context.tr('help_title'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 672),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                context.tr('help_subtitle'),
-                style: const TextStyle(fontSize: 13, color: FigmaColors.muted),
-              ),
-              const SizedBox(height: 12),
-              ..._faqs.map(
-                (faq) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
-                  ),
-                  child: ExpansionTile(
-                    title: Text(
-                      context.tr(faq.$1),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: FigmaColors.text,
-                      ),
-                    ),
-                    children: [
-                      Container(
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: faq.$2
-                              .map(
-                                (line) => Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    '• $line',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: FigmaColors.text,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: FigmaColors.primarySoft,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: FigmaColors.primaryBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      context.tr('need_help'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: FigmaColors.primaryDark,
-                      ),
-                    ),
-                    Text(
-                      context.tr('need_help_msg'),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: FigmaColors.primaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: Colors.white,
           ),
         ),
+      ),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: ParticleField(
+              particleCount: 15,
+              opacity: 0.18,
+              speed: 0.5,
+              seed: 17,
+            ),
+          ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 672),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    context.tr('help_subtitle'),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._faqs.map(
+                    (faq) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: ScannerHUDTheme.darkSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF1E293B)),
+                      ),
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          dividerColor: Colors.transparent,
+                          expansionTileTheme: const ExpansionTileThemeData(
+                            backgroundColor: Colors.transparent,
+                            collapsedBackgroundColor: Colors.transparent,
+                            iconColor: ScannerHUDTheme.neonCyan,
+                            collapsedIconColor: Color(0xFF94A3B8),
+                            textColor: Colors.white,
+                            collapsedTextColor: Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        child: ExpansionTile(
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                          ),
+                          title: Text(
+                            context.tr(faq.$1),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: Colors.white,
+                            ),
+                          ),
+                          children: [
+                            Container(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: faq.$2
+                                    .map(
+                                      (line) => Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          '• $line',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            height: 1.4,
+                                            color: Color(0xFFCBD5E1),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: ScannerHUDTheme.darkSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.tr('need_help'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: ScannerHUDTheme.neonCyan,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          context.tr('need_help_msg'),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: Color(0xFFCBD5E1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

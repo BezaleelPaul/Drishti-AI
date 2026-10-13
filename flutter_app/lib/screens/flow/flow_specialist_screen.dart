@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
 import '../../services/api_service.dart';
-import '../../theme/figma_theme.dart';
+import '../../widgets/scanner/scanner.dart';
 import '../../widgets/workflow_bar.dart';
 import 'flow_referral_screen.dart';
 import 'flow_state.dart';
@@ -91,14 +91,17 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
   Widget build(BuildContext context) {
     final a = widget.state.analysis;
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
-        elevation: 1,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         title: Text(
           context.tr('specialist_title'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
         ),
       ),
       body: Center(
@@ -109,15 +112,15 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const WorkflowBar(step: 4),
+                const WorkflowBar(step: 4, dark: true),
                 const SizedBox(height: 12),
                 // AI result card
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,7 +129,7 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                         context.tr('ai_result_card'),
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                       if (a != null)
@@ -135,18 +138,21 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                           '${a.predictionScore != null ? ' • ${(a.predictionScore! * 100).toStringAsFixed(1)}%' : ''}',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: FigmaColors.muted,
+                            color: Color(0xFF94A3B8),
                           ),
                         ),
                       const SizedBox(height: 6),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
+                        iconColor: ScannerHUDTheme.neonCyan,
+                        collapsedIconColor: ScannerHUDTheme.neonCyan,
+                        textColor: Colors.white,
+                        collapsedTextColor: ScannerHUDTheme.neonCyan,
                         title: Text(
                           context.tr('why_result'),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: FigmaColors.primaryDark,
                           ),
                         ),
                         children: [
@@ -154,7 +160,7 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                             context.tr('why_result_text'),
                             style: const TextStyle(
                               fontSize: 12,
-                              color: FigmaColors.text,
+                              color: Color(0xFFE2E8F0),
                             ),
                           ),
                         ],
@@ -167,7 +173,7 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                   context.tr('decision_label'),
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: FigmaColors.text,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -188,17 +194,36 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
                     initialValue: _correctedGrade,
+                    dropdownColor: ScannerHUDTheme.darkSurface,
+                    style: const TextStyle(color: Color(0xFFE2E8F0)),
                     decoration: InputDecoration(
                       labelText: context.tr('select_severity'),
+                      filled: true,
+                      fillColor: ScannerHUDTheme.darkSurface,
+                      labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF334155)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF334155)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                          color: ScannerHUDTheme.neonCyan,
+                        ),
                       ),
                     ),
                     items: [
                       for (var i = 0; i < 5; i++)
                         DropdownMenuItem(
                           value: i,
-                          child: Text(context.tr(_sevKeys[i])),
+                          child: Text(
+                            context.tr(_sevKeys[i]),
+                            style: const TextStyle(color: Color(0xFFE2E8F0)),
+                          ),
                         ),
                     ],
                     onChanged: (v) => setState(() => _correctedGrade = v ?? 2),
@@ -208,11 +233,27 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                 TextField(
                   controller: _notes,
                   maxLines: 3,
+                  style: const TextStyle(color: Color(0xFFE2E8F0)),
                   decoration: InputDecoration(
                     labelText: context.tr('notes_lbl'),
                     hintText: context.tr('notes_ph'),
+                    filled: true,
+                    fillColor: ScannerHUDTheme.darkSurface,
+                    labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                    hintStyle: const TextStyle(color: Color(0xFF64748B)),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: ScannerHUDTheme.neonCyan,
+                      ),
                     ),
                   ),
                 ),
@@ -258,10 +299,14 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? FigmaColors.primarySoft : Colors.white,
+          color: selected
+              ? ScannerHUDTheme.neonCyan.withValues(alpha: 0.12)
+              : ScannerHUDTheme.darkSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? FigmaColors.primary : FigmaColors.border,
+            color: selected
+                ? ScannerHUDTheme.neonCyan
+                : const Color(0xFF334155),
             width: selected ? 2 : 1,
           ),
         ),
@@ -269,7 +314,9 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
           children: [
             Icon(
               icon,
-              color: selected ? FigmaColors.primaryDark : FigmaColors.faint,
+              color: selected
+                  ? ScannerHUDTheme.neonCyan
+                  : const Color(0xFF64748B),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -281,16 +328,14 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
-                      color: selected
-                          ? FigmaColors.primaryDark
-                          : FigmaColors.text,
+                      color: selected ? Colors.white : const Color(0xFFE2E8F0),
                     ),
                   ),
                   Text(
                     context.tr(subKey),
                     style: const TextStyle(
                       fontSize: 11,
-                      color: FigmaColors.muted,
+                      color: Color(0xFF94A3B8),
                     ),
                   ),
                 ],
@@ -299,7 +344,7 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
             if (selected)
               const Icon(
                 Icons.check_circle,
-                color: FigmaColors.primary,
+                color: ScannerHUDTheme.neonCyan,
                 size: 20,
               ),
           ],

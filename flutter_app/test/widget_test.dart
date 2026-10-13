@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:netra_ai_mobile/l10n/lang_scope.dart';
 import 'package:netra_ai_mobile/main.dart';
+import 'package:netra_ai_mobile/screens/figma_dashboard_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -10,7 +11,10 @@ void main() {
     // No network or platform channels in widget tests.
     GoogleFonts.config.allowRuntimeFetching = false;
     SharedPreferences.setMockInitialValues(const {});
-    await tester.pumpWidget(NetraAiApp(langController: LangController()));
+    await tester.pumpWidget(NetraAiApp(
+      langController: LangController(),
+      initialHome: const FigmaDashboardScreen(),
+    ));
     // Figma dashboard home (English default).
     expect(find.text('PHC Dashboard'), findsOneWidget);
     expect(find.text('+ Start New Screening'), findsOneWidget);

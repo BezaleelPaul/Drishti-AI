@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/retinal_markers.dart';
 import '../services/api_service.dart';
 import '../widgets/review/marker_viewer.dart';
+import '../widgets/scanner/scanner_theme.dart';
 
+/// Tele-ophthalmologist Review Queue — dark HUD chrome consistent with the
+/// clinical shell (dashboard/about). Review affordances and copy are pinned
+/// by doctor_review_markers_test.dart; only the styling was restyled.
 class DoctorReviewScreen extends StatefulWidget {
   final ApiService apiService;
 
@@ -142,10 +146,17 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => Scaffold(
+          backgroundColor: ScannerHUDTheme.background,
           appBar: AppBar(
-            title: Text('Case Markers — $reviewId'),
-            backgroundColor: const Color(0xFF1E3A8A),
-            foregroundColor: Colors.white,
+            title: Text(
+              'Case Markers — $reviewId',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            backgroundColor: ScannerHUDTheme.darkSurface,
+            foregroundColor: ScannerHUDTheme.neonCyan,
           ),
           body: ClinicianMarkerViewer(
             reviewId: reviewId,
@@ -188,9 +199,13 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
         constraints: const BoxConstraints(maxWidth: 720),
         child: _isLoading
             ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF1E3A8A)),
+                child: CircularProgressIndicator(
+                  color: ScannerHUDTheme.neonCyan,
+                ),
               )
             : RefreshIndicator(
+                color: ScannerHUDTheme.neonCyan,
+                backgroundColor: ScannerHUDTheme.darkSurface,
                 onRefresh: _loadQueue,
                 child: _pendingCases.isEmpty
                     ? ListView(
@@ -198,28 +213,31 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
                           if (_authNotice != null)
                             Container(
                               margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFEF3C7),
+                                color: ScannerHUDTheme.darkSurface,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: const Color(0xFFD97706),
+                                  color: ScannerHUDTheme.warning.withValues(
+                                    alpha: 0.55,
+                                  ),
                                 ),
                               ),
                               child: Text(
                                 _authNotice!,
                                 style: const TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF92400E),
+                                  height: 1.4,
+                                  color: Color(0xFFFBBF24),
                                 ),
                               ),
                             ),
                           const SizedBox(height: 80),
-                          Center(
+                          const Center(
                             child: Text(
                               'No cases currently pending review 🎉',
                               style: TextStyle(
-                                color: Colors.grey,
+                                color: Color(0xFF94A3B8),
                                 fontSize: 16,
                               ),
                             ),
@@ -240,156 +258,178 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
                           final reviewId = c['review_id']?.toString() ?? '';
                           final hasRealReviewId =
                               reviewId.isNotEmpty && reviewId != 'Unknown';
-                          return Card(
-                            elevation: 1,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                          return Container(
                             margin: const EdgeInsets.only(bottom: 14),
-                            color: Colors.white,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        c['patient_name'],
+                            padding: const EdgeInsets.all(16.0),
+                            decoration: BoxDecoration(
+                              color: ScannerHUDTheme.darkSurface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isHigh
+                                    ? ScannerHUDTheme.danger.withValues(
+                                        alpha: 0.35,
+                                      )
+                                    : const Color(0xFF1E293B),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${c['patient_name']}',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
+                                          color: Colors.white,
                                         ),
                                       ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: isSigned
-                                              ? const Color(0xFFECFDF5)
-                                              : (isHigh
-                                                    ? const Color(0xFFFEE2E2)
-                                                    : const Color(0xFFFEF3C7)),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          isSigned
-                                              ? 'SIGNED OFF'
-                                              : 'AWAITING AUDIT',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: isSigned
-                                                ? const Color(0xFF047857)
-                                                : (isHigh
-                                                      ? const Color(0xFFDC2626)
-                                                      : const Color(
-                                                          0xFFD97706,
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isSigned
+                                            ? ScannerHUDTheme.success
+                                                  .withValues(alpha: 0.14)
+                                            : (isHigh
+                                                  ? ScannerHUDTheme.danger
+                                                        .withValues(alpha: 0.14)
+                                                  : ScannerHUDTheme.warning
+                                                        .withValues(
+                                                          alpha: 0.14,
                                                         )),
-                                          ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        isSigned
+                                            ? 'SIGNED OFF'
+                                            : 'AWAITING AUDIT',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: isSigned
+                                              ? const Color(0xFF34D399)
+                                              : (isHigh
+                                                    ? const Color(0xFFFB7185)
+                                                    : const Color(0xFFFBBF24)),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'ABHA: ${c['abha_id']} • Screening: ${c['screening_id']} (${c['eye_side']})',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF64748B),
                                     ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'ABHA: ${c['abha_id']} • Screening: ${c['screening_id']} (${c['eye_side']})',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF94A3B8),
                                   ),
-                                  const Divider(height: 20),
+                                ),
+                                const Divider(
+                                  height: 20,
+                                  color: Color(0xFF334155),
+                                ),
 
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: isHigh
+                                            ? ScannerHUDTheme.danger.withValues(
+                                                alpha: 0.14,
+                                              )
+                                            : ScannerHUDTheme.primaryCyan
+                                                  .withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'Grade $grade: ${c['dr_label']}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
                                           color: isHigh
-                                              ? const Color(0xFFFEE2E2)
-                                              : const Color(0xFFEFF6FF),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Grade $grade: ${c['dr_label']}',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                            color: isHigh
-                                                ? const Color(0xFFDC2626)
-                                                : const Color(0xFF1E3A8A),
-                                          ),
+                                              ? const Color(0xFFFB7185)
+                                              : const Color(0xFF67E8F9),
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        'Confidence: ${c['confidence']}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-
-                                  Text(
-                                    'Clinical Flag: ${c['reason']}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontStyle: FontStyle.italic,
-                                      color: Color(0xFF475569),
                                     ),
-                                  ),
-                                  const SizedBox(height: 14),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      'Confidence: ${c['confidence']}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFFCBD5E1),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
 
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      // Anatomical/lesion markers from a
-                                      // server endpoint — never a
-                                      // "Grad-CAM heatmap" claim.
-                                      TextButton.icon(
-                                        onPressed: hasRealReviewId
-                                            ? () => _openMarkerViewer(c)
-                                            : null,
-                                        icon: const Icon(
-                                          Icons.my_location,
-                                          size: 18,
-                                        ),
-                                        label: const Text('View Markers'),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      ElevatedButton.icon(
-                                        onPressed: isSigned
-                                            ? null
-                                            : () => _signOffCase(index),
-                                        icon: const Icon(Icons.check, size: 18),
-                                        label: Text(
-                                          isSigned
-                                              ? 'Approved'
-                                              : 'Sign Off Referral',
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFF047857,
-                                          ),
-                                          foregroundColor: Colors.white,
-                                        ),
-                                      ),
-                                    ],
+                                Text(
+                                  'Clinical Flag: ${c['reason']}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    height: 1.35,
+                                    color: Color(0xFF94A3B8),
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: 14),
+
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    // Anatomical/lesion markers from a
+                                    // server endpoint — never a
+                                    // "Grad-CAM heatmap" claim.
+                                    TextButton.icon(
+                                      onPressed: hasRealReviewId
+                                          ? () => _openMarkerViewer(c)
+                                          : null,
+                                      icon: const Icon(
+                                        Icons.my_location,
+                                        size: 18,
+                                      ),
+                                      label: const Text('View Markers'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor:
+                                            ScannerHUDTheme.neonCyan,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      onPressed: isSigned
+                                          ? null
+                                          : () => _signOffCase(index),
+                                      icon: const Icon(Icons.check, size: 18),
+                                      label: Text(
+                                        isSigned
+                                            ? 'Approved'
+                                            : 'Sign Off Referral',
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF047857,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        disabledBackgroundColor:
+                                            ScannerHUDTheme.darkSurface,
+                                        disabledForegroundColor: const Color(
+                                          0xFF475569,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           );
                         },
@@ -400,17 +440,17 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
 
     if (widget.embedded) {
       return Container(
-        color: const Color(0xFFF8FAFC),
+        color: ScannerHUDTheme.background,
         child: Column(
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.white,
+              color: ScannerHUDTheme.darkSurface,
               child: Row(
                 children: [
                   const Icon(
                     Icons.medical_services_rounded,
-                    color: Color(0xFF1E3A8A),
+                    color: ScannerHUDTheme.neonCyan,
                   ),
                   const SizedBox(width: 8),
                   const Text(
@@ -418,19 +458,22 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
-                      color: Color(0xFF1E3A8A),
+                      color: Colors.white,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.refresh, color: Color(0xFF1E3A8A)),
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: ScannerHUDTheme.neonCyan,
+                    ),
                     tooltip: 'Refresh Queue',
                     onPressed: _loadQueue,
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
+            const Divider(height: 1, color: Color(0xFF1E293B)),
             Expanded(child: queueBody),
           ],
         ),
@@ -438,11 +481,15 @@ class _DoctorReviewScreenState extends State<DoctorReviewScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
-        title: const Text('Tele-Ophthalmologist Review Queue'),
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Tele-Ophthalmologist Review Queue',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

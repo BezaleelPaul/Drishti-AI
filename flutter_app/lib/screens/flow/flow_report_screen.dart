@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../l10n/lang_scope.dart';
 import '../../theme/figma_theme.dart';
+import '../../widgets/scanner/scanner.dart';
 import '../../widgets/workflow_bar.dart';
 import 'flow_state.dart';
 
@@ -45,15 +46,18 @@ class _FlowReportScreenState extends State<FlowReportScreen> {
     final st = widget.state;
     final a = st.analysis;
     return Scaffold(
-      backgroundColor: FigmaColors.surface,
+      backgroundColor: ScannerHUDTheme.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: FigmaColors.primaryDark,
-        elevation: 1,
+        backgroundColor: ScannerHUDTheme.darkSurface,
+        foregroundColor: ScannerHUDTheme.neonCyan,
+        elevation: 0,
         automaticallyImplyLeading: false,
         title: Text(
           context.tr('report_title'),
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
         ),
       ),
       body: Center(
@@ -64,14 +68,14 @@ class _FlowReportScreenState extends State<FlowReportScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const WorkflowBar(step: 5),
+                const WorkflowBar(step: 5, dark: true),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ScannerHUDTheme.darkSurface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.border),
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +85,7 @@ class _FlowReportScreenState extends State<FlowReportScreen> {
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 17,
-                          color: FigmaColors.text,
+                          color: Colors.white,
                         ),
                       ),
                       Text(
@@ -92,7 +96,7 @@ class _FlowReportScreenState extends State<FlowReportScreen> {
                           color: FigmaColors.warning,
                         ),
                       ),
-                      const Divider(height: 20),
+                      const Divider(height: 20, color: Color(0xFF334155)),
                       _row(
                         context.tr('patient_details'),
                         '${st.patient.name}, ${st.patient.age}y ${st.patient.gender}',
@@ -150,7 +154,7 @@ class _FlowReportScreenState extends State<FlowReportScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: const Color(0xFF1E293B),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -158,7 +162,7 @@ class _FlowReportScreenState extends State<FlowReportScreen> {
                       style: const TextStyle(
                         fontSize: 11,
                         fontFamily: 'monospace',
-                        color: FigmaColors.muted,
+                        color: Color(0xFF94A3B8),
                       ),
                     ),
                   ),
@@ -194,12 +198,12 @@ class _FlowReportScreenState extends State<FlowReportScreen> {
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: FigmaColors.muted,
+              color: Color(0xFF94A3B8),
             ),
           ),
           Text(
             value.isEmpty ? '—' : value,
-            style: const TextStyle(fontSize: 13, color: FigmaColors.text),
+            style: const TextStyle(fontSize: 13, color: Color(0xFFE2E8F0)),
           ),
         ],
       ),

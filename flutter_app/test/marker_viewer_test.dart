@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -518,6 +518,84 @@ void main() {
         ),
         findsNothing,
       );
+    });
+  });
+  group('Clinician analysis upgrades', () {
+    testWidgets(
+      'candidate markers pulse and carry callouts when markers are available',
+      (tester) async {
+        await _pumpViewer(
+          tester,
+          fetchMarkers: (_) async => _markers(),
+          fetchImage: (_) async => _pngBytes(),
+        );
+        // Let the pulse loop tick so the overlay painter carries a live phase.
+        await tester.pump(const Duration(milliseconds: 220));
+
+        final painter =
+            tester.widget<CustomPaint>(_markerPaintFinder).painter!
+                as LesionMarkerPainter;
+        expect(painter.showCallouts, isTrue);
+        expect(painter.pulse, inInclusiveRange(0.0, 1.0));
+
+        // Painting ran across the pumped frames without throwing.
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('compare button animates the before/after wipe', (
+      tester,
+    ) async {
+      await _pumpViewer(
+        tester,
+        fetchMarkers: (_) async => _markers(),
+        fetchImage: (_) async => _pngBytes(),
+      );
+
+      // Play: the marked layer sweeps from fully revealed toward hidden.
+      await tester.tap(find.byIcon(Icons.motion_photos_on));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(_wipeClip(tester).right, lessThan(400.0));
+
+      // Stop: the sweep freezes at its current wipe fraction.
+      await tester.tap(find.byIcon(Icons.stop_circle_outlined));
+      await tester.pump();
+      final frozen = _wipeClip(tester).right;
+      expect(frozen, lessThan(400.0));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(_wipeClip(tester).right, frozen);
+    });
+
+    testWidgets('double-tap toggles a ~2.4x zoom about the tap point', (
+      tester,
+    ) async {
+      await _pumpViewer(
+        tester,
+        fetchMarkers: (_) async => _markers(),
+        fetchImage: (_) async => _pngBytes(),
+      );
+
+      final ivFinder = find.byType(InteractiveViewer);
+      // Two quick taps inside the double-tap timeout trigger the zoom. A
+      // ticker started inside the second tap gets its elapsed time on the
+      // NEXT pump, so two pumps complete the 240 ms zoom animation.
+      await tester.tap(ivFinder);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(ivFinder);
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump(const Duration(milliseconds: 250));
+
+      final iv = tester.widget<InteractiveViewer>(ivFinder);
+      final zoomed = iv.transformationController!.value.getMaxScaleOnAxis();
+      expect(zoomed, closeTo(ClinicianMarkerViewer.tapZoom, 0.05));
+
+      await tester.tap(ivFinder);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(ivFinder);
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pump(const Duration(milliseconds: 250));
+      final reset = iv.transformationController!.value.getMaxScaleOnAxis();
+      expect(reset, closeTo(1.0, 0.05));
     });
   });
 }

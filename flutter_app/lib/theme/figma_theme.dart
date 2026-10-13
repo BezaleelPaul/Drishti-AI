@@ -75,26 +75,43 @@ enum FigmaStatus {
 }
 
 /// Global app theme: Figma primary/buttons/cards/inputs, Nunito type.
-/// Existing screens keep their layout — bars, buttons and cards pick up
-/// the Figma identity from here.
+/// The chrome is DARK (HUD shell): every screen paints its own dark
+/// background, so route-transition gaps must be dark too — a light canvas
+/// flashed between screens during navigation.
 ThemeData buildFigmaTheme() {
   final base = ThemeData(
     useMaterial3: true,
+    brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(
       seedColor: FigmaColors.primary,
+      brightness: Brightness.dark,
       primary: FigmaColors.primary,
       secondary: FigmaColors.primaryDark,
-      surface: Colors.white,
+      surface: const Color(0xFF0B132B),
     ),
-    scaffoldBackgroundColor: FigmaColors.surface,
+    scaffoldBackgroundColor: const Color(0xFF0B132B),
   );
 
   return base.copyWith(
     textTheme: GoogleFonts.nunitoTextTheme(base.textTheme),
+    canvasColor: const Color(0xFF0B132B),
+    dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF0F172A)),
+    menuTheme: const MenuThemeData(
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(Color(0xFF0F172A)),
+      ),
+    ),
+    snackBarTheme: const SnackBarThemeData(
+      backgroundColor: Color(0xFF1E293B),
+      contentTextStyle: TextStyle(color: Colors.white),
+      behavior: SnackBarBehavior.floating,
+    ),
+    dividerTheme: const DividerThemeData(color: Color(0xFF334155)),
+    popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF0F172A)),
     appBarTheme: const AppBarTheme(
-      backgroundColor: FigmaColors.primary,
-      foregroundColor: Colors.white,
-      elevation: 2,
+      backgroundColor: Color(0xFF0F172A),
+      foregroundColor: Color(0xFF7DF9FF),
+      elevation: 0,
       centerTitle: false,
       titleTextStyle: TextStyle(
         fontWeight: FontWeight.w800,
@@ -111,22 +128,27 @@ ThemeData buildFigmaTheme() {
       ),
     ),
     cardTheme: CardThemeData(
-      color: FigmaColors.card,
+      color: const Color(0xFF0F172A),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: FigmaColors.border),
+        side: const BorderSide(color: Color(0xFF1E293B)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: FigmaColors.border),
+        borderSide: const BorderSide(color: Color(0xFF334155)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF334155)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: FigmaColors.primary, width: 2),
+        borderSide: const BorderSide(color: Color(0xFF7DF9FF), width: 2),
       ),
+      fillColor: const Color(0xFF0F172A),
     ),
   );
 }

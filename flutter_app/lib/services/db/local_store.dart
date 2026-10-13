@@ -362,6 +362,33 @@ class LocalStore {
     );
   }
 
+  /// Most recent screenings across ALL patients (offline dashboard / history
+  /// feed). Joins the patient row so the UI shows the truthful patient name
+  /// stored on this device — never a fabricated default.
+  Future<List<Map<String, Object?>>> recentScreenings({int limit = 6}) async {
+    return _db.rawQuery(
+      '''
+      SELECT s.local_screening_id AS local_screening_id,
+             s.local_patient_id AS local_patient_id,
+             p.name AS name,
+             p.village AS village,
+             s.dr_grade_num AS dr_grade_num,
+             s.dr_label AS dr_label,
+             s.error_code AS error_code,
+             s.requires_human_review AS requires_human_review,
+             s.quality_grade AS quality_grade,
+             s.sync_state AS sync_state,
+             s.created_at AS created_at,
+             s.eye_side AS eye_side
+      FROM screenings s
+      JOIN patients p ON p.local_patient_id = s.local_patient_id
+      ORDER BY s.created_at DESC
+      LIMIT ?
+    ''',
+      [limit],
+    );
+  }
+
   Future<Map<String, Object?>?> getMeta(String key) async {
     final rows = await _db.query(
       'device_meta',
