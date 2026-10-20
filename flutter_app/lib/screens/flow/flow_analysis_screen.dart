@@ -95,7 +95,11 @@ class _FlowAnalysisScreenState extends State<FlowAnalysisScreen> {
       return;
     }
 
-    // 1. On-device pipeline (works with airplane mode on).
+    // 1. On-device pipeline (works with airplane mode on). Primary path:
+    //    fast, offline, and uses the SAME quality thresholds as the capture
+    //    gate, so verdicts stay consistent for the operator. The deployed
+    //    edge server's DR inference is currently unstable (502/503 worker
+    //    crashes), so the server is a fallback, not the default.
     try {
       final local = await _onDevice.analyze(
         imageBytes: bytes,
@@ -118,7 +122,8 @@ class _FlowAnalysisScreenState extends State<FlowAnalysisScreen> {
       // a fabricated grade.
     }
 
-    // 2. Server analysis (LAN laptop edge path).
+    // 2. Server analysis (edge path) — full clinical pipeline including the
+    //    Grad-CAM++ explanation engine when the deployment is healthy.
     try {
       final res = await _api.analyzeRetinaFull(
         imageBytes: bytes,
@@ -180,6 +185,7 @@ class _FlowAnalysisScreenState extends State<FlowAnalysisScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _onDevice.dispose();
     super.dispose();
   }
 

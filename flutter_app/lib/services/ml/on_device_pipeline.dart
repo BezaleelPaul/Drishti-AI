@@ -4,6 +4,7 @@ import '../../models/screening_models.dart';
 import 'dr_classifier.dart';
 import 'drdetect_ordinal_runner.dart';
 import 'model_runner.dart';
+import 'pipeline/async_isolate_ordinal_runner.dart';
 import 'pipeline_schema.dart';
 import 'quality_gate.dart';
 import 'quality_thresholds.dart';
@@ -33,6 +34,11 @@ class OnDevicePipeline {
   ) {
     if (modelRunner != null) return modelRunner;
     return FallbackModelRunner([
+      // Preferred: preprocessing + inference on a background isolate, so the
+      // 512px Gaussian blur never janks the capture UI.
+      AsyncIsolateOrdinalRunner(),
+      // Failover: same model, synchronous, for platforms where the isolate
+      // cannot load the LiteRT native library.
       DrDetectOrdinalTfliteRunner(),
       LegacyClassifierAdapter(classifier ?? DrClassifierDart()),
     ]);
@@ -189,5 +195,13 @@ class OnDevicePipeline {
       isFromFallback: false,
       errorCode: record.errorCode?.code,
     );
+  }
+
+  /// Releases the native interpreter / background isolate owned by the runner
+  /// chain. Safe to call even when [ensureReady] was never invoked.
+  void dispose() {
+    _orchestratorReady = false;
+    _initTried = false;
+    _modelRunner.dispose();
   }
 }
