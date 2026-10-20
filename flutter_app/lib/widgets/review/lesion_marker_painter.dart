@@ -188,81 +188,117 @@ class LesionMarkerPainter extends CustomPainter {
   }
 
   /// Leader arrows + honest text labels for the first [_maxCallouts]
-  /// rendered candidates, plus one-line anatomical captions. Anchored so
-  /// the pill stays inside the image rect (never drawn over the letterbox).
+  /// rendered candidates, plus one-line anatomical captions. Pills are
+  /// placed collision-aware: every placed pill is tracked, each new callout
+  /// tries slots (preferred side near → far, other side, vertical stacks)
+  /// until it finds one that fits inside [imageRect] without overlapping.
   void _paintCallouts(Canvas canvas) {
-    final candidates = drawableMarkers(
-      markers,
-      imageRect,
-      scale,
-    ).where((m) => m.kind == MarkerKind.candidate).toList();
+    final placed = <Rect>[];
+
+    // Anatomical captions claim space first so candidate pills route
+    // around them instead of overprinting them.
+    for (final marker in drawableMarkers(markers, imageRect, scale)) {
+      if (marker.kind == MarkerKind.opticDisc) {
+        placed.add(
+          _drawLabel(
+            canvas,
+            marker.position.translate(8, marker.radius + 10),
+            'Optic disc',
+          ),
+        );
+      } else if (marker.kind == MarkerKind.fovea) {
+        placed.add(
+          _drawLabel(canvas, marker.position.translate(8, 14), 'Fovea'),
+        );
+      }
+    }
+
+    final candidates =
+        drawableMarkers(
+            markers,
+            imageRect,
+            scale,
+          ).where((m) => m.kind == MarkerKind.candidate).toList()
+          ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
+
     var index = 0;
-    for (final marker in candidates.take(_maxCallouts)) {
-      final onLeft = marker.position.dx < imageRect.center.dx;
+    for (final marker in candidates) {
+      if (index >= _maxCallouts) break;
       final ok = _drawCallout(
         canvas: canvas,
         target: marker.position,
         radius: marker.radius,
-        text: 'Suspected microaneurysm #${++index} (classical CV)',
-        onLeft: onLeft,
+        text: 'Suspected microaneurysm #${index + 1} (classical CV)',
+        placed: placed,
       );
-      if (!ok) break;
-    }
-    for (final marker in drawableMarkers(markers, imageRect, scale)) {
-      if (marker.kind == MarkerKind.opticDisc) {
-        _drawLabel(
-          canvas,
-          marker.position.translate(8, marker.radius + 10),
-          'Optic disc',
-        );
-      } else if (marker.kind == MarkerKind.fovea) {
-        _drawLabel(canvas, marker.position.translate(8, 14), 'Fovea');
-      }
+      // Numbering only advances when the label actually landed, so the
+      // visible callouts stay sequential (1, 2, 3…) even when some are
+      // skipped for space.
+      if (ok) index++;
     }
   }
 
-  /// Arrow + label for one candidate: label pill offset away from the
-  /// target, leader line ending in an arrowhead at the ring edge. Returns
-  /// false when the label cannot be placed inside [imageRect].
+  /// Arrow + label for one candidate. Tries placement slots in order —
+  /// the side with more free space first, near gap then far gap, mirrored
+  /// side, then vertical stack offsets — and draws the first placement
+  /// that fits inside [imageRect] without colliding with [placed].
+  /// Returns false when no slot fits.
   bool _drawCallout({
     required Canvas canvas,
     required Offset target,
     required double radius,
     required String text,
-    required bool onLeft,
+    required List<Rect> placed,
   }) {
-    const labelGap = 26.0;
-    final direction = onLeft
-        ? const Offset(-1.0, -0.6)
-        : const Offset(1.0, -0.6);
-    final anchor = target + direction * labelGap;
     final textSize = _measure(text);
     final pillSize = textSize + const Offset(12, 8);
-    var pillTopLeft =
-        anchor -
-        Offset(direction.dx < 0 ? pillSize.width : 0, 0) +
-        Offset(0, -pillSize.height / 2);
-    // Clamp inside the image rect; if the pill cannot fit, skip callout.
-    pillTopLeft = Offset(
-      pillTopLeft.dx.clamp(
-        imageRect.left + 2,
-        imageRect.right - pillSize.width - 2,
-      ),
-      pillTopLeft.dy.clamp(
-        imageRect.top + 2,
-        imageRect.bottom - pillSize.height - 2,
-      ),
-    );
-    if (pillTopLeft.dx.isNaN || pillSize.width > imageRect.width - 4) {
-      return false;
-    }
-    final pillRect = Rect.fromLTWH(
-      pillTopLeft.dx,
-      pillTopLeft.dy,
-      pillSize.width,
-      pillSize.height,
-    );
+    if (pillSize.width > imageRect.width - 4) return false;
 
+    final preferRight = target.dx >= imageRect.center.dx;
+    for (final side in preferRight ? [1, -1] : [-1, 1]) {
+      for (final dySign in [-1.0, 1.0]) {
+        for (final gap in const [26.0, 46.0]) {
+          final anchor = target + Offset(side * gap, dySign * gap * 0.4);
+          final pill = Rect.fromLTWH(
+            side < 0 ? anchor.dx - pillSize.width : anchor.dx,
+            anchor.dy - pillSize.height / 2,
+            pillSize.width,
+            pillSize.height,
+          );
+          final fitted = _clampInside(pill);
+          if (fitted == null) continue;
+          // Stack nudges: same slot shifted up/down so dense candidate
+          // clusters fan out instead of stacking into one blob.
+          for (final dy in [
+            0.0,
+            -(pillSize.height + 6),
+            pillSize.height + 6,
+            -2 * (pillSize.height + 6),
+            2 * (pillSize.height + 6),
+          ]) {
+            final candidate = _clampInside(fitted.shift(Offset(0, dy)));
+            if (candidate == null) continue;
+            if (_collides(candidate, placed)) continue;
+            if (_paintPlacedCallout(canvas, candidate, target, radius, text)) {
+              placed.add(candidate);
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Draws the leader + arrowhead + label pill for an already-placed pill
+  /// rect. Returns false when the leader cannot reach the target ring.
+  bool _paintPlacedCallout(
+    Canvas canvas,
+    Rect pillRect,
+    Offset target,
+    double radius,
+    String text,
+  ) {
     // Leader from the pill edge nearest the target toward the ring,
     // stopping at radius + 4 so the arrowhead does not cover the ring.
     final pillAttach = Offset(
@@ -300,7 +336,31 @@ class LesionMarkerPainter extends CustomPainter {
     return true;
   }
 
-  void _drawLabel(Canvas canvas, Offset anchor, String text) {
+  /// Clamps [pill] fully inside [imageRect]; null when it cannot fit.
+  Rect? _clampInside(Rect pill) {
+    if (pill.width > imageRect.width - 4 ||
+        pill.height > imageRect.height - 4) {
+      return null;
+    }
+    return Rect.fromLTWH(
+      pill.left.clamp(imageRect.left + 2, imageRect.right - pill.width - 2),
+      pill.top.clamp(imageRect.top + 2, imageRect.bottom - pill.height - 2),
+      pill.width,
+      pill.height,
+    );
+  }
+
+  static bool _collides(Rect rect, List<Rect> placed) {
+    final inflated = rect.inflate(4);
+    for (final other in placed) {
+      if (inflated.overlaps(other)) return true;
+    }
+    return false;
+  }
+
+  /// Anatomical caption pill; returns the drawn rect so callers can reserve
+  /// the space against later callouts.
+  Rect _drawLabel(Canvas canvas, Offset anchor, String text) {
     final size = _measure(text);
     final pill = Rect.fromLTWH(
       anchor.dx.clamp(
@@ -315,6 +375,7 @@ class LesionMarkerPainter extends CustomPainter {
       size.height + 8,
     );
     _drawLabelAt(canvas, pill, text);
+    return pill;
   }
 
   void _drawLabelAt(Canvas canvas, Rect pill, String text) {
