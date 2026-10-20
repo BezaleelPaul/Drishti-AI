@@ -86,10 +86,12 @@ class _FuturisticGlowButtonState extends State<FuturisticGlowButton>
       duration: const Duration(milliseconds: 120),
       curve: Curves.easeOutCubic,
       child: GestureDetector(
-        onTapDown: enabled ? (_) {
-          setState(() => _isPressed = true);
-          _triggerSweep();
-        } : null,
+        onTapDown: enabled
+            ? (_) {
+                setState(() => _isPressed = true);
+                _triggerSweep();
+              }
+            : null,
         onTapUp: enabled ? (_) => setState(() => _isPressed = false) : null,
         onTapCancel: enabled ? () => setState(() => _isPressed = false) : null,
         onTap: widget.onPressed,
@@ -106,7 +108,9 @@ class _FuturisticGlowButtonState extends State<FuturisticGlowButton>
                 color: widget.backgroundColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: widget.glowColor.withValues(alpha: enabled ? 0.75 : 0.25),
+                  color: widget.glowColor.withValues(
+                    alpha: enabled ? 0.75 : 0.25,
+                  ),
                   width: 1.5,
                 ),
                 boxShadow: enabled
@@ -146,7 +150,9 @@ class _FuturisticGlowButtonState extends State<FuturisticGlowButton>
                       height: 22,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.2,
-                        valueColor: AlwaysStoppedAnimation<Color>(widget.glowColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          widget.glowColor,
+                        ),
                       ),
                     )
                   else
@@ -193,11 +199,7 @@ class _ShimmerSweepPainter extends CustomPainter {
     final rect = Rect.fromLTWH(startX, 0, width, size.height);
     final paint = Paint()
       ..shader = LinearGradient(
-        colors: [
-          Colors.transparent,
-          color,
-          Colors.transparent,
-        ],
+        colors: [Colors.transparent, color, Colors.transparent],
         transform: const GradientRotation(math.pi / 4),
       ).createShader(rect);
 

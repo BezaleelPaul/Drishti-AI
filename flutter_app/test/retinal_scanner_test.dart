@@ -54,7 +54,9 @@ void main() {
   });
 
   group('ScannerView Widget Tests', () {
-    testWidgets('Renders ScannerView with correct HUD status and semantics', (tester) async {
+    testWidgets('Renders ScannerView with correct HUD status and semantics', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -80,7 +82,9 @@ void main() {
       expect(find.text('FOV: 45° | MACULA CENTERED'), findsOneWidget);
     });
 
-    testWidgets('Triggers onCancel callback when CANCEL button is tapped', (tester) async {
+    testWidgets('Triggers onCancel callback when CANCEL button is tapped', (
+      tester,
+    ) async {
       var cancelled = false;
 
       await tester.pumpWidget(

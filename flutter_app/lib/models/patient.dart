@@ -98,12 +98,14 @@ class Patient {
     village: json['village'] ?? '',
     screeningCentre: json['screening_centre'] ?? '',
     knownDiabetes: json['known_diabetes'] ?? 'Unknown',
-    diabetesDurationYears: (json['diabetes_duration_years'] as num?)?.toDouble() ?? 0.0,
+    diabetesDurationYears:
+        (json['diabetes_duration_years'] as num?)?.toDouble() ?? 0.0,
     hba1c: (json['hba1c'] as num?)?.toDouble(),
     fastingGlucose: (json['fasting_glucose'] as num?)?.toDouble(),
     bloodPressure: json['blood_pressure'] ?? '',
     bmi: (json['bmi'] as num?)?.toDouble(),
-    familyHistory: json['family_history'] == true || json['family_history'] == 1,
+    familyHistory:
+        json['family_history'] == true || json['family_history'] == 1,
     physicalActivity: json['physical_activity'] ?? 'Unknown',
     symptoms: _parseSymptoms(json['symptoms']),
     createdAt: json['created_at']?.toString(),

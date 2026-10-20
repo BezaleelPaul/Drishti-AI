@@ -41,7 +41,8 @@ class FuturisticLoadingOverlay extends StatefulWidget {
   }
 
   @override
-  State<FuturisticLoadingOverlay> createState() => _FuturisticLoadingOverlayState();
+  State<FuturisticLoadingOverlay> createState() =>
+      _FuturisticLoadingOverlayState();
 }
 
 class _FuturisticLoadingOverlayState extends State<FuturisticLoadingOverlay>
@@ -120,10 +121,7 @@ class _FuturisticLoadingOverlayState extends State<FuturisticLoadingOverlay>
             Text(
               widget.subMessage!,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11,
-                color: Colors.white60,
-              ),
+              style: const TextStyle(fontSize: 11, color: Colors.white60),
             ),
           ],
           const SizedBox(height: 14),
@@ -135,7 +133,9 @@ class _FuturisticLoadingOverlayState extends State<FuturisticLoadingOverlay>
               child: LinearProgressIndicator(
                 value: widget.progress,
                 backgroundColor: Colors.white12,
-                valueColor: const AlwaysStoppedAnimation<Color>(ScannerHUDTheme.neonCyan),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  ScannerHUDTheme.neonCyan,
+                ),
                 minHeight: 5,
               ),
             ),
@@ -152,7 +152,9 @@ class _FuturisticLoadingOverlayState extends State<FuturisticLoadingOverlay>
               width: 120,
               child: LinearProgressIndicator(
                 backgroundColor: Colors.white10,
-                valueColor: AlwaysStoppedAnimation<Color>(ScannerHUDTheme.neonCyan),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  ScannerHUDTheme.neonCyan,
+                ),
                 minHeight: 3,
               ),
             ),
@@ -215,15 +217,18 @@ class _RadarSweepPainter extends CustomPainter {
     final beamRect = Rect.fromCircle(center: center, radius: radius * 0.95);
     final sweepPaint = Paint()
       ..shader = SweepGradient(
-        colors: [
-          color.withValues(alpha: 0.0),
-          color.withValues(alpha: 0.35),
-        ],
+        colors: [color.withValues(alpha: 0.0), color.withValues(alpha: 0.35)],
         stops: const [0.75, 1.0],
         transform: GradientRotation(angle - math.pi * 0.35),
       ).createShader(beamRect);
 
-    canvas.drawArc(beamRect, angle - math.pi * 0.35, math.pi * 0.35, true, sweepPaint);
+    canvas.drawArc(
+      beamRect,
+      angle - math.pi * 0.35,
+      math.pi * 0.35,
+      true,
+      sweepPaint,
+    );
 
     // Leading ray
     final rayPaint = Paint()

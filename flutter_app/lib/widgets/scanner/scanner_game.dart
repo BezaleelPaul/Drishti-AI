@@ -50,7 +50,9 @@ class _ScannerParticle {
     if (life >= maxLife) {
       life = 0;
       final angle = rnd.nextDouble() * 2 * math.pi;
-      final dist = (energized ? 0.2 + rnd.nextDouble() * 0.8 : rnd.nextDouble()) * radius;
+      final dist =
+          (energized ? 0.2 + rnd.nextDouble() * 0.8 : rnd.nextDouble()) *
+          radius;
       x = math.cos(angle) * dist;
       y = math.sin(angle) * dist;
       final speed = (energized ? 25.0 : 8.0) + rnd.nextDouble() * 15.0;
@@ -112,13 +114,15 @@ class ScannerGame extends FlameGame {
     final isActive = animationState.isActiveLoop;
     final isAnalyzing = animationState == ScannerAnimationState.analyzing;
     final isReview = animationState == ScannerAnimationState.reviewRequired;
-    final isStopped = animationState == ScannerAnimationState.rejected ||
+    final isStopped =
+        animationState == ScannerAnimationState.rejected ||
         animationState == ScannerAnimationState.error;
 
     if (!isStopped && !isReview) {
       final speedMult = isAnalyzing ? 1.4 : (isActive ? 1.0 : 0.4);
       _anglePrimary = (_anglePrimary + dt * 0.55 * speedMult) % (2 * math.pi);
-      _angleSecondary = (_angleSecondary - dt * 0.35 * speedMult) % (2 * math.pi);
+      _angleSecondary =
+          (_angleSecondary - dt * 0.35 * speedMult) % (2 * math.pi);
       _beamAngle = (_beamAngle + dt * 1.25 * speedMult) % (2 * math.pi);
 
       final radius = math.min(_viewport.x, _viewport.y) * 0.42;
@@ -182,13 +186,24 @@ class ScannerGame extends FlameGame {
     final img = fundusImage!;
     canvas.save();
 
-    final clipPath = Path()..addOval(Rect.fromCircle(center: center, radius: radius * 0.96));
+    final clipPath = Path()
+      ..addOval(Rect.fromCircle(center: center, radius: radius * 0.96));
     canvas.clipPath(clipPath);
 
-    final srcRect = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+    final srcRect = Rect.fromLTWH(
+      0,
+      0,
+      img.width.toDouble(),
+      img.height.toDouble(),
+    );
     final dstRect = Rect.fromCircle(center: center, radius: radius * 0.96);
 
-    canvas.drawImageRect(img, srcRect, dstRect, Paint()..filterQuality = FilterQuality.medium);
+    canvas.drawImageRect(
+      img,
+      srcRect,
+      dstRect,
+      Paint()..filterQuality = FilterQuality.medium,
+    );
 
     // Subtle dark vignette on the fundus perimeter to integrate with the HUD
     final vignettePaint = Paint()
@@ -205,15 +220,19 @@ class ScannerGame extends FlameGame {
 
   void _renderApertureBackdrop(Canvas canvas, Offset center, double radius) {
     final bgPaint = Paint()
-      ..shader = ui.Gradient.radial(
-        center,
-        radius,
-        [const Color(0xFF132247), const Color(0xFF0B132B)],
-      );
+      ..shader = ui.Gradient.radial(center, radius, [
+        const Color(0xFF132247),
+        const Color(0xFF0B132B),
+      ]);
     canvas.drawCircle(center, radius * 0.96, bgPaint);
   }
 
-  void _renderReticles(Canvas canvas, Offset center, double radius, Color stateColor) {
+  void _renderReticles(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color stateColor,
+  ) {
     final gridPaint = Paint()
       ..color = stateColor.withValues(alpha: 0.15)
       ..strokeWidth = 1.0
@@ -243,7 +262,12 @@ class ScannerGame extends FlameGame {
     );
   }
 
-  void _renderRadialTicks(Canvas canvas, Offset center, double radius, Color stateColor) {
+  void _renderRadialTicks(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color stateColor,
+  ) {
     final tickPaint = Paint()
       ..color = stateColor.withValues(alpha: 0.4)
       ..strokeWidth = 1.2
@@ -256,8 +280,14 @@ class ScannerGame extends FlameGame {
       final inner = radius * (isMajor ? 0.90 : 0.93);
       final outer = radius * 0.96;
 
-      final p1 = Offset(center.dx + math.cos(angle) * inner, center.dy + math.sin(angle) * inner);
-      final p2 = Offset(center.dx + math.cos(angle) * outer, center.dy + math.sin(angle) * outer);
+      final p1 = Offset(
+        center.dx + math.cos(angle) * inner,
+        center.dy + math.sin(angle) * inner,
+      );
+      final p2 = Offset(
+        center.dx + math.cos(angle) * outer,
+        center.dy + math.sin(angle) * outer,
+      );
 
       tickPaint.strokeWidth = isMajor ? 2.0 : 1.0;
       tickPaint.color = stateColor.withValues(alpha: isMajor ? 0.75 : 0.35);
@@ -265,7 +295,12 @@ class ScannerGame extends FlameGame {
     }
   }
 
-  void _renderConcentricRings(Canvas canvas, Offset center, double radius, Color stateColor) {
+  void _renderConcentricRings(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color stateColor,
+  ) {
     final ringPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
@@ -278,22 +313,30 @@ class ScannerGame extends FlameGame {
     }
   }
 
-  void _renderScanningBeam(Canvas canvas, Offset center, double radius, Color stateColor) {
+  void _renderScanningBeam(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color stateColor,
+  ) {
     final beamRect = Rect.fromCircle(center: center, radius: radius * 0.95);
     final sweepPaint = Paint()
       ..shader = ui.Gradient.sweep(
         center,
-        [
-          stateColor.withValues(alpha: 0.0),
-          stateColor.withValues(alpha: 0.28),
-        ],
+        [stateColor.withValues(alpha: 0.0), stateColor.withValues(alpha: 0.28)],
         [0.75, 1.0],
         TileMode.clamp,
         _beamAngle - math.pi * 0.35,
         _beamAngle,
       );
 
-    canvas.drawArc(beamRect, _beamAngle - math.pi * 0.35, math.pi * 0.35, true, sweepPaint);
+    canvas.drawArc(
+      beamRect,
+      _beamAngle - math.pi * 0.35,
+      math.pi * 0.35,
+      true,
+      sweepPaint,
+    );
 
     // Leading sharp laser ray
     final rayPaint = Paint()
@@ -306,7 +349,12 @@ class ScannerGame extends FlameGame {
     canvas.drawLine(center, edgePoint, rayPaint);
   }
 
-  void _renderRotatingArcs(Canvas canvas, Offset center, double radius, Color stateColor) {
+  void _renderRotatingArcs(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color stateColor,
+  ) {
     final outerRect = Rect.fromCircle(center: center, radius: radius * 0.98);
     final innerRect = Rect.fromCircle(center: center, radius: radius * 0.68);
 
@@ -318,7 +366,13 @@ class ScannerGame extends FlameGame {
       ..color = stateColor.withValues(alpha: 0.9);
 
     canvas.drawArc(outerRect, _anglePrimary, math.pi * 0.65, false, outerPaint);
-    canvas.drawArc(outerRect, _anglePrimary + math.pi, math.pi * 0.35, false, outerPaint);
+    canvas.drawArc(
+      outerRect,
+      _anglePrimary + math.pi,
+      math.pi * 0.35,
+      false,
+      outerPaint,
+    );
 
     // Inner counter-rotating segmented arc
     final innerPaint = Paint()
@@ -327,8 +381,20 @@ class ScannerGame extends FlameGame {
       ..strokeCap = StrokeCap.round
       ..color = stateColor.withValues(alpha: 0.65);
 
-    canvas.drawArc(innerRect, _angleSecondary, math.pi * 0.45, false, innerPaint);
-    canvas.drawArc(innerRect, _angleSecondary + math.pi * 0.75, math.pi * 0.25, false, innerPaint);
+    canvas.drawArc(
+      innerRect,
+      _angleSecondary,
+      math.pi * 0.45,
+      false,
+      innerPaint,
+    );
+    canvas.drawArc(
+      innerRect,
+      _angleSecondary + math.pi * 0.75,
+      math.pi * 0.25,
+      false,
+      innerPaint,
+    );
   }
 
   void _renderParticles(Canvas canvas, Offset center, Color stateColor) {
@@ -341,7 +407,12 @@ class ScannerGame extends FlameGame {
     }
   }
 
-  void _renderCenterTarget(Canvas canvas, Offset center, double radius, Color stateColor) {
+  void _renderCenterTarget(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color stateColor,
+  ) {
     final pulse = 1.0 + 0.10 * math.sin(_elapsed * 2.8);
 
     // Outer glow halo
@@ -361,7 +432,12 @@ class ScannerGame extends FlameGame {
     );
   }
 
-  void _renderProgressArc(Canvas canvas, Offset center, double radius, Color stateColor) {
+  void _renderProgressArc(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color stateColor,
+  ) {
     final progressRect = Rect.fromCircle(center: center, radius: radius * 1.03);
     final progressPaint = Paint()
       ..style = PaintingStyle.stroke

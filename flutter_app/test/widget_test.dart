@@ -11,10 +11,12 @@ void main() {
     // No network or platform channels in widget tests.
     GoogleFonts.config.allowRuntimeFetching = false;
     SharedPreferences.setMockInitialValues(const {});
-    await tester.pumpWidget(NetraAiApp(
-      langController: LangController(),
-      initialHome: const FigmaDashboardScreen(),
-    ));
+    await tester.pumpWidget(
+      NetraAiApp(
+        langController: LangController(),
+        initialHome: const FigmaDashboardScreen(),
+      ),
+    );
     // Figma dashboard home (English default).
     expect(find.text('PHC Dashboard'), findsOneWidget);
     expect(find.text('+ Start New Screening'), findsOneWidget);
