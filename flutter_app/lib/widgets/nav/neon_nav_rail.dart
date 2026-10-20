@@ -317,10 +317,13 @@ class NeonNavRail extends StatelessWidget {
     );
 
     // Shimmer sweep only on the selected item so it draws the eye.
+    // NOTE: the shimmer shader REPLACES child colours, so the base/highlight
+    // must be fully opaque — low-alpha values here rendered the selected
+    // row nearly black-on-dark (unreadable).
     final wrapped = selected
         ? Shimmer.fromColors(
-            baseColor: entry.accent.withValues(alpha: 0.10),
-            highlightColor: entry.accent.withValues(alpha: 0.22),
+            baseColor: entry.accent,
+            highlightColor: Colors.white.withValues(alpha: 0.92),
             period: const Duration(milliseconds: 1600),
             child: content,
           )

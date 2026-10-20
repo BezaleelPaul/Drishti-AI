@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../l10n/lang_scope.dart';
 import '../theme/figma_theme.dart';
 
@@ -26,6 +28,11 @@ class _LiveFundusCameraScreenState extends State<LiveFundusCameraScreen> {
   bool _capturing = false;
   String? _error;
 
+  double _minZoom = 1.0;
+  double _maxZoom = 1.0;
+  double _zoom = 1.0;
+  double _pinchStartZoom = 1.0;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +43,9 @@ class _LiveFundusCameraScreenState extends State<LiveFundusCameraScreen> {
     setState(() {
       _initializing = true;
       _error = null;
+      _zoom = 1.0;
+      _minZoom = 1.0;
+      _maxZoom = 1.0;
     });
     try {
       final cameras = await availableCameras();
@@ -77,15 +87,77 @@ class _LiveFundusCameraScreenState extends State<LiveFundusCameraScreen> {
       await controller.dispose();
       return;
     }
+
+    double minZoom = 1.0;
+    double maxZoom = 1.0;
+    try {
+      minZoom = await controller.getMinZoomLevel();
+      maxZoom = await controller.getMaxZoomLevel();
+    } on CameraException {
+      // Zoom is optional hardware capability; preview still works without it.
+    }
+    if (!mounted) {
+      await controller.dispose();
+      return;
+    }
+    if (minZoom <= 0 || !minZoom.isFinite) minZoom = 1.0;
+    if (maxZoom < minZoom || !maxZoom.isFinite) maxZoom = minZoom;
+
     unawaited(previous?.dispose());
-    if (mounted) setState(() => _initializing = false);
+    setState(() {
+      _initializing = false;
+      _minZoom = minZoom;
+      _maxZoom = maxZoom;
+      _zoom = minZoom;
+    });
   }
 
   Future<void> _switchLens() async {
     if (_cameras.length < 2) return;
-    setState(() => _initializing = true);
+    setState(() {
+      _initializing = true;
+      _zoom = 1.0;
+      _minZoom = 1.0;
+      _maxZoom = 1.0;
+    });
     _lens = (_lens + 1) % _cameras.length;
     await _open(_cameras[_lens]);
+  }
+
+  Future<void> _setZoom(double value) async {
+    final controller = _controller;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        _maxZoom <= _minZoom) {
+      return;
+    }
+    final next = value.clamp(_minZoom, _maxZoom).toDouble();
+    if ((next - _zoom).abs() < 0.01) return;
+    setState(() => _zoom = next);
+    try {
+      await controller.setZoomLevel(next);
+    } on CameraException {
+      // Keep the last requested indicator; unsupported values are ignored.
+    }
+  }
+
+  void _onScaleStart(ScaleStartDetails details) {
+    _pinchStartZoom = _zoom;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount < 2) return;
+    unawaited(_setZoom(_pinchStartZoom * details.scale));
+  }
+
+  void _toggleZoom() {
+    if (_maxZoom <= _minZoom) return;
+    unawaited(HapticFeedback.selectionClick());
+    if (_zoom > _minZoom + 0.05) {
+      unawaited(_setZoom(_minZoom));
+    } else {
+      unawaited(_setZoom(math.min(_maxZoom, math.max(2.0, _minZoom))));
+    }
   }
 
   Future<void> _capture() async {
@@ -189,18 +261,46 @@ class _LiveFundusCameraScreenState extends State<LiveFundusCameraScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        CameraPreview(controller),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onScaleStart: _onScaleStart,
+          onScaleUpdate: _onScaleUpdate,
+          onDoubleTap: _toggleZoom,
+          child: CameraPreview(controller),
+        ),
         // Framing guide: a centered retinal-field circle, purely visual.
-        Center(
-          child: Container(
-            width: 280,
-            height: 280,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white54, width: 2),
+        IgnorePointer(
+          child: Center(
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white54, width: 2),
+              ),
             ),
           ),
         ),
+        if (_maxZoom > _minZoom)
+          Positioned(top: 14, right: 14, child: _zoomBadge()),
+        if (_maxZoom > _minZoom)
+          const Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 116),
+              child: IgnorePointer(
+                child: Text(
+                  'Pinch or double-tap to zoom',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                  ),
+                ),
+              ),
+            ),
+          ),
         Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
@@ -209,6 +309,41 @@ class _LiveFundusCameraScreenState extends State<LiveFundusCameraScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _zoomBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${_zoom.toStringAsFixed(1)}×',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (_zoom > _minZoom + 0.05) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => unawaited(_setZoom(_minZoom)),
+              child: const Icon(
+                Icons.restart_alt,
+                size: 16,
+                color: Colors.white70,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

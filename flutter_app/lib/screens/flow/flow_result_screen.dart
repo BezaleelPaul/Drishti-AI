@@ -1,8 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
+import '../../models/retinal_markers.dart';
 import '../../models/screening_models.dart' as ui;
+import '../../services/ml/pipeline/structure_segmenter.dart';
 import '../../theme/figma_theme.dart';
 import '../../widgets/orbit/orbit.dart';
+import '../../widgets/review/gradcam_explanation_card.dart';
+import '../../widgets/review/zoomable_fundus_screen.dart';
 import '../../widgets/scanner/scanner.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/workflow_bar.dart';
@@ -42,6 +47,35 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
     FigmaColors.danger,
   ];
 
+  RetinalMarkers? _markers;
+  bool _markersLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _markers = widget.state.markers;
+    if (_markers == null) _loadMarkers();
+  }
+
+  /// Computes classical-CV landmark markers off the UI thread. Advisory
+  /// only — never gates the grade and never fabricates a landmark.
+  Future<void> _loadMarkers() async {
+    final bytes = widget.state.imageBytes;
+    if (bytes == null) return;
+    setState(() => _markersLoading = true);
+    try {
+      final markers = await compute(computeRetinalMarkers, bytes);
+      if (!mounted) return;
+      widget.state.markers = markers;
+      setState(() => _markers = markers);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _markers = null);
+    } finally {
+      if (mounted) setState(() => _markersLoading = false);
+    }
+  }
+
   /// Honest provenance line (E-2): where the numbers came from and what
   /// they cost. Measured on-device time when available, e.g.
   /// "on-device TFLite, 612 ms" — never a fabricated number.
@@ -54,6 +88,107 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
       if (ms != null) '${ms.toStringAsFixed(0)} ms',
     ];
     return parts.isEmpty ? '' : '  •  ${parts.join(" • ")}';
+  }
+
+  void _openInspector() {
+    final bytes = widget.state.imageBytes;
+    if (bytes == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ZoomableFundusScreen(
+          imageBytes: bytes,
+          title: 'Fundus inspection',
+          caption: 'Inspect the original capture · pinch, drag, double-tap',
+          markers: _markers,
+        ),
+      ),
+    );
+  }
+
+  /// Landmark marker status card. Honest provenance: coordinates come from
+  /// classical CV segmentation computed on-device — they are structural
+  /// landmarks and lesion CANDIDATES, never model attention or a diagnosis.
+  Widget _markerCard() {
+    Widget body;
+    if (_markersLoading) {
+      body = Row(
+        children: const [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Locating landmarks (optic disc, fovea, lesion candidates)…',
+              style: TextStyle(fontSize: 11, color: Colors.white70),
+            ),
+          ),
+        ],
+      );
+    } else {
+      final markers = _markers;
+      if (markers == null || !markers.available) {
+        body = Text(
+          markers?.reason ?? 'Landmark markers are unavailable for this image.',
+          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+        );
+      } else {
+        final count = markers.maCandidates.length;
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              count == 0
+                  ? 'Optic disc & fovea located. No lesion candidates found '
+                        '(classical CV — a clear frame can be healthy).'
+                  : 'Optic disc, fovea and $count lesion candidate${count == 1 ? '' : 's'} '
+                        'located (classical CV segmentation).',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('view_markers_arrows'),
+                onPressed: _openInspector,
+                icon: const Icon(Icons.arrow_outward, size: 14),
+                label: const Text(
+                  'View with arrows',
+                  style: TextStyle(fontSize: 11),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: ScannerHUDTheme.neonCyan,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+    }
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: ScannerHUDTheme.darkSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF1E293B)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.my_location,
+            size: 16,
+            color: ScannerHUDTheme.neonCyan,
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: body),
+        ],
+      ),
+    );
   }
 
   @override
@@ -344,59 +479,44 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                           ),
                         ),
                       const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              context.tr('original_fundus'),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: widget.state.imageBytes == null
+                                ? null
+                                : _openInspector,
+                            icon: const Icon(Icons.zoom_in, size: 16),
+                            label: const Text('Inspect & zoom'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: ScannerHUDTheme.neonCyan,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                       Text(
-                        context.tr('original_fundus'),
+                        'Pinch to zoom · open full-screen for detail',
                         style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white70,
+                          fontSize: 10,
+                          color: Colors.white38,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: ScannerHUDTheme.darkSurface,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF1E293B)),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.info_outline,
-                              size: 16,
-                              color: ScannerHUDTheme.neonCyan,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Explanation unavailable',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'No verified model-derived explanation exists '
-                                    'for this result. Attention maps are only '
-                                    'shown when generated by the model that '
-                                    'produced this grade.',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      GradcamExplanationCard(analysis: a),
+                      const SizedBox(height: 8),
+                      _markerCard(),
                     ],
                   ),
                 ),

@@ -282,25 +282,46 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
               size: 20,
             ),
             tooltip: 'Language',
+            color: const Color(0xFF0F172A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(color: Color(0xFF334155)),
+            ),
             onSelected: (lang) => LangScope.setLang(context, lang),
-            itemBuilder: (_) => AppLang.values
-                .map(
-                  (l) => PopupMenuItem(
-                    value: l,
-                    child: Text(
-                      l.displayName,
-                      style: TextStyle(
-                        fontWeight: LangScope.langOf(context) == l
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: LangScope.langOf(context) == l
-                            ? FigmaColors.primaryDark
-                            : FigmaColors.text,
+            itemBuilder: (_) {
+              final active = LangScope.langOf(context);
+              return AppLang.values.map((l) {
+                final isActive = active == l;
+                return PopupMenuItem(
+                  value: l,
+                  child: Row(
+                    children: [
+                      Icon(
+                        isActive
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        size: 16,
+                        color: isActive
+                            ? ScannerHUDTheme.neonCyan
+                            : const Color(0xFF64748B),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Text(
+                        l.displayName,
+                        style: TextStyle(
+                          fontWeight: isActive
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isActive
+                              ? ScannerHUDTheme.neonCyan
+                              : Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
-                )
-                .toList(),
+                );
+              }).toList();
+            },
           ),
           const SizedBox(width: 4),
         ],

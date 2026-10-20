@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -180,11 +179,16 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black54,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: stateColor.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: stateColor.withValues(alpha: 0.5),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -212,7 +216,10 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
                       GestureDetector(
                         onTap: widget.onCancel,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black45,
                             borderRadius: BorderRadius.circular(6),
@@ -316,10 +323,7 @@ class _CornerBracket extends StatelessWidget {
   Widget build(BuildContext context) {
     return RotatedBox(
       quarterTurns: turns,
-      child: CustomPaint(
-        size: const Size(12, 12),
-        painter: _CornerPainter(),
-      ),
+      child: CustomPaint(size: const Size(12, 12), painter: _CornerPainter()),
     );
   }
 }

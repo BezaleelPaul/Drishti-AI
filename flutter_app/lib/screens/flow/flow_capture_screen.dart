@@ -9,6 +9,7 @@ import '../../services/api_service.dart';
 import '../../services/ml/on_device_pipeline.dart';
 import '../../theme/figma_theme.dart';
 import '../../widgets/orbit/orbit.dart';
+import '../../widgets/review/zoomable_fundus_screen.dart';
 import '../../widgets/scanner/scanner.dart';
 import '../../widgets/workflow_bar.dart';
 import '../live_camera_screen.dart';
@@ -147,6 +148,20 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
     }
   }
 
+  void _openInspector() {
+    final bytes = widget.state.imageBytes;
+    if (bytes == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ZoomableFundusScreen(
+          imageBytes: bytes,
+          title: 'Fundus inspection',
+          caption: 'Inspect the capture · pinch, drag, double-tap',
+        ),
+      ),
+    );
+  }
+
   void _proceed() {
     if (widget.state.imageBytes == null) return;
     Navigator.push(
@@ -223,20 +238,24 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                 Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 320),
-                    child: OrbitScanner(
-                      state: _checking
-                          ? OrbitScannerState.qualityCheck
-                          : (st.quality != null && !st.quality!.isReliable)
-                          ? OrbitScannerState.failure
-                          : OrbitScannerState.idle,
-                      imageBytes: st.imageBytes,
-                      statusText: st.imageBytes == null
-                          ? 'RETINAL VIEWFINDER READY'
-                          : _checking
-                          ? 'CALIBRATING OPTICS'
-                          : (st.quality != null && !st.quality!.isReliable)
-                          ? 'QUALITY REJECTED'
-                          : 'IMAGE ALIGNED',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: st.imageBytes == null ? null : _openInspector,
+                      child: OrbitScanner(
+                        state: _checking
+                            ? OrbitScannerState.qualityCheck
+                            : (st.quality != null && !st.quality!.isReliable)
+                            ? OrbitScannerState.failure
+                            : OrbitScannerState.idle,
+                        imageBytes: st.imageBytes,
+                        statusText: st.imageBytes == null
+                            ? 'RETINAL VIEWFINDER READY'
+                            : _checking
+                            ? 'CALIBRATING OPTICS'
+                            : (st.quality != null && !st.quality!.isReliable)
+                            ? 'QUALITY REJECTED'
+                            : 'IMAGE ALIGNED',
+                      ),
                     ),
                   ),
                 ),
@@ -249,6 +268,19 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                if (st.imageBytes != null)
+                  TextButton.icon(
+                    onPressed: _openInspector,
+                    icon: const Icon(Icons.zoom_in, size: 16),
+                    label: const Text(
+                      'Tap image to inspect & zoom',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: ScannerHUDTheme.neonCyan,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
                 const SizedBox(height: 10),
                 // Live camera is the primary capture path (Ticket: camera
                 // integration); upload + samples remain for demos/kiosks.
