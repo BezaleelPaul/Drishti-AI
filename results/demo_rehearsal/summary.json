@@ -1,20 +1,32 @@
 {
-  "runs": 1,
+  "runs": 2,
   "all_ok": true,
   "runs_detail": [
     {
       "run": 1,
-      "wall_seconds": 4.48,
-      "screening_id": "SCR-ADF496850FE9",
+      "wall_seconds": 5.73,
+      "screening_id": "SCR-D64443927945",
       "dr_grade": 1,
       "error_code": "AI_LOW_CONFIDENCE",
-      "inference_time_ms": 500.1,
+      "inference_time_ms": 1202.4,
+      "adverse_error_code": "IMG_NOT_FUNDUS",
+      "assertions_passed": 23,
+      "steps": 13
+    },
+    {
+      "run": 2,
+      "wall_seconds": 3.25,
+      "screening_id": "SCR-BAA59E98FFC3",
+      "dr_grade": 1,
+      "error_code": "AI_LOW_CONFIDENCE",
+      "inference_time_ms": 1051.6,
       "adverse_error_code": "IMG_NOT_FUNDUS",
       "assertions_passed": 23,
       "steps": 13
     }
   ],
   "evidence": [
-    "rehearsal_run1.json"
+    "rehearsal_run1.json",
+    "rehearsal_run2.json"
   ]
 }

@@ -91,3 +91,6 @@ const
 # Generated conversion artifacts (rebuildable via scripts/convert/*)
 scripts/convert/out/
 .venv-ml/
+
+# Coverage artifacts
+.coverage
