@@ -151,6 +151,19 @@ severity in a nationwide screening program.*
   numbers a CDSCO pathway would be benchmarked against.
 - **EyeArt pivotal study (Eyenuk), JAMA Netw Open 2021** — see §4 item 4.
 
+## 5. Beyond Google — other landmark groups (survey)
+
+| Group / scientist | Contribution | Numbers | Relevance here |
+|---|---|---|---|
+| **Prof. Michael Abràmoff** (Univ. of Iowa → Digital Diagnostics) | IDx-DR — the **first FDA-authorised autonomous AI diagnostic in any field of medicine** (2018) | Pivotal: sens 87.2% (81.8–91.2; FDA target >85%), spec 90.7% (88.3–92.7; >82.5%), imageability 96.1% | The regulatory template any CDSCO pathway would follow |
+| **Dr. Yukun Zhou & Prof. Pearse Keane** (Moorfields Eye Hospital + UCL) | **RETFound** — Nature 2023 retinal *foundation model*: self-supervised on **1.6 M unlabelled retinal images**, then label-efficient fine-tuning | Beats ImageNet-pretrained transfer learning on DR and multiple eye/systemic diseases; validated on **APTOS-2019, IDRiD (Indian), Messidor-2** | **Open weights + a Keras port exist** (github.com/rmaphoh/RETFound_MAE, uw-biomedical-ml/RETFound_MAE) — the concrete upgrade path for our grading model and for closing the single-disease gap (glaucoma/AMD) |
+| **Prof. Tien Yin Wong & Dr. Daniel SW Ting** (Singapore Eye Research Institute / NUS) | JAMA 2017 — 494,661 images, multi-disease screening (DR + possible glaucoma + AMD) | Referable DR AUC 0.936, sens 90.5% / spec 91.6%; VTDR sens 100% (94.1–100) | Proves one retinal system can serve multiple diseases |
+| **Airdoc / Chen Yuzhong** (Shanghai) | First NMPA **Class III** "AI aided diagnosis" certificate in China (2020); multicenter trial modelled on IDx-DR's protocol | AIDRScreening: RDR sens 86.72% / spec 96.09%; nonmydriatic subgroup 84.0% / 93.3% | Asian regulatory precedent with undilated imaging subgroup reporting |
+| **Eyenuk / Kaushal Solanki** (EyeArt) | FDA-cleared autonomous screening; JAMA Netw Open 2021 pivotal | mtmDR sens 95.5% spec 85.0% **without dilation**; imageability 87.4% → 97.4% with dilation | The dilation-gap benchmark; best-in-class undilated sensitivity |
+| **India's own institutions built the "famous" ones too** | Gulshan 2016's grading panel and co-authors include **Aravind Eye Care, Madurai (Dr. R. Kim)** and **Sankara Nethralaya, Chennai (Dr. Rajiv Raman — also co-author of npj DM 2019)** | — | Indian-labelled data was central to Google's own model — an Indian dataset fine-tune is lineage-consistent, not niche |
+| **Dr. Anand Sivaraman / Remidio** (Bangalore) | **NIRVAI**: smartphone-based DR screening, CDSCO + CE cleared, deployed on the same handheld hardware category our app targets | Reported ~95% sensitivity vs. Eyenuk-lit grades | The commercial Indian precedent our workflow mirrors |
+
+
 ## 4. Full Bibliography
 
 1. Gulshan V, Peng L, Coram M, et al. Development and Validation of a Deep
