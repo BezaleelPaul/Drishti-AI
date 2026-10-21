@@ -130,23 +130,23 @@ def classification_metrics(y_true: list[int], y_pred: list[int]) -> dict:
     }
 
 
-def load_rows(parquet_path: str) -> tuple[list, list]:
-    df = importlib.import_module("pandas").read_parquet(parquet_path)
-    images = [im["bytes"] for im in df["image"]]
-    labels = [int(x) for x in df["label"]]
-    return images, labels
+def read_labels(parquet_path: str) -> list[int]:
+    """Reads only the label column (a few KB) for stratification."""
+    pf = importlib.import_module("pyarrow.parquet").ParquetFile(parquet_path)
+    return [int(x) for x in pf.read(columns=["label"]).column("label").to_pylist()]
 
 
-def stratified_head(images: list, labels: list, limit: int) -> tuple[list, list]:
-    if limit >= len(images):
-        return images, labels
+def stratified_indices(labels: list[int], limit: int) -> list[int]:
+    """Chooses `limit` row indices with per-class head sampling (seed-fixed)."""
+    if limit >= len(labels):
+        return list(range(len(labels)))
     import random
 
     by_class: dict[int, list[int]] = {}
     for i, y in enumerate(labels):
         by_class.setdefault(y, []).append(i)
-    for y in by_class:
-        random.Random(y).shuffle(by_class[y])
+    for y, indices in by_class.items():
+        random.Random(y).shuffle(indices)
     per = max(1, limit // len(by_class))
     chosen: list[int] = []
     for y in sorted(by_class):
@@ -154,8 +154,31 @@ def stratified_head(images: list, labels: list, limit: int) -> tuple[list, list]
     if len(chosen) < limit:
         leftover = [i for i in range(len(labels)) if i not in set(chosen)]
         chosen.extend(leftover[: limit - len(chosen)])
-    chosen = sorted(chosen[:limit])
-    return [images[i] for i in chosen], [labels[i] for i in chosen]
+    return sorted(chosen[:limit])
+
+
+def iter_fundus_rows(parquet_path: str, keep_indices: list[int] | None = None):
+    """Streams (jpeg_bytes, label) rows without materializing the dataset.
+
+    This machine has ~8 GB RAM; eager-loading all 2,810 multi-megapixel JPEG
+    blobs (several GB) OOM-killed the run mid-flight. Reads happen in small
+    batches and each row is yielded immediately so peak memory stays ~batch
+    size, independent of dataset length.
+    """
+    pf = importlib.import_module("pyarrow.parquet").ParquetFile(parquet_path)
+    keep = None if keep_indices is None else set(keep_indices)
+    row_no = 0
+    for batch in pf.iter_batches(batch_size=64, columns=["image", "label"]):
+        imgs = batch.column("image")
+        labs = batch.column("label").to_pylist()
+        for j, lab in enumerate(labs):
+            if keep is None or row_no in keep:
+                record = imgs[int(j)].as_py()
+                blob = record.get("bytes") if isinstance(record, dict) else record
+                if blob is None:
+                    raise ValueError(f"Parquet row {row_no} has no image bytes.")
+                yield blob, int(lab)
+            row_no += 1
 
 
 def load_records_csv(path: str) -> list[dict]:
@@ -338,27 +361,35 @@ def main() -> int:
 
     from PIL import Image
 
-    from evaluate_calibration import compute_ece
     from src.classification.classifier import DRClassifier
     from src.pipeline.confidence import ConfidenceEvaluator
     from src.quality.fundus_gate import build_fundus_gate
 
-    images, labels = load_rows(ppath)
+    labels = read_labels(ppath)
     if args.limit:
         # The parquet is sorted by label; a plain head() would yield an
         # all-grade-0 subsample. Stratify so --limit stays representative.
-        images, labels = stratified_head(images, labels, args.limit)
-    n = len(images)
-    print(f"dataset={args.repo} parquet={os.path.basename(ppath)} n={n} mode={args.mode}")
+        keep = stratified_indices(labels, args.limit)
+    else:
+        keep = None
+    n = len(keep) if keep is not None else len(labels)
+    rows = iter_fundus_rows(ppath, keep)
+    print(
+        f"dataset={args.repo} parquet={os.path.basename(ppath)} n={n} mode={args.mode}", flush=True
+    )
 
     gate = build_fundus_gate()
     clf = DRClassifier()
-    print(f"model_backend={clf.get_backend()}")
+    print(f"model_backend={clf.get_backend()}", flush=True)
     if clf.get_backend() == "simulated":
-        print("[warn] classifier has NO real weights loaded; metrics below are FABRICATED.")
+        print(
+            "[warn] classifier has NO real weights loaded; metrics below are FABRICATED.",
+            flush=True,
+        )
     elif clf.get_backend() != "keras":
         print(
-            f"[info] measuring the shipped {clf.get_backend()} backend (not the legacy keras model)."
+            f"[info] measuring the shipped {clf.get_backend()} backend (not the legacy keras model).",
+            flush=True,
         )
     conf_eval = ConfidenceEvaluator()
     checker = None
@@ -369,7 +400,7 @@ def main() -> int:
 
     records = []
     t0 = time.time()
-    for i, (blob, label) in enumerate(zip(images, labels)):
+    for i, (blob, label) in enumerate(rows):
         img = np.asarray(Image.open(__import__("io").BytesIO(blob)).convert("RGB"))
         pil = Image.fromarray(img)
         decision = gate.evaluate(img)
@@ -393,8 +424,11 @@ def main() -> int:
                 "quality": quality_grade,
             }
         )
+        # With ~8 GB total RAM (Brave et al. resident) release each decoded
+        # image promptly instead of waiting for loop-scope GC.
+        del img, pil
         if (i + 1) % 250 == 0:
-            print(f"  {i + 1}/{n} ({time.time() - t0:.0f}s)")
+            print(f"  {i + 1}/{n} ({time.time() - t0:.0f}s)", flush=True)
 
     report = build_report(records, args, clf.get_backend(), round(time.time() - t0, 1))
 
