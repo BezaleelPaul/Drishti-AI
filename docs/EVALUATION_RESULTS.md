@@ -218,6 +218,27 @@ mitigations are architectural and already in the code:
 - the Flutter app withholds a grade and shows recapture guidance instead of
   inventing one.
 
+**TTA-era confidence-threshold sweep (shipped backend, n=200):**
+`scripts/tune_confidence_thresholds.py` grids `min_confidence_threshold` ×
+`min_ambiguity_margin` over the shipped-backend prediction CSVs
+(`results/labeled_tta_*_200_predictions.csv`). Findings on the TTA-on run:
+
+| Config (conf/margin) | Released | Released acc | Released QWK | Missed referables in released |
+|---|---|---|---|---|
+| 0.60 / 0.15 (**shipped default**) | 88 | 0.443 | 0.652 | 19 |
+| 0.50 / 0.20 | 103 | 0.447 | 0.702 | 21 |
+| 0.70 / 0.20 | 76 | 0.447 | 0.616 | **14** |
+
+- With TTA the margin dimension is nearly inert (probabilities are
+  better-separated; most rows collapse to identical releases across margins).
+- Raising the confidence cut 0.60 → 0.70 cuts missed-referables-in-released by
+  ~26% at −12% released volume, holding released accuracy.
+- **Defaults deliberately unchanged:** this is an n=200 subset (73% grade-0
+  skew like the parent dataset). Tuning product thresholds on it would repeat
+  exactly the over-fitting this document warns about in limitation 4. The
+  sweep is committed as a tool; re-run it on the full 2,810-image run before
+  touching `ConfidenceConfig`.
+
 ---
 
 ## 6. Operating-point sweep — a sensitivity lever exists, and its limits

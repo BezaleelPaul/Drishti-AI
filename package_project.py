@@ -26,7 +26,18 @@ def make_portable_zip(
         ".vscode",
         "venv",
         ".venv",
+        ".venv-ml",
+        ".ruff_cache",
+        ".serena",
+        ".playwright-mcp",
+        ".opencode",
+        "anotherhackathon",
         "release",
+        "node_modules",
+        # Build artifacts (flutter_app alone is ~5.5 GB on disk)
+        "build",
+        ".dart_tool",
+        "ephemeral",
     }
     exclude_exts = {".pyc", ".pyo", ".pyd"}
 
