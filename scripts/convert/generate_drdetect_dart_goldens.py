@@ -6,14 +6,21 @@ and an exact-separable blur reference so any residual gap is attributable.
 """
 
 from __future__ import annotations
-import json, sys
+
+import json
+import sys
 from pathlib import Path
-import cv2, numpy as np, onnxruntime as ort
+
+import cv2
+import numpy as np
+import onnxruntime as ort
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 ONNX_PATH = ROOT / "models" / "efficientnet_b0_regression_512px.onnx"
-THRESHOLDS = [0.5, 1.5, 2.5, 3.5]
+sys.path.insert(0, str(ROOT))
+from src.classification.drdetect_contract import THRESHOLDS
+
 FIXTURES = [
     ROOT / "test_samples" / "01_real_clinical_fundus" / "real_clinical_drimdb_sample.jpg",
     ROOT / "test_samples" / "01_real_clinical_fundus" / "real_clinical_fundus_patient1.jpg",
@@ -58,7 +65,7 @@ def exact_gaussian_blur(img, sigma):
     cascade for large sigma. We use the explicit ksize so goldens match the
     exact-separable Dart implementation to ~0.009 on the channel mean.
     """
-    half = int(round(3 * sigma))
+    half = round(3 * sigma)
     k = cv2.getGaussianKernel(2 * half + 1, sigma)[:, 0]
     f = img.astype(np.float32)
     f = cv2.filter2D(f, -1, k[:, None], borderType=cv2.BORDER_REFLECT_101)
@@ -114,7 +121,7 @@ def main():
                 "~0.009 on the channel mean. Test tolerances absorb only "
                 "residual kernel/resize differences while still catching "
                 "wrong normalization, channel order, or crop geometry.",
-                "cut_points": [0.5, 1.5, 2.5, 3.5],
+                "cut_points": list(THRESHOLDS),
                 "goldens": golds,
             },
             indent=2,

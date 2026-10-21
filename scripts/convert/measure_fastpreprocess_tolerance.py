@@ -30,7 +30,8 @@ IMAGE_DIRS = [
 ]
 OUT_PATH = ROOT / "results" / "drdetect_fastpreprocess_tolerance.json"
 WORKING_SIZE = 768
-THRESHOLDS = [0.5, 1.5, 2.5, 3.5]
+sys.path.insert(0, str(ROOT))
+from src.classification.drdetect_contract import THRESHOLDS
 
 
 def base_crop(pil_img: Image.Image) -> np.ndarray:

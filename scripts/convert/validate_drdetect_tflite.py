@@ -41,7 +41,8 @@ OUT_PATH = ROOT / "results" / "drdetect_tflite_parity.json"
 
 GATE_TOP1_AGREEMENT = 0.992
 GATE_MAX_SCORE_DIFF = 0.05
-THRESHOLDS = [0.5, 1.5, 2.5, 3.5]
+sys.path.insert(0, str(ROOT))
+from src.classification.drdetect_contract import THRESHOLDS
 
 
 def decode_grade(score: float) -> int:

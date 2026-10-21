@@ -18,12 +18,20 @@ import json
 import sys
 from pathlib import Path
 
-import cv2
 import numpy as np
 import onnxruntime as ort
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from src.classification.drdetect_contract import (
+    REFERABLE_SCORE_CUT,
+    THRESHOLDS,
+    preprocess_fundus_to_nchw,
+)
+from src.classification.ordinal import BASE_SIGMA
+
 ONNX_PATH = ROOT / "models" / "efficientnet_b0_regression_512px.onnx"
 KERAS_PATH = ROOT / "final_model.keras"
 IMAGE_DIRS = [
@@ -31,41 +39,14 @@ IMAGE_DIRS = [
     ROOT / "test_samples" / "curated",
 ]
 OUT_PATH = ROOT / "results" / "drdetect_evidence.json"
-THRESHOLDS = [0.5, 1.5, 2.5, 3.5]
 CLASS_LABELS = ["No DR", "Mild NPDR", "Moderate NPDR", "Severe NPDR", "Proliferative DR"]
-SIGMA = 0.65
+SIGMA = BASE_SIGMA
 
 
 def preprocess_drdetect(pil_img: Image.Image) -> np.ndarray:
-    """Byte-for-byte port of classifier._predict_onnx_drdetect preprocessing."""
-    img_rgb = np.asarray(pil_img.convert("RGB"), dtype=np.uint8)
-    gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
-    mask = gray > 7
-    if mask.any():
-        row_idx = np.where(mask.any(axis=1))[0]
-        col_idx = np.where(mask.any(axis=0))[0]
-        cropped = img_rgb[row_idx[0] : row_idx[-1] + 1, col_idx[0] : col_idx[-1] + 1]
-    else:
-        cropped = img_rgb
-
-    h, w = cropped.shape[:2]
-    radius = min(h, w) // 2
-    cx, cy = w // 2, h // 2
-    circ_mask = np.zeros((h, w), dtype=np.uint8)
-    cv2.circle(circ_mask, (cx, cy), radius, 255, -1)
-    circled = cv2.bitwise_and(cropped, cropped, mask=circ_mask)[
-        cy - radius : cy + radius, cx - radius : cx + radius
-    ]
-
-    blurred = cv2.GaussianBlur(circled, (0, 0), 20)
-    enhanced = cv2.addWeighted(circled, 4, blurred, -4, 128)
-    resized = cv2.resize(enhanced, (512, 512), interpolation=cv2.INTER_AREA)
-
-    norm_01 = resized.astype(np.float32) / 255.0
-    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-    std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-    normalized = (norm_01 - mean) / std
-    return np.transpose(normalized, (2, 0, 1))[None].astype(np.float32)
+    """Canonical contract preprocessing (single source of truth; was a
+    byte-for-byte inline port of the classifier path)."""
+    return preprocess_fundus_to_nchw(pil_img)
 
 
 def decode_score(score: float) -> dict:
@@ -80,7 +61,7 @@ def decode_score(score: float) -> dict:
         "score": round(float(score), 6),
         "grade": grade_val,
         "label": CLASS_LABELS[grade_val],
-        "referable": bool(score >= 1.5),
+        "referable": bool(score >= REFERABLE_SCORE_CUT),
         "uncertainty": round(float(np.exp(-dist)), 6),
         "probs": [round(p, 6) for p in probs],
         "confidence": round(float(probs[int(order[0])]), 6),
@@ -99,7 +80,7 @@ def main() -> int:
 
     keras = None
     if KERAS_PATH.exists():
-        import tensorflow as tf  # noqa: PLC0415
+        import tensorflow as tf
 
         keras = tf.keras.models.load_model(str(KERAS_PATH), compile=False)
         print("Keras model loaded for comparison")
