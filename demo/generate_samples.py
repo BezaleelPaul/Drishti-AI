@@ -3,6 +3,7 @@ Generates synthetic sample fundus images matching the 4 demo scenarios in Sectio
 """
 
 import os
+
 import numpy as np
 from PIL import Image, ImageFilter
 
