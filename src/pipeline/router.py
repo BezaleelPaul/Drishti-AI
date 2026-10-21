@@ -40,9 +40,18 @@ class ScreeningPipelineRouter:
         gradcam_explainer: GradCAMExplainer | None = None,
         confidence_evaluator: ConfidenceEvaluator | None = None,
         structure_segmenter: RetinalStructureSegmenter | None = None,
+        strict_real_weights: bool = False,
     ):
+        """
+        Args:
+            strict_real_weights: Forwarded to the default DRClassifier —
+                when True (and no dr_classifier per-instance override is
+                supplied), constructing the router raises
+                ClinicalModelUnavailableError instead of silently screening
+                with the simulated backend.
+        """
         self.quality_checker = quality_checker or ImageQualityChecker()
-        self.dr_classifier = dr_classifier or DRClassifier()
+        self.dr_classifier = dr_classifier or DRClassifier(strict_real_weights=strict_real_weights)
         self.gradcam_explainer = gradcam_explainer or GradCAMExplainer(
             classifier_backend=self.dr_classifier
         )

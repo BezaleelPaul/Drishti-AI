@@ -87,3 +87,7 @@ scripts/convert/out/
 streamlit_*.log
 presentation/~$*
 const
+
+# Generated conversion artifacts (rebuildable via scripts/convert/*)
+scripts/convert/out/
+.venv-ml/

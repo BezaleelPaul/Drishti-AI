@@ -10,6 +10,18 @@ from src.tf_config import configure_tensorflow
 
 configure_tensorflow()
 
+from src.classification.ordinal import (
+    BASE_SIGMA,
+    decode_grade,
+    probabilities_from_score,
+    uncertainty_from_scores,
+    widened_sigma,
+)
+from src.classification.drdetect_contract import (
+    REFERABLE_SCORE_CUT,
+    preprocess_fundus_to_nchw,
+)
+from src.classification.tta import aggregate_scores, build_views, resolve_view_count
 from src.pipeline.schema import DRClassificationResult, DRGrade
 
 
@@ -44,23 +56,34 @@ class DRClassifier:
         keras_model_path: str | None = None,
         pytorch_model_path: str | None = None,
         device: str = "cpu",
+        strict_real_weights: bool = False,
     ):
         self.device = device
         self.onnx_model_path = onnx_model_path
         self.keras_model_path = keras_model_path
         self.pytorch_model_path = pytorch_model_path
+        self.strict_real_weights = strict_real_weights
         self.model_backend = "mock"
         self.load_error: str | None = None
         self._onnx_session = None
         self._keras_model = None
         self._torch_model = None
         self.thresholds = [0.5, 1.5, 2.5, 3.5]
+        # TTA ensemble size (1 = legacy single pass). Read once so runs are
+        # deterministic for the lifetime of the classifier instance.
+        self.tta_views = resolve_view_count(os.environ.get("DRISHTI_TTA_VIEWS"))
 
         # Auto-detect pretrained model candidates in models/, root, or external
         repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         onnx_candidates = [
             os.path.join(repo_root, "models", "efficientnet_b0_regression_512px.onnx"),
-            os.path.join(repo_root, "flutter_app", "assets", "models", "efficientnet_b0_regression_512px.onnx"),
+            os.path.join(
+                repo_root,
+                "flutter_app",
+                "assets",
+                "models",
+                "efficientnet_b0_regression_512px.onnx",
+            ),
             os.path.join(repo_root, "release", "models", "efficientnet_b0_regression_512px.onnx"),
             os.path.join(repo_root, "efficientnet_b0_regression_512px.onnx"),
         ]
@@ -94,10 +117,14 @@ class DRClassifier:
                 self._onnx_session = ort.InferenceSession(self.onnx_model_path, providers=providers)
                 self.model_backend = "onnx_drdetect"
                 self.load_error = None
-                logging.getLogger(__name__).info(f"Loaded DRDetect ONNX model: {self.onnx_model_path}")
+                logging.getLogger(__name__).info(
+                    f"Loaded DRDetect ONNX model: {self.onnx_model_path}"
+                )
                 return
             except Exception as e:
-                self.load_error = f"onnx load failed ({self.onnx_model_path}): {type(e).__name__}: {e}"
+                self.load_error = (
+                    f"onnx load failed ({self.onnx_model_path}): {type(e).__name__}: {e}"
+                )
                 logging.getLogger(__name__).warning(self.load_error)
 
         # 2. Try loading Keras model if available
@@ -141,6 +168,17 @@ class DRClassifier:
         # 4. Simulation fallback
         import logging
 
+        if self.strict_real_weights:
+            # Fail closed: screening products must never render fabricated
+            # predictions when the clinical weights are missing. Callers may
+            # opt out for rehearsals/tests via strict_real_weights=False.
+            raise ClinicalModelUnavailableError(
+                "No real DR model weights could be loaded "
+                f"(last load error: {self.load_error or 'no candidate files found'}). "
+                "Run scripts/download_winning_model.py or install the model artifacts "
+                "into models/. Set DRISHTI_ALLOW_SIMULATED=1 to bypass this guard for "
+                "offline rehearsals."
+            )
         logging.getLogger(__name__).warning(
             "DRClassifier: no DL weights loaded, using simulated backend."
         )
@@ -182,63 +220,34 @@ class DRClassifier:
         else:
             return self._predict_simulated(pil_img)
 
+    def _preprocess_for_drdetect(self, pil_img: Image.Image) -> np.ndarray:
+        """Delegates to the canonical DRDetect contract preprocessing."""
+        return preprocess_fundus_to_nchw(pil_img)
+
     def _predict_onnx_drdetect(self, pil_img: Image.Image) -> DRClassificationResult:
-        import cv2
-
-        # 1. Preprocessing: crop dark border (tol=7) -> circle crop -> Ben Graham -> resize 512x512
-        img_rgb = np.asarray(pil_img.convert("RGB"), dtype=np.uint8)
-        gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
-        mask = gray > 7
-        if mask.any():
-            row_idx = np.where(mask.any(axis=1))[0]
-            col_idx = np.where(mask.any(axis=0))[0]
-            cropped = img_rgb[row_idx[0]:row_idx[-1] + 1, col_idx[0]:col_idx[-1] + 1]
-        else:
-            cropped = img_rgb
-
-        h, w = cropped.shape[:2]
-        radius = min(h, w) // 2
-        cx, cy = w // 2, h // 2
-        circ_mask = np.zeros((h, w), dtype=np.uint8)
-        cv2.circle(circ_mask, (cx, cy), radius, 255, -1)
-        circled = cv2.bitwise_and(cropped, cropped, mask=circ_mask)[cy - radius:cy + radius, cx - radius:cx + radius]
-
-        blurred = cv2.GaussianBlur(circled, (0, 0), 20)
-        enhanced = cv2.addWeighted(circled, 4, blurred, -4, 128)
-        resized = cv2.resize(enhanced, (512, 512), interpolation=cv2.INTER_AREA)
-
-        # ImageNet normalization
-        norm_01 = resized.astype(np.float32) / 255.0
-        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-        normalized = (norm_01 - mean) / std
-
-        # NCHW format
-        chw = np.transpose(normalized, (2, 0, 1))
-        inp_tensor = np.expand_dims(chw, axis=0).astype(np.float32)
-
-        # 2. Run ONNX Inference
         inp_name = self._onnx_session.get_inputs()[0].name
-        out = self._onnx_session.run(None, {inp_name: inp_tensor})[0]
-        score = float(np.squeeze(out))
+        base_input = self._preprocess_for_drdetect(pil_img)
 
-        # 3. Decode continuous ordinal regression score
-        grade_val = 0
-        for th in self.thresholds:
-            if score > th:
-                grade_val += 1
-        grade_val = min(4, max(0, grade_val))
-        grade = DRGrade(grade_val)
+        # 2. Run ONNX inference across the TTA view ensemble (label-preserving
+        #    flips: fundus images are approximately rotation-symmetric). With
+        #    tta_views=1 this is exactly the legacy single-pass behaviour.
+        views = build_views(base_input, self.tta_views)
+        scores: list[float] = []
+        for view_tensor in views:
+            out = self._onnx_session.run(None, {inp_name: view_tensor})[0]
+            scores.append(float(np.squeeze(out)))
+        report = aggregate_scores(scores)
+        score = report.mean_score
 
-        # 4. Uncertainty & Synthetic Soft Distribution for backward compatibility
-        dist_to_boundary = min(abs(score - th) for th in self.thresholds)
-        uncertainty = float(np.exp(-dist_to_boundary))
+        # 3. Decode continuous ordinal regression score (identical decoding
+        #    for TTA mean and legacy single-pass scores)
+        grade = DRGrade(decode_grade(score, self.thresholds))
 
-        # Honest probabilities approximation centered around continuous grade score
-        sigma = 0.65
-        raw_probs = [float(np.exp(-0.5 * ((c - score) / sigma) ** 2)) for c in range(5)]
-        total_p = sum(raw_probs)
-        probs = [p / total_p for p in raw_probs]
+        # 4. Honest uncertainty: cross-view disagreement widens the class
+        #    kernels, so confidence/ambiguity/OOD signals are evidence-based.
+        sigma = widened_sigma(report.spread) if report.n_views > 1 else BASE_SIGMA
+        probs = probabilities_from_score(score, sigma)
+        uncertainty = uncertainty_from_scores(score, self.thresholds, spread=report.spread)
 
         sorted_indices = np.argsort(probs)[::-1]
         top1_idx = int(sorted_indices[0])
@@ -251,7 +260,7 @@ class DRClassifier:
             probabilities=probs,
             confidence=top1_conf,
             top2_margin=margin,
-            is_referable=score >= 1.5,
+            is_referable=score >= REFERABLE_SCORE_CUT,
             raw_score=score,
             uncertainty=uncertainty,
             model_id="drdetect_ordinal",

@@ -290,7 +290,11 @@ def _get_shared_classifier():
     threshold-profile selection. Without this, changing camera_hardware or
     threshold_profile would invalidate get_screening_engine's cache and
     force a fresh Keras model load — a multi-second cost on CPU."""
-    classifier = DRClassifier()
+    # Fail closed by default: the demo must never present simulated
+    # predictions as screening results. DRISHTI_ALLOW_SIMULATED=1 restores
+    # the old lenient fallback for offline rehearsals without weights.
+    strict = os.environ.get("DRISHTI_ALLOW_SIMULATED", "0") != "1"
+    classifier = DRClassifier(strict_real_weights=strict)
     gradcam_explainer = GradCAMExplainer(
         classifier_backend=classifier,
         use_gradcam_plus_plus=True,
