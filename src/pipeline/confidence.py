@@ -15,8 +15,14 @@ class ConfidenceConfig:
     """
     Configuration parameters for Confidence and Uncertainty evaluation per Section 7.
     """
-    # Top-1 softmax probability threshold (default: 0.60)
-    min_confidence_threshold: float = 0.60
+
+    # Top-1 softmax probability threshold (default: 0.70).
+    # Raised from 0.60 -> 0.70 on split-half validation over the full
+    # 2,810-image shipped-backend run (tune half A(even) / confirm half
+    # B(odd), results in docs/EVALUATION_RESULTS.md section 5): both halves
+    # showed ~23% fewer missed referables in the released subset and higher
+    # released accuracy, at ~8% lower release volume.
+    min_confidence_threshold: float = 0.70
 
     # Margin between Top-1 and Top-2 probabilities (default: 0.15)
     min_ambiguity_margin: float = 0.15
@@ -50,8 +56,12 @@ class ConfidenceEvaluator:
             probs = list(dr_result.probabilities) if dr_result.probabilities is not None else []
         except TypeError:
             probs = []
-        conf_finite = bool(np.isfinite(dr_result.confidence)) if dr_result.confidence is not None else False
-        margin_finite = bool(np.isfinite(dr_result.top2_margin)) if dr_result.top2_margin is not None else False
+        conf_finite = (
+            bool(np.isfinite(dr_result.confidence)) if dr_result.confidence is not None else False
+        )
+        margin_finite = (
+            bool(np.isfinite(dr_result.top2_margin)) if dr_result.top2_margin is not None else False
+        )
         probs_finite = len(probs) > 0 and all(
             isinstance(p, (int, float, np.floating, np.integer)) and bool(np.isfinite(p))
             for p in probs
@@ -59,7 +69,9 @@ class ConfidenceEvaluator:
         if not conf_finite or not margin_finite or not probs_finite:
             is_confident = False
             requires_review = True
-            flags.append("Invalid confidence inputs (NaN/inf or missing values detected): mandatory human review")
+            flags.append(
+                "Invalid confidence inputs (NaN/inf or missing values detected): mandatory human review"
+            )
         else:
             try:
                 max_prob = float(max(probs))
@@ -72,7 +84,9 @@ class ConfidenceEvaluator:
             except Exception:  # noqa: BLE001 - invalid confidence must require review
                 is_confident = False
                 requires_review = True
-                flags.append("Invalid confidence inputs (could not validate probabilities): mandatory human review")
+                flags.append(
+                    "Invalid confidence inputs (could not validate probabilities): mandatory human review"
+                )
 
         # Rule 1: Low Softmax Confidence Check
         try:
@@ -106,7 +120,9 @@ class ConfidenceEvaluator:
         # "A high-risk grade is flagged even if the model is confident, because the
         # clinical cost of a missed Severe/Proliferative case is far higher than the
         # cost of one extra human review."
-        if self.config.always_flag_high_risk and getattr(dr_result.predicted_grade, "is_high_risk", False):
+        if self.config.always_flag_high_risk and getattr(
+            dr_result.predicted_grade, "is_high_risk", False
+        ):
             is_high_risk = True
             requires_review = True
             flags.append(

@@ -42,7 +42,7 @@ const double kStrictMinMlGood = 0.80;
 const double kStrictMinMlBad = 0.48;
 
 /// ConfidenceEvaluator thresholds (src/pipeline/confidence.py).
-const double kMinConfidenceThreshold = 0.60;
+const double kMinConfidenceThreshold = 0.70;
 const double kMinAmbiguityMargin = 0.15;
 const bool kAlwaysFlagHighRisk = true;
 

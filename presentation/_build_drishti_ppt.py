@@ -666,7 +666,7 @@ add_tb(
     1.10,
     [
         {
-            "text": "After a reliable grade: confidence check  →  Grad-CAM heatmap  →  bilingual PDF + FHIR R4.  Low confidence (<60%) or Grade 3/4  →  ophthalmologist over-read.  Operator review ≠ clinical review.",
+            "text": "After a reliable grade: confidence check  →  Grad-CAM heatmap  →  bilingual PDF + FHIR R4.  Low confidence (<70%) or Grade 3/4  →  ophthalmologist over-read.  Operator review ≠ clinical review.",
             "size": 14,
             "color": SLATE_700,
         }
@@ -803,7 +803,7 @@ cols = [
             "EfficientNetB0 · 33.4 MB · APTOS 2019",
             "5-class ICDR severity, referable ≥ Grade 2",
             "~1.4 s end-to-end on Intel i3 / Ryzen 3, 4 GB RAM",
-            "Softmax margin <60% → specialist review",
+            "Softmax margin <70% → specialist review",
             "Grade 3 / 4 always flagged, regardless of confidence",
         ],
     ),

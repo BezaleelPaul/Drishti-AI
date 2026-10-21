@@ -265,7 +265,7 @@ def build_report(records: list[dict], args, backend: str, wall_seconds: float) -
         "note": (
             "Research benchmark on a public dataset; not a clinical claim. "
             "Referable = grade >= 2 (moderate NPDR and above). "
-            "Uncertainty-gate 'released' = confident and unambiguous at 0.60/0.15 thresholds."
+            "Uncertainty-gate 'released' = confident and unambiguous at the 0.70/0.15 gate."
         ),
     }
     if quality_counts:

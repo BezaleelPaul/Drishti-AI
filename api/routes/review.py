@@ -50,7 +50,7 @@ def get_pending_reviews(
 ):
     """
     Retrieves all screenings flagged for clinical review:
-    - Ambiguous or low-confidence predictions (<60%)
+    - Ambiguous or low-confidence predictions (<70%)
     - High-risk cases (Severe NPDR, Proliferative DR)
     - Borderline quality scans requiring specialist over-read
     """

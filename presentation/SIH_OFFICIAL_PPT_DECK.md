@@ -41,7 +41,7 @@
   - **Adaptive CLAHE:** Contrast-limited adaptive histogram equalization in CIELAB space with dynamic contrast adaptation without altering diagnostic morphology.
   - **Model 2 (DR Classifier):** 5-class severity grading (Grades 0–4) via fine-tuned EfficientNetB0 (`final_model.keras`).
   - **Grad-CAM++ Explainability (<30s):** True gradient backpropagation with higher-order partial derivatives isolating dispersed micro-lesions.
-  - **Safety Confidence Calibration:** Softmax margins (<60% flagged for specialist review).
+  - **Safety Confidence Calibration:** Softmax margins (<70% flagged for specialist review).
 
 ---
 
@@ -61,7 +61,7 @@
 - **DR Severity Classifier (5 Classes):**
   - Grade 0: No DR | Grade 1: Mild NPDR | Grade 2: Moderate NPDR | Grade 3: Severe NPDR | Grade 4: Proliferative DR.
   - Backbone: Transfer learning with EfficientNetB0 (`final_model.keras`, 33.4 MB).
-  - Clinically Calibrated Margin: Binary referable threshold ($\ge$ Grade 2) with low-confidence routing (<60%).
+  - Clinically Calibrated Margin: Binary referable threshold ($\ge$ Grade 2) with low-confidence routing (<70%).
 - **Explainable AI (<30 Second Inference):**
   - True Gradient-weighted Class Activation Mapping Plus Plus (**Grad-CAM++**) computed via exact gradient backpropagation through final convolutional feature maps.
   - Clinically honest claim boundaries: Clearly labeled as activation heatmaps, not automated diagnostic lesion segmentation.

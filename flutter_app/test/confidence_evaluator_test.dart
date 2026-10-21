@@ -33,12 +33,12 @@ void main() {
       expect(a.flags, isEmpty);
     });
 
-    test('low confidence (<0.60) flags review with exact flag string', () {
+    test('low confidence (<0.70) flags review with exact flag string', () {
       final r = resultOf([0.45, 0.30, 0.10, 0.10, 0.05]);
       final a = evaluator.evaluate(r);
       expect(a.isConfident, isFalse);
       expect(a.requiresHumanReview, isTrue);
-      expect(a.flags, contains('Low confidence (45.0% < 60%)'));
+      expect(a.flags, contains('Low confidence (45.0% < 70%)'));
     });
 
     test('ambiguous margin (<0.15) flags ambiguity', () {
@@ -117,9 +117,9 @@ void main() {
     test('grade 2 (referable, low confidence) flags review via Rule 1', () {
       final r = resultOf([0.10, 0.15, 0.55, 0.12, 0.08]);
       final a = evaluator.evaluate(r);
-      expect(a.isConfident, isFalse); // 0.55 < 0.60
+      expect(a.isConfident, isFalse); // 0.55 < 0.70
       expect(a.requiresHumanReview, isTrue);
-      expect(a.flags, contains('Low confidence (55.0% < 60%)'));
+      expect(a.flags, contains('Low confidence (55.0% < 70%)'));
     });
   });
 }

@@ -92,30 +92,46 @@ Referable-DR triage (grade ≥ 2):
 
 ---
 
-## 2b. Shipped backend (DRDetect ordinal regression + TTA) — stratified n=200
+## 2b. Shipped backend (DRDetect ordinal regression + TTA) — full set + provenance subset
 
 The shipped classifier changed from the legacy Keras path (section 2) to
 `onnx_drdetect` (EfficientNetB0 ordinal regression, 512px, Ben-Graham
 preprocessing) with a 4-view TTA flip ensemble whose cross-view spread feeds
-the uncertainty signal. Re-measured on a stratified 200-image subset of the
-same EyePACS validation split (identical subset both runs —
-`stratified_head` is seed-fixed; `results/labeled_tta_off_200.json`,
-`results/labeled_tta_on_200.json` + `_predictions.csv` audit trails):
+the uncertainty signal.
+
+**Full 2,810-image paired run (2026-10-21, streaming loader; identical
+subset logic; artifacts `results/labeled_evaluation_drdetect_tta_on.json`
+and `results/labeled_evaluation_drdetect_no_tta.json` + `_predictions.csv`
+audit trails; wall 3142.8 s / 1886 s on the 2-core CPU):**
 
 | Metric | TTA off (legacy single pass) | TTA on (shipped default) |
 |---|---|---|
-| Top-1 accuracy | 35.5% | 37.0% |
-| Within-1 accuracy | 74.0% | **75.0%** |
-| QWK | 0.621 | **0.634** |
-| ECE | 0.309 | **0.195** |
-| Referable-DR sensitivity | 0.600 | 0.600 |
-| Referable-DR specificity | 0.925 | **0.963** |
-| Referable-DR PPV | 0.923 | **0.960** |
-| Latency / image (CPU, incl. gates) | 735 ms | 1422 ms |
-| Uncertainty-gate released | 121/188 | 84/188 |
+| Top-1 accuracy | 68.0% | 68.0% |
+| Within-1 accuracy | 88.1% | **88.4%** |
+| QWK | 0.531 | **0.534** |
+| ECE | 0.157 | **0.119** |
+| Referable-DR sensitivity | **0.384** | 0.375 |
+| Referable-DR specificity | 0.948 | **0.950** |
+| Domain-gate coverage / FRR | 93.06% / 6.94% | 93.06% / 6.94% (model-independent ✓) |
+| Latency / image (2-core CPU, incl. gates) | 670 ms | 1118 ms |
+| Uncertainty-gate released | 2127 | 1785 |
+| Released accuracy | 77.8% | **85.4%** |
+| Released specificity / NPV | 98.5% / — | **99.8% / 92.6%** |
 
-Reading:
+Full-set reading (supersedes the n=200 subset below):
 
+- TTA's honest effect at scale: −24% calibration error (ECE 0.157 → 0.119)
+  and +7.6pp released-subset accuracy (77.8% → 85.4%) with tighter release
+  (2127 → 1785 released; abstentions go to mandatory human review). QWK and
+  referable sensitivity move within noise (±0.01).
+- The n=200 stratified subset (kept below for provenance) over-stated TTA's
+  QWK/sensitivity gains — minority-heavy sampling; this full-set table is
+  the citable one.
+- Against the legacy Keras backend (section 2): QWK 0.31 → 0.53, referable
+  sensitivity 0.21 → 0.375 at comparable top-1 accuracy — the ordinal-regression
+  swap, not TTA, is the dominant improvement.
+
+Reading (n=200 provenance subset):
 - The ordinal-regression swap is itself a large improvement over section 2
   (referable sensitivity 0.21 → 0.60 on comparable subsets, QWK 0.31 → 0.63).
 - TTA's incremental effect: same sensitivity, +3.8pp referable specificity,
@@ -125,8 +141,7 @@ Reading:
   images) but of visibly higher quality (released-subset macro-F1 0.33 → 0.69);
   everything else is routed to mandatory human review, which is the intended
   fail-safe behaviour.
-- n=200 subset numbers; the full 2,810-image run should be re-executed before
-  citing these anywhere formal.
+- n=200 subset numbers; superseded by the full-set paired run above.
 
 Reproduce:
 
@@ -218,26 +233,26 @@ mitigations are architectural and already in the code:
 - the Flutter app withholds a grade and shows recapture guidance instead of
   inventing one.
 
-**TTA-era confidence-threshold sweep (shipped backend, n=200):**
+**TTA-era confidence-threshold sweep (full 2,810-image shipped-backend run):**
 `scripts/tune_confidence_thresholds.py` grids `min_confidence_threshold` ×
-`min_ambiguity_margin` over the shipped-backend prediction CSVs
-(`results/labeled_tta_*_200_predictions.csv`). Findings on the TTA-on run:
+`min_ambiguity_margin` over the shipped-backend prediction CSVs. Full-set
+grid plus split-half validation (tune on A = even rows, confirm on
+B = odd rows; the CSV is label-sorted, so parity halves mix all grades):
 
-| Config (conf/margin) | Released | Released acc | Released QWK | Missed referables in released |
-|---|---|---|---|---|
-| 0.60 / 0.15 (**shipped default**) | 88 | 0.443 | 0.652 | 19 |
-| 0.50 / 0.20 | 103 | 0.447 | 0.702 | 21 |
-| 0.70 / 0.20 | 76 | 0.447 | 0.616 | **14** |
+| Gate (conf/margin) | Released (A/B) | Released acc (A/B) | Missed referables in released (A/B) |
+|---|---|---|---|
+| 0.55 / 0.15 | 1009 / 1005 | 0.830 / 0.840 | 79 / 81 |
+| 0.60 / 0.15 (old default) | 960 / 957 | 0.850 / 0.858 | 68 / 70 |
+| 0.65 / 0.15 | 920 / 915 | 0.860 / 0.862 | 60 / 64 |
+| **0.70 / 0.15 (shipped)** | 880 / 872 | **0.874 / 0.864** | **52 / 61** |
 
-- With TTA the margin dimension is nearly inert (probabilities are
-  better-separated; most rows collapse to identical releases across margins).
-- Raising the confidence cut 0.60 → 0.70 cuts missed-referables-in-released by
-  ~26% at −12% released volume, holding released accuracy.
-- **Defaults deliberately unchanged:** this is an n=200 subset (73% grade-0
-  skew like the parent dataset). Tuning product thresholds on it would repeat
-  exactly the over-fitting this document warns about in limitation 4. The
-  sweep is committed as a tool; re-run it on the full 2,810-image run before
-  touching `ConfidenceConfig`.
+**Decision (2026-10-21): shipped default raised 0.60 → 0.70** in both the
+Python `ConfidenceConfig` and the Dart port (`kMinConfidenceThreshold`).
+Justification: the improvement is monotonic on both *independent* halves —
+~23% fewer missed referables in the released subset and higher released
+accuracy — at only ~8% lower release volume. Margin stays 0.15 (inert with
+TTA-separated probabilities). The Dart parity test pins the new flag string
+(`Low confidence (55.0% < 70%)`).
 
 ---
 

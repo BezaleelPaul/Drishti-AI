@@ -121,7 +121,7 @@ Health systems are never locked into a single proprietary vendor, operating syst
 | **4. DR Classifier (Model 2)** | Runs 5-class grading (Grades 0–4) *only* on validated, reliable images (~67 ms warm-CPU on dev machine; field budget ≤1.4 s full pipeline) | **Availability** & **Sustainability** (zero cloud round-trip) |
 | **5. Grad-CAM++ Visual Evidence** | Computes true gradient backpropagation heatmap in <1.2s on CPU | **Accessibility** (clinician sees *why*, not just a black-box score) |
 | **6. Structural Segmentation** | Automatically segments Optic Disc, Fovea, and vessels to measure Euclidean distance for CSME risk | **Availability** (speeds specialist review to <30s per referable case) |
-| **7. Dual-Tier Safety Check** | Low confidence (<60%) or high risk (Grade 3/4) automatically flags for ophthalmologist over-read | **Safety & Regulatory Compliance** (human-in-the-loop) |
+| **7. Dual-Tier Safety Check** | Low confidence (<70%) or high risk (Grade 3/4) automatically flags for ophthalmologist over-read | **Safety & Regulatory Compliance** (human-in-the-loop) |
 | **8. Bilingual Reporting** | Generates bilingual English/Hindi PDF report with FHIR R4 JSON | **Accessibility** (patient comprehension) & **Platform Independence** (ABDM integration) |
 | **9. Telemedicine Uplink** | Only flagged/referable cases and lightweight metadata sync over rural 2G/3G | **Availability** & **Sustainability** (99.1% network bandwidth saved) |
 
@@ -156,20 +156,20 @@ To maintain scientific integrity and clinical rigor, the Drishti-AI team explici
 | Domain-gate coverage / false-reject rate | 93.1% / **6.9%** |
 | Model 1 pass rate (GOOD+BORDERLINE, full 2,810 run, retuned) | **75.7%** — was 40.9% before blur-threshold recalibration; fails safe (over-refuses, never grades) |
 
-**Shipped-backend measurement (DRDetect ordinal regression, TTA ensemble):** the table above measured the legacy Keras EfficientNetB0 path. The shipped classifier is now `onnx_drdetect` (EfficientNetB0 ordinal regression, 512px, Ben-Graham preprocessing) with a 4-view test-time-augmentation ensemble and cross-view-spread uncertainty. Stratified n=200 subset of the same EyePACS validation split (`results/labeled_tta_off_200.json` / `results/labeled_tta_on_200.json`, identical subset both runs):
+**Shipped-backend measurement (DRDetect ordinal regression + TTA ensemble):** the table above measured the legacy Keras EfficientNetB0 path. The shipped classifier is now `onnx_drdetect` (EfficientNetB0 ordinal regression, 512px, Ben-Graham preprocessing) with a 4-view test-time-augmentation ensemble and cross-view-spread uncertainty. Full paired run on all 2,810 labeled EyePACS validation images (`results/labeled_evaluation_drdetect_tta_on.json` / `results/labeled_evaluation_drdetect_no_tta.json` + `_predictions.csv` audit trails):
 
-| Metric | TTA off (legacy single pass) | TTA on (shipped default) |
-|---|---|---|
-| QWK (5-class) | 0.621 | **0.634** |
-| ECE (calibration) | 0.309 | **0.195** |
-| Referable-DR sensitivity | 0.600 | 0.600 |
-| Referable-DR specificity | 0.925 | **0.963** |
-| Referable-DR PPV | 0.923 | **0.960** |
-| Within-1 accuracy | 0.740 | **0.750** |
-| Latency / image (CPU) | 735 ms | 1422 ms |
-| Uncertainty-gate released | 121/188 | 84/188 (rest → human review) |
+| Metric | Legacy Keras path (section-2 table above) | TTA off | **TTA on (shipped)** |
+|---|---|---|---|
+| QWK (5-class) | 0.31 | 0.531 | **0.534** |
+| Referable-DR sensitivity | 0.21 | **0.384** | 0.375 |
+| Referable-DR specificity | 0.970 | 0.948 | **0.950** |
+| Top-1 accuracy | 71.5% | 68.0% | 68.0% |
+| Within-1 accuracy | — | 88.1% | **88.4%** |
+| ECE (calibration) | 0.064 | 0.157 | **0.119** |
+| Uncertainty-gate released | — | 2127 / 77.8% acc | **1785 / 85.4% acc, 99.8% spec** |
+| Latency / image (2-core CPU) | — | 670 ms | 1118 ms |
 
-Interpretation: TTA trades ~0.7 s/image for −35% calibration error and materially fewer false referables at unchanged sensitivity — the uncertainty gate then releases a smaller but higher-quality subset (released-subset macro-F1 0.33 → 0.69), routing the remainder to mandatory human review. Reproduce: `venv\Scripts\python.exe evaluate_labeled_dataset.py --limit 200 --mode model --out results\labeled_tta_<mode>_200.json` with `DRISHTI_TTA_VIEWS=1` / unset.
+Interpretation: the ordinal-regression backend swap is the dominant accuracy/grading improvement (QWK +0.22, referable sensitivity +78% relative); TTA adds −24% calibration error and +7.6pp released-subset accuracy at ~1.7× inference cost, with all abstained cases routed to mandatory human review. The confidence gate default was raised 0.60 → 0.70 after split-half validation on the full run (see `docs/EVALUATION_RESULTS.md` §5). Reproduce: `venv\Scripts\python.exe evaluate_labeled_dataset.py --mode model --out results\labeled_evaluation_drdetect_<mode>.json` with `DRISHTI_TTA_VIEWS=1` / unset.
 
 **Input safety (enforced in CI):** all 14 adversarial non-retinal fixtures (faces, documents, screenshots, landscapes, historical API face uploads) are rejected with `IMG_NOT_FUNDUS` and **no DR grade ever generated** — `tests/red_team/test_corpus_sweep.py` (76 subtests).
 

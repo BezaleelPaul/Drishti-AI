@@ -5,7 +5,6 @@ from src.pipeline.schema import DRClassificationResult, DRGrade
 
 
 class TestConfidenceEvaluator(unittest.TestCase):
-
     def setUp(self):
         self.evaluator = ConfidenceEvaluator(
             ConfidenceConfig(
@@ -69,6 +68,23 @@ class TestConfidenceEvaluator(unittest.TestCase):
         self.assertTrue(assessment.is_high_risk)
         self.assertTrue(assessment.requires_human_review)
         self.assertTrue(any("mandatory ophthalmologist" in f for f in assessment.flags))
+
+    def test_default_threshold_is_70_percent(self):
+        # Shipped default (split-half validated, docs/EVALUATION_RESULTS.md 5):
+        # confidence 0.65 releases under the legacy 0.60 gate but must now flag.
+        default_eval = ConfidenceEvaluator()
+        self.assertEqual(default_eval.config.min_confidence_threshold, 0.70)
+        res = DRClassificationResult(
+            predicted_grade=DRGrade.MILD_NPDR,
+            probabilities=[0.20, 0.65, 0.08, 0.04, 0.03],
+            confidence=0.65,
+            top2_margin=0.45,
+            is_referable=False,
+        )
+        assessment = default_eval.evaluate(res)
+        self.assertFalse(assessment.is_confident)
+        self.assertTrue(assessment.requires_human_review)
+        self.assertTrue(any("70%" in f for f in assessment.flags))
 
 
 if __name__ == "__main__":

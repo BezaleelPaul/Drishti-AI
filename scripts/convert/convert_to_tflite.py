@@ -147,7 +147,7 @@ def probe_io_contract(tflite_path: Path) -> dict:
         "output": {"shape": od["shape"].tolist(), "dtype": str(od["dtype"])},
         "output_sum": float(np.sum(y)),
         "expects": "float32 NHWC [1,224,224,3] raw 0..255 RGB (do NOT normalize in Dart)",
-        "returns": "softmax 5-vector (feeds confidence gate 0.60/0.15 directly)",
+        "returns": "softmax 5-vector (feeds confidence gate 0.70/0.15 directly)",
     }
 
 

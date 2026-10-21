@@ -20,10 +20,18 @@ def qwk(y_pred, y_true):
     return 1 - (w * h).sum() / (w * e).sum()
 
 
-for csv_path in (
+default_csvs = (
     "results/labeled_tta_off_200_predictions.csv",
     "results/labeled_tta_on_200_predictions.csv",
-):
+    "results/labeled_evaluation_drdetect_no_tta_predictions.csv",
+    "results/labeled_evaluation_drdetect_tta_on_predictions.csv",
+)
+csv_paths = sys.argv[1:] or default_csvs
+
+for csv_path in csv_paths:
+    if not os.path.exists(csv_path):
+        print(f"--- {csv_path}: not found, skipping ---")
+        continue
     with open(csv_path, newline="") as fh:
         recs = list(csv.DictReader(fh))
     print(f"--- {csv_path}  n={len(recs)} ---")

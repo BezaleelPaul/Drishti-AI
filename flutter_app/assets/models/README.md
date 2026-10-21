@@ -55,4 +55,4 @@ Evidence: `results/tflite_parity_fp32_clinical.json`,
    pubspec asset line together.
 
 Until then the fp32 artifact IS the deployment truth: raw 0–255 float32
-NHWC input, softmax 5-vector out, confidence gate 0.60/0.15 downstream.
+NHWC input, softmax 5-vector out, confidence gate 0.70/0.15 downstream.

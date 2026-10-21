@@ -84,7 +84,7 @@
 > *"We re-measured the shipped model ourselves on 2,810 real, third-party labeled screening images — not the training set, not synthetic data. Everything is in `docs/EVALUATION_RESULTS.md` and reproduces with one command (`python evaluate_labeled_dataset.py`):
 > - **Top-1 accuracy 71.5%** — which matches the model card's own 72% holdout claim, so our integration and preprocessing lose nothing.
 > - But we publish the honest metrics too: **macro-F1 0.26, QWK 0.31, and referable-DR sensitivity of only 0.21.** Accuracy on a 73%-negative dataset is a vanity metric; sensitivity is the one that matters, and ours is far below screening grade.
-> - That is exactly why the product is built the way it is: **the model never acts alone.** Domain gate (93.1% coverage, 6.9% false rejects; 14/14 adversarial inputs blocked, enforced by a CI red-team suite), quality gate, uncertainty gate at 60%/0.15, and mandatory clinician review on every referable grade. Every abstention routes to a human instead of inventing a grade.
+> - That is exactly why the product is built the way it is: **the model never acts alone.** Domain gate (93.1% coverage, 6.9% false rejects; 14/14 adversarial inputs blocked, enforced by a CI red-team suite), quality gate, uncertainty gate at 70%/0.15, and mandatory clinician review on every referable grade. Every abstention routes to a human instead of inventing a grade.
 > - Our end-to-end rehearsal (`python demo_rehearsal.py`) boots the real HTTP API and passes 2/2 runs with 26 assertions, including: a human face uploaded as a scan comes back `IMG_NOT_FUNDUS` with **no grade and no referral**.
 >
 > So the claim we defend is not an accuracy number — it's a safety architecture that stays honest when the model is wrong."*
