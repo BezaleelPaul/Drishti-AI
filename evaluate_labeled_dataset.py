@@ -354,8 +354,12 @@ def main() -> int:
     gate = build_fundus_gate()
     clf = DRClassifier()
     print(f"model_backend={clf.get_backend()}")
-    if clf.get_backend() != "keras":
-        print("[warn] classifier backend is not keras; metrics below are NOT the shipped model.")
+    if clf.get_backend() == "simulated":
+        print("[warn] classifier has NO real weights loaded; metrics below are FABRICATED.")
+    elif clf.get_backend() != "keras":
+        print(
+            f"[info] measuring the shipped {clf.get_backend()} backend (not the legacy keras model)."
+        )
     conf_eval = ConfidenceEvaluator()
     checker = None
     if args.mode == "quality":

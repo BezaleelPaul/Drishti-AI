@@ -71,6 +71,13 @@ dev = [
 where = ["."]
 include = ["src*", "api*"]
 
+[tool.pytest.ini_options]
+# Scope pytest to the structured test suite. Root-level test_*.py files are
+# standalone demo scripts (no test_* functions, heavy module imports); they
+# must not be collected — bare `pytest` would otherwise burn ~1 min in
+# collection importing them.
+testpaths = ["tests"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

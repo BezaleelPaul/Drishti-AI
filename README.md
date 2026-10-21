@@ -156,6 +156,21 @@ To maintain scientific integrity and clinical rigor, the Drishti-AI team explici
 | Domain-gate coverage / false-reject rate | 93.1% / **6.9%** |
 | Model 1 pass rate (GOOD+BORDERLINE, full 2,810 run, retuned) | **75.7%** — was 40.9% before blur-threshold recalibration; fails safe (over-refuses, never grades) |
 
+**Shipped-backend measurement (DRDetect ordinal regression, TTA ensemble):** the table above measured the legacy Keras EfficientNetB0 path. The shipped classifier is now `onnx_drdetect` (EfficientNetB0 ordinal regression, 512px, Ben-Graham preprocessing) with a 4-view test-time-augmentation ensemble and cross-view-spread uncertainty. Stratified n=200 subset of the same EyePACS validation split (`results/labeled_tta_off_200.json` / `results/labeled_tta_on_200.json`, identical subset both runs):
+
+| Metric | TTA off (legacy single pass) | TTA on (shipped default) |
+|---|---|---|
+| QWK (5-class) | 0.621 | **0.634** |
+| ECE (calibration) | 0.309 | **0.195** |
+| Referable-DR sensitivity | 0.600 | 0.600 |
+| Referable-DR specificity | 0.925 | **0.963** |
+| Referable-DR PPV | 0.923 | **0.960** |
+| Within-1 accuracy | 0.740 | **0.750** |
+| Latency / image (CPU) | 735 ms | 1422 ms |
+| Uncertainty-gate released | 121/188 | 84/188 (rest → human review) |
+
+Interpretation: TTA trades ~0.7 s/image for −35% calibration error and materially fewer false referables at unchanged sensitivity — the uncertainty gate then releases a smaller but higher-quality subset (released-subset macro-F1 0.33 → 0.69), routing the remainder to mandatory human review. Reproduce: `venv\Scripts\python.exe evaluate_labeled_dataset.py --limit 200 --mode model --out results\labeled_tta_<mode>_200.json` with `DRISHTI_TTA_VIEWS=1` / unset.
+
 **Input safety (enforced in CI):** all 14 adversarial non-retinal fixtures (faces, documents, screenshots, landscapes, historical API face uploads) are rejected with `IMG_NOT_FUNDUS` and **no DR grade ever generated** — `tests/red_team/test_corpus_sweep.py` (76 subtests).
 
 **End-to-end rehearsal:** `python demo_rehearsal.py` boots the real HTTP API and runs the full flow twice (register → risk → quality → analyze → history → result image → adverse input → review queue): **2/2 runs green, 26 assertions**, evidence in `results/demo_rehearsal/`. Measured on this machine: cold screening 6.8 s, warm 1.3 s through the full API (quality ensemble + Grad-CAM included).

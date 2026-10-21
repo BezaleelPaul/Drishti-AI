@@ -92,6 +92,51 @@ Referable-DR triage (grade ≥ 2):
 
 ---
 
+## 2b. Shipped backend (DRDetect ordinal regression + TTA) — stratified n=200
+
+The shipped classifier changed from the legacy Keras path (section 2) to
+`onnx_drdetect` (EfficientNetB0 ordinal regression, 512px, Ben-Graham
+preprocessing) with a 4-view TTA flip ensemble whose cross-view spread feeds
+the uncertainty signal. Re-measured on a stratified 200-image subset of the
+same EyePACS validation split (identical subset both runs —
+`stratified_head` is seed-fixed; `results/labeled_tta_off_200.json`,
+`results/labeled_tta_on_200.json` + `_predictions.csv` audit trails):
+
+| Metric | TTA off (legacy single pass) | TTA on (shipped default) |
+|---|---|---|
+| Top-1 accuracy | 35.5% | 37.0% |
+| Within-1 accuracy | 74.0% | **75.0%** |
+| QWK | 0.621 | **0.634** |
+| ECE | 0.309 | **0.195** |
+| Referable-DR sensitivity | 0.600 | 0.600 |
+| Referable-DR specificity | 0.925 | **0.963** |
+| Referable-DR PPV | 0.923 | **0.960** |
+| Latency / image (CPU, incl. gates) | 735 ms | 1422 ms |
+| Uncertainty-gate released | 121/188 | 84/188 |
+
+Reading:
+
+- The ordinal-regression swap is itself a large improvement over section 2
+  (referable sensitivity 0.21 → 0.60 on comparable subsets, QWK 0.31 → 0.63).
+- TTA's incremental effect: same sensitivity, +3.8pp referable specificity,
+  −35% calibration error, at ~1.9× inference cost (preprocessing is shared
+  across views, so the 4-model ensemble is not 4× wall time).
+- The uncertainty gate releases fewer predictions (84 vs 121 of 188 gated
+  images) but of visibly higher quality (released-subset macro-F1 0.33 → 0.69);
+  everything else is routed to mandatory human review, which is the intended
+  fail-safe behaviour.
+- n=200 subset numbers; the full 2,810-image run should be re-executed before
+  citing these anywhere formal.
+
+Reproduce:
+
+```
+venv\Scripts\python.exe evaluate_labeled_dataset.py --limit 200 --mode model --out results\labeled_tta_off_200.json   # with DRISHTI_TTA_VIEWS=1
+venv\Scripts\python.exe evaluate_labeled_dataset.py --limit 200 --mode model --out results\labeled_tta_on_200.json    # DRISHTI_TTA_VIEWS unset
+```
+
+---
+
 ## 3. Domain gate (Model 0) — non-retinal input is refused
 
 | Metric | Full set (n=2810) | Stratified 400 |
