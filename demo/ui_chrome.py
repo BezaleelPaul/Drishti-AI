@@ -22,7 +22,7 @@ _NAVY_HEADER_HTML = """
     <div style="display: flex; align-items: center; gap: 16px;">
         <div style="text-align: right;">
             <div style="font-size: 12px; font-weight: 600; color: #38BDF8;">ABDM & Ayushman Bharat Compliant</div>
-            <div style="font-size: 11px; color: #94A3B8;">TRL 6 Clinical Triage • 0.69s Edge Turnaround</div>
+            <div style="font-size: 11px; color: #94A3B8;">TRL 6 Clinical Triage • ≤1.4s Edge Turnaround</div>
         </div>
         <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.6); color: #34D399; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 20px; display: flex; align-items: center;">
             <span class="radar-dot"></span>ENGINE ACTIVE

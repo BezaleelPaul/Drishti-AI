@@ -7,9 +7,6 @@ exception in the transport must never raise out of notify_doctor_referral).
 
 from __future__ import annotations
 
-import os
-from unittest import mock
-
 import pytest
 
 from api.services import whatsapp_notify

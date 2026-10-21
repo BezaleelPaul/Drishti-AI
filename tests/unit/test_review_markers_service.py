@@ -71,7 +71,7 @@ def _seed_review_case(
     review_id/patient_id/screening_id parametrized ONLY so multiple seedings
     can coexist in one module (task 4.1 multi-case tests); existing calls
     are unchanged (defaults preserve the original ids)."""
-    import api.database as database
+    from api import database
 
     now = datetime.now(timezone.utc).isoformat()
     conn = sqlite3.connect(database.DB_PATH)
@@ -101,7 +101,7 @@ def _seed_review_case(
 @pytest.fixture()
 def review_env(monkeypatch):
     """Temp SQLite DB + temp image root; DB globals restored afterwards."""
-    import api.database as database
+    from api import database
 
     orig_path = database.DB_PATH
     orig_done = database._init_done
