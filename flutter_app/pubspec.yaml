@@ -91,10 +91,16 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
 
 flutter_launcher_icons:
+  # Legacy (pre-adaptive) icon: the full brand tile.
   image_path: "assets/branding/elytriva_icon_1024.png"
   android: "ic_launcher"
+  # Adaptive foreground: the MARK only (artwork, no tile). The launcher
+  # masks/crops the foreground layer, so a tiled background would show a
+  # cut edge around the rounded square; the navy tile is supplied by
+  # adaptive_icon_background instead, and the artwork is scaled into the
+  # safe zone by the launcher.
   adaptive_icon_background: "#0B132B"
-  adaptive_icon_foreground: "assets/branding/elytriva_icon_512.png"
+  adaptive_icon_foreground: "assets/branding/elytriva_mark.png"
   min_sdk_android: 21
   remove_alpha_ios: true
   ios: true
