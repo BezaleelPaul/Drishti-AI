@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/retinal_markers.dart';
+import '../../l10n/evidence_strings.dart';
 import 'lesion_marker_painter.dart';
 
 /// Full-screen, phone-first fundus inspector.
@@ -14,6 +15,8 @@ import 'lesion_marker_painter.dart';
 /// * drag to pan while zoomed
 /// * double-tap to jump to 2.5x, double-tap again to reset
 /// * +/- buttons and an explicit reset for one-handed use
+/// * tap a lesion candidate to open its evidence sheet (schema_version 1.0
+///   payloads only; legacy payloads keep the legacy read-only behaviour)
 ///
 /// When [markers] is supplied (available payload), landmark arrows from
 /// classical CV segmentation are drawn over the image and zoom/pan with it.
@@ -47,6 +50,15 @@ class _ZoomableFundusScreenState extends State<ZoomableFundusScreen>
   Matrix4? _zoomTo;
   Size _viewport = Size.zero;
   bool _markersVisible = true;
+
+  // Evidence-linked interaction state (schema_version 1.0 payloads only).
+  // Fitted image rect/scale cached by the inner LayoutBuilder so tap
+  // hit-testing can map display coordinates back to source pixels even
+  // while the InteractiveViewer transform is applied on top.
+  Rect _imageRect = Rect.zero;
+  double _imageScale = 1.0;
+  String? _selectedLesionId;
+  String? _highlightCriterionId;
 
   bool get _markersReady {
     final m = widget.markers;
@@ -129,6 +141,62 @@ class _ZoomableFundusScreenState extends State<ZoomableFundusScreen>
     );
   }
 
+  /// Maps a tap (local widget position) to SOURCE-image pixel coordinates,
+  /// accounting for the InteractiveViewer transform and the fitted-image
+  /// letterbox. Returns null when markers/evidence are unavailable or the
+  /// tap falls outside the displayed image.
+  (double, double)? _tapToSource(Offset localPosition) {
+    final m = widget.markers;
+    if (m == null ||
+        !m.available ||
+        _imageRect == Rect.zero ||
+        _imageScale <= 0) {
+      return null;
+    }
+    final inverse = Matrix4.inverted(_transform.value);
+    final world = MatrixUtils.transformPoint(inverse, localPosition);
+    if (!_imageRect.contains(world)) return null;
+    return (
+      (world.dx - _imageRect.left) / _imageScale,
+      (world.dy - _imageRect.top) / _imageScale,
+    );
+  }
+
+  /// Nearest evidence item within a generous slop of the source tap point.
+  String? _hitTestLesion(double sx, double sy) {
+    final m = widget.markers!;
+    String? bestId;
+    double bestDist = double.infinity;
+    for (final item in m.lesionEvidence) {
+      if (item.detectionStatus != LesionEvidenceItem.statusDetected ||
+          !item.geometryValid) {
+        continue;
+      }
+      final dist = math.sqrt(
+        math.pow(sx - item.x, 2) + math.pow(sy - item.y, 2),
+      );
+      final slop = math.max(item.radius + 10.0, 16.0);
+      if (dist <= slop && dist < bestDist) {
+        bestDist = dist;
+        bestId = item.lesionId;
+      }
+    }
+    return bestId;
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    final source = _tapToSource(details.localPosition);
+    if (source == null) {
+      if (_selectedLesionId != null) setState(() => _selectedLesionId = null);
+      return;
+    }
+    final id = _hitTestLesion(source.$1, source.$2);
+    setState(() {
+      _selectedLesionId = (id == _selectedLesionId) ? null : id;
+    });
+    if (_selectedLesionId != null) unawaited(HapticFeedback.selectionClick());
+  }
+
   Widget _canvas() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -145,6 +213,9 @@ class _ZoomableFundusScreenState extends State<ZoomableFundusScreen>
             behavior: HitTestBehavior.translucent,
             onDoubleTapDown: _onDoubleTapDown,
             onDoubleTap: () {},
+            onTapUp: _markersReady && widget.markers!.hasEvidenceExtension
+                ? _onTapUp
+                : null,
             child: SizedBox(
               width: constraints.maxWidth,
               height: constraints.maxHeight,
@@ -181,6 +252,8 @@ class _ZoomableFundusScreenState extends State<ZoomableFundusScreen>
                           width: iw * scale,
                           height: ih * scale,
                         );
+                        _imageRect = rect;
+                        _imageScale = scale;
                         return IgnorePointer(
                           child: CustomPaint(
                             painter: LesionMarkerPainter(
@@ -188,6 +261,8 @@ class _ZoomableFundusScreenState extends State<ZoomableFundusScreen>
                               imageRect: rect,
                               scale: scale,
                               showCallouts: true,
+                              selectedLesionId: _selectedLesionId,
+                              highlightCriterionId: _highlightCriterionId,
                             ),
                           ),
                         );
@@ -199,6 +274,104 @@ class _ZoomableFundusScreenState extends State<ZoomableFundusScreen>
           ),
         );
       },
+    );
+  }
+
+  LesionEvidenceItem? _selectedEvidence() {
+    final id = _selectedLesionId;
+    if (id == null) return null;
+    for (final item in widget.markers!.lesionEvidence) {
+      if (item.lesionId == id) return item;
+    }
+    return null;
+  }
+
+  Widget _evidenceDetailBar() {
+    final item = _selectedEvidence();
+    if (item == null) return const SizedBox.shrink();
+    final typeLabel = switch (item.lesionType) {
+      LesionEvidenceItem.typeMaCandidate => EvidenceStrings.t('candidate_ma'),
+      LesionEvidenceItem.typeExudateCandidate => EvidenceStrings.t(
+        'candidate_exudate',
+      ),
+      _ => EvidenceStrings.t('candidate_unknown'),
+    };
+    final m = widget.markers!;
+    return Container(
+      key: const ValueKey('fundus-evidence-detail'),
+      color: const Color(0xFF0B1220),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$typeLabel  ·  ${item.lesionId}',
+            style: const TextStyle(
+              color: Color(0xFFFDE68C),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            EvidenceStrings.t('status_detected'),
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
+          ),
+          if (item.evidenceNotes.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${EvidenceStrings.t('evidence_notes_label')}: ${item.evidenceNotes.first}',
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ],
+          if (m.criteriaEvaluation.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final criterion in m.criteriaEvaluation)
+                  if (criterion.supportingEvidenceIds.contains(item.lesionId))
+                    ActionChip(
+                      key: ValueKey(
+                        'fundus-criterion-${criterion.criterionId}',
+                      ),
+                      avatar: Icon(
+                        criterion.status == CriterionEvaluation.satisfied
+                            ? Icons.check_circle
+                            : Icons.help_outline,
+                        size: 16,
+                        color: criterion.status == CriterionEvaluation.satisfied
+                            ? const Color(0xFF34D399)
+                            : Colors.white54,
+                      ),
+                      label: Text(
+                        EvidenceStrings.t(criterion.criterionId),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                        ),
+                      ),
+                      onPressed: () => setState(() {
+                        _highlightCriterionId =
+                            (_highlightCriterionId == criterion.criterionId)
+                            ? null
+                            : criterion.criterionId;
+                      }),
+                    ),
+              ],
+            ),
+          ],
+          if (_highlightCriterionId != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${EvidenceStrings.t('criterion_show_markers')}: $_highlightCriterionId',
+              style: const TextStyle(color: Color(0xFF67E8F9), fontSize: 10),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -309,6 +482,7 @@ class _ZoomableFundusScreenState extends State<ZoomableFundusScreen>
                 child: _canvas(),
               ),
             ),
+            _evidenceDetailBar(),
             _bottomBar(),
           ],
         ),

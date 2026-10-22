@@ -25,6 +25,8 @@ class LesionMarkerPainter extends CustomPainter {
     this.strokeScale = 1.0,
     this.pulse = 0.0,
     this.showCallouts = false,
+    this.selectedLesionId,
+    this.highlightCriterionId,
   });
 
   static const double _baseStrokeWidth = 2.0;
@@ -38,6 +40,14 @@ class LesionMarkerPainter extends CustomPainter {
 
   /// Whether callout arrows + labels are drawn (on by the live viewer).
   final bool showCallouts;
+
+  /// Evidence-linked extension: the currently selected lesion id. When set,
+  /// that marker is emphasized and all other candidates are dimmed.
+  final String? selectedLesionId;
+
+  /// When set (a criterion id from the versioned policy), markers whose
+  /// criterion links include it are emphasized — criterion→marker highlight.
+  final String? highlightCriterionId;
 
   /// At most this many lesion callouts are labelled; dense candidate sets
   /// would otherwise soup the image with arrows.
@@ -64,8 +74,10 @@ class LesionMarkerPainter extends CustomPainter {
   static List<MarkerToDraw> drawableMarkers(
     RetinalMarkers markers,
     Rect imageRect,
-    double scale,
-  ) {
+    double scale, {
+    String? selectedLesionId,
+    String? highlightCriterionId,
+  }) {
     if (!markers.available) return const [];
     if (scale.isNaN || scale.isInfinite || scale <= 0) return const [];
 
@@ -107,20 +119,68 @@ class LesionMarkerPainter extends CustomPainter {
       }
     }
 
-    for (final candidate in markers.maCandidates) {
-      final position = mapToDisplay(
-        Offset(candidate.x.toDouble(), candidate.y.toDouble()),
-        imageRect,
-        scale,
-      );
-      if (_isRenderable(position, imageRect)) {
-        out.add(
-          MarkerToDraw(
-            kind: MarkerKind.candidate,
-            position: position,
-            radius: math.max(candidate.r * scale, _minCandidateDisplayRadius),
-          ),
+    // Evidence-linked rendering: when the payload carries typed evidence
+    // items, they are the render source (stable ids + types + criterion
+    // links). Legacy payloads fall back to the maCandidates coordinate list.
+    final evidence = markers.lesionEvidence
+        .where(
+          (e) =>
+              e.statusKnown &&
+              e.typeKnown &&
+              e.detectionStatus == LesionEvidenceItem.statusDetected &&
+              e.geometryValid,
+        )
+        .toList(growable: false);
+    if (evidence.isNotEmpty) {
+      for (final item in evidence) {
+        final position = mapToDisplay(
+          Offset(item.x.toDouble(), item.y.toDouble()),
+          imageRect,
+          scale,
         );
+        if (_isRenderable(position, imageRect)) {
+          out.add(
+            MarkerToDraw(
+              kind: item.lesionType == LesionEvidenceItem.typeExudateCandidate
+                  ? MarkerKind.exudateCandidate
+                  : MarkerKind.candidate,
+              position: position,
+              radius: math.max(item.radius * scale, _minCandidateDisplayRadius),
+              lesionId: item.lesionId,
+              lesionType: item.lesionType,
+              selected:
+                  selectedLesionId != null && selectedLesionId == item.lesionId,
+              dimmed:
+                  selectedLesionId != null && selectedLesionId != item.lesionId,
+              criterionHighlighted:
+                  highlightCriterionId != null &&
+                  item.criterionLinks.contains(highlightCriterionId),
+            ),
+          );
+        }
+      }
+      return out;
+    }
+
+    // v1 payloads NEVER fall back to the legacy coordinate list: the evidence
+    // items are the same detections (legacy list is a compat mirror), so
+    // falling back would double-draw. All-invalid v1 evidence renders nothing.
+    if (!markers.hasEvidenceExtension) {
+      for (final candidate in markers.maCandidates) {
+        final position = mapToDisplay(
+          Offset(candidate.x.toDouble(), candidate.y.toDouble()),
+          imageRect,
+          scale,
+        );
+        if (_isRenderable(position, imageRect)) {
+          out.add(
+            MarkerToDraw(
+              kind: MarkerKind.candidate,
+              position: position,
+              radius: math.max(candidate.r * scale, _minCandidateDisplayRadius),
+            ),
+          );
+        }
       }
     }
 
@@ -139,7 +199,13 @@ class LesionMarkerPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.clipRect(imageRect);
-    for (final marker in drawableMarkers(markers, imageRect, scale)) {
+    for (final marker in drawableMarkers(
+      markers,
+      imageRect,
+      scale,
+      selectedLesionId: selectedLesionId,
+      highlightCriterionId: highlightCriterionId,
+    )) {
       switch (marker.kind) {
         case MarkerKind.opticDisc:
           canvas.drawCircle(
@@ -164,20 +230,61 @@ class LesionMarkerPainter extends CustomPainter {
         case MarkerKind.candidate:
           // "AI found something here" affordance: soft halo fill + crisp
           // ring, then an expanding pulse ring locked to [pulse].
-          final halo = Paint()..color = _soften(ScannerHUDTheme.warning, 0.12);
+          final halo = Paint()
+            ..color = _soften(
+              ScannerHUDTheme.warning,
+              marker.dimmed ? 0.06 : 0.12,
+            );
           canvas.drawCircle(marker.position, marker.radius + 2.0, halo);
           canvas.drawCircle(
             marker.position,
             marker.radius,
-            _strokePaint(ScannerHUDTheme.warning, _candidateStrokeWidth),
+            _strokePaint(
+              marker.dimmed
+                  ? _soften(ScannerHUDTheme.warning, 0.30)
+                  : ScannerHUDTheme.warning,
+              marker.selected ? _baseStrokeWidth : _candidateStrokeWidth,
+            ),
           );
-          if (pulse > 0.0 && pulse < 1.0) {
+          if (marker.criterionHighlighted) {
+            canvas.drawCircle(
+              marker.position,
+              marker.radius + 5.0,
+              _strokePaint(ScannerHUDTheme.neonCyan, 2.2),
+            );
+          }
+          if (pulse > 0.0 && pulse < 1.0 && !marker.dimmed) {
             final alpha = (1.0 - pulse) * 0.55;
             canvas.drawCircle(
               marker.position,
               marker.radius + 4.0 + 12.0 * pulse,
               _strokePaint(ScannerHUDTheme.warning, 1.4)
                 ..color = _soften(ScannerHUDTheme.warning, alpha),
+            );
+          }
+        case MarkerKind.exudateCandidate:
+          // Exudate candidates: yellow ring (bright-lesion colour), same
+          // honest affordance semantics as MA candidates.
+          canvas.drawCircle(
+            marker.position,
+            marker.radius,
+            _strokePaint(
+              const Color(0xFFFACC15),
+              marker.selected ? _baseStrokeWidth : _candidateStrokeWidth,
+            ),
+          );
+          if (marker.criterionHighlighted) {
+            canvas.drawCircle(
+              marker.position,
+              marker.radius + 5.0,
+              _strokePaint(ScannerHUDTheme.neonCyan, 2.2),
+            );
+          }
+          if (marker.dimmed) {
+            canvas.drawCircle(
+              marker.position,
+              marker.radius,
+              Paint()..color = _soften(const Color(0xFF0F172A), 0.25),
             );
           }
       }
@@ -197,7 +304,14 @@ class LesionMarkerPainter extends CustomPainter {
 
     // Anatomical captions claim space first so candidate pills route
     // around them instead of overprinting them.
-    for (final marker in drawableMarkers(markers, imageRect, scale)) {
+    final allMarkers = drawableMarkers(
+      markers,
+      imageRect,
+      scale,
+      selectedLesionId: selectedLesionId,
+      highlightCriterionId: highlightCriterionId,
+    );
+    for (final marker in allMarkers) {
       if (marker.kind == MarkerKind.opticDisc) {
         placed.add(
           _drawLabel(
@@ -214,11 +328,13 @@ class LesionMarkerPainter extends CustomPainter {
     }
 
     final candidates =
-        drawableMarkers(
-            markers,
-            imageRect,
-            scale,
-          ).where((m) => m.kind == MarkerKind.candidate).toList()
+        allMarkers
+            .where(
+              (m) =>
+                  m.kind == MarkerKind.candidate ||
+                  m.kind == MarkerKind.exudateCandidate,
+            )
+            .toList()
           ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
 
     var index = 0;
@@ -228,7 +344,9 @@ class LesionMarkerPainter extends CustomPainter {
         canvas: canvas,
         target: marker.position,
         radius: marker.radius,
-        text: 'Suspected microaneurysm #${index + 1} (classical CV)',
+        text: marker.lesionType == LesionEvidenceItem.typeExudateCandidate
+            ? 'Suspected exudate #${index + 1} (classical CV)'
+            : 'Suspected microaneurysm #${index + 1} (classical CV)',
         placed: placed,
       );
       // Numbering only advances when the label actually landed, so the
@@ -428,19 +546,39 @@ class LesionMarkerPainter extends CustomPainter {
       oldDelegate.scale != scale ||
       oldDelegate.strokeScale != strokeScale ||
       oldDelegate.pulse != pulse ||
-      oldDelegate.showCallouts != showCallouts;
+      oldDelegate.showCallouts != showCallouts ||
+      oldDelegate.selectedLesionId != selectedLesionId ||
+      oldDelegate.highlightCriterionId != highlightCriterionId;
 }
 
-enum MarkerKind { opticDisc, fovea, candidate }
+enum MarkerKind { opticDisc, fovea, candidate, exudateCandidate }
 
 class MarkerToDraw {
   const MarkerToDraw({
     required this.kind,
     required this.position,
     required this.radius,
+    this.lesionId,
+    this.lesionType,
+    this.selected = false,
+    this.dimmed = false,
+    this.criterionHighlighted = false,
   });
 
   final MarkerKind kind;
   final Offset position;
   final double radius;
+
+  /// Stable evidence id (evidence-linked payloads only).
+  final String? lesionId;
+  final String? lesionType;
+
+  /// Selection emphasis (evidence-linked interaction).
+  final bool selected;
+
+  /// Dimmed when another marker is selected.
+  final bool dimmed;
+
+  /// Emphasized when its criterion is highlighted.
+  final bool criterionHighlighted;
 }

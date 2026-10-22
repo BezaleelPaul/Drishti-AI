@@ -1,4 +1,5 @@
 import 'result_status.dart';
+import 'retinal_markers.dart';
 
 class PatientModel {
   final String patientId;
@@ -195,6 +196,13 @@ class ScreeningAnalysisModel {
   // the result was not confirmed at all.
   final ServiceConfirmation? confirmation;
 
+  // ---- Evidence-linked extension (schema_version 1.0) ---------------------
+  // Re-used from the canonical marker model; optional (absent on legacy
+  // payloads / offline fallbacks = "not provided", never negative).
+  final List<CriterionEvaluation> criteriaEvaluation;
+  final GradingPolicyInfo? gradingPolicy;
+  final DisagreementInfo? disagreement;
+
   ScreeningAnalysisModel({
     required this.screeningId,
     required this.patientId,
@@ -225,6 +233,9 @@ class ScreeningAnalysisModel {
     this.probabilities,
     this.resultStatus,
     this.confirmation,
+    this.criteriaEvaluation = const [],
+    this.gradingPolicy,
+    this.disagreement,
   });
 
   factory ScreeningAnalysisModel.fromJson(Map<String, dynamic> json) {
@@ -262,6 +273,24 @@ class ScreeningAnalysisModel {
         json['result_status']?.toString(),
       ),
       confirmation: _confirmationFromJson(json['confirmation']),
+      criteriaEvaluation: json['criteria_evaluation'] is List
+          ? (json['criteria_evaluation'] as List)
+                .map(
+                  (e) =>
+                      CriterionEvaluation.fromJson(e as Map<String, dynamic>),
+                )
+                .toList()
+          : const [],
+      gradingPolicy: json['grading_policy'] is Map<String, dynamic>
+          ? GradingPolicyInfo.fromJson(
+              json['grading_policy'] as Map<String, dynamic>,
+            )
+          : null,
+      disagreement: json['disagreement'] is Map<String, dynamic>
+          ? DisagreementInfo.fromJson(
+              json['disagreement'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 

@@ -1,4 +1,8 @@
+import 'retinal_markers.dart';
+
 class ScreeningResult {
+  // Evidence-linked extension models are re-used (never duplicated) from the
+  // canonical marker model.
   final String screeningId;
   final String patientId;
   final String eyeSide;
@@ -35,6 +39,15 @@ class ScreeningResult {
   // must NOT present dr_grade as a confirmed finding.
   final String? errorCode;
 
+  // ---- Evidence-linked extension (schema_version 1.0) ---------------------
+  // Optional: absent on legacy servers/offline fallbacks = "not provided",
+  // never negative evidence. Reuses the retinal_markers extension models.
+  final String? schemaVersion;
+  final List<LesionEvidenceItem> lesionEvidence;
+  final List<CriterionEvaluation> criteriaEvaluation;
+  final GradingPolicyInfo? gradingPolicy;
+  final DisagreementInfo? disagreement;
+
   ScreeningResult({
     required this.screeningId,
     required this.patientId,
@@ -65,6 +78,11 @@ class ScreeningResult {
     this.csmeRisk,
     this.minFoveaDistancePx,
     this.errorCode,
+    this.schemaVersion,
+    this.lesionEvidence = const [],
+    this.criteriaEvaluation = const [],
+    this.gradingPolicy,
+    this.disagreement,
   });
 
   factory ScreeningResult.fromJson(
@@ -106,5 +124,30 @@ class ScreeningResult {
     csmeRisk: json['csme_risk']?.toString(),
     minFoveaDistancePx: (json['min_fovea_distance_px'] as num?)?.toDouble(),
     errorCode: json['error_code']?.toString(),
+    schemaVersion: json['schema_version']?.toString(),
+    lesionEvidence: json['lesion_evidence'] is List
+        ? (json['lesion_evidence'] as List)
+              .map(
+                (e) => LesionEvidenceItem.fromJson(e as Map<String, dynamic>),
+              )
+              .toList()
+        : const [],
+    criteriaEvaluation: json['criteria_evaluation'] is List
+        ? (json['criteria_evaluation'] as List)
+              .map(
+                (e) => CriterionEvaluation.fromJson(e as Map<String, dynamic>),
+              )
+              .toList()
+        : const [],
+    gradingPolicy: json['grading_policy'] is Map<String, dynamic>
+        ? GradingPolicyInfo.fromJson(
+            json['grading_policy'] as Map<String, dynamic>,
+          )
+        : null,
+    disagreement: json['disagreement'] is Map<String, dynamic>
+        ? DisagreementInfo.fromJson(
+            json['disagreement'] as Map<String, dynamic>,
+          )
+        : null,
   );
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../l10n/lang_scope.dart';
+import '../../l10n/evidence_strings.dart';
 import '../../models/retinal_markers.dart';
 import '../../models/screening_models.dart' as ui;
 import '../../services/ml/pipeline/structure_segmenter.dart';
@@ -186,6 +187,173 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
           ),
           const SizedBox(width: 8),
           Expanded(child: body),
+        ],
+      ),
+    );
+  }
+
+  /// Evidence-linked criteria card (schema_version 1.0 payloads only).
+  ///
+  /// Rendered ONLY when the backend-graded analysis carries criteria
+  /// evaluations: each criterion row shows its localized title, status
+  /// chip, and how many lesion candidates support it. Unsupported criteria
+  /// (no detector) are shown as "not evaluated" — absence is never
+  /// presented as a negative clinical finding. The upper-bound note states
+  /// the documented ICDRS subset limitation. No card renders when the
+  /// payload carries no criteria (on-device/offline path): the existing
+  /// unavailable states already communicate that honestly.
+  Widget _criteriaCard() {
+    final a = widget.state.analysis!;
+    final criteria = a.criteriaEvaluation;
+    if (criteria.isEmpty) return const SizedBox.shrink();
+
+    final rows = <Widget>[];
+    for (final c in criteria) {
+      final (icon, color) = switch (c.status) {
+        CriterionEvaluation.satisfied => (
+          Icons.check_circle,
+          const Color(0xFF34D399),
+        ),
+        CriterionEvaluation.notMet => (
+          Icons.remove_circle,
+          const Color(0xFF94A3B8),
+        ),
+        CriterionEvaluation.indeterminate => (
+          Icons.help_outline,
+          FigmaColors.warning,
+        ),
+        _ => (Icons.block, const Color(0xFF94A3B8)),
+      };
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 15, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${context.ev(c.criterionId)}  ·  ${context.ev('criterion_status_${c.status}')}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFFE2E8F0),
+                  ),
+                ),
+              ),
+              if (c.supportingEvidenceIds.isNotEmpty)
+                Text(
+                  '${c.supportingEvidenceIds.length}',
+                  key: ValueKey('criteria-count-${c.criterionId}'),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: ScannerHUDTheme.neonCyan,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final policy = a.gradingPolicy;
+    return Container(
+      key: const ValueKey('criteria-evidence-card'),
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: ScannerHUDTheme.darkSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF1E293B)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.ev('criteria_title'),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          ...rows,
+          const SizedBox(height: 6),
+          Text(
+            context.ev('upper_bound_note'),
+            style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+          ),
+          if (policy != null && policy.policyId.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${context.ev('policy_label')}: ${policy.policyId} v${policy.policyVersion}',
+              style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// CNN-vs-evidence disagreement banner. Conflict/model-unavailable states
+  /// force the review styling; match/adjacent states stay advisory. Only
+  /// renders from payload data — never synthesized in the UI.
+  Widget _disagreementBanner() {
+    final d = widget.state.analysis?.disagreement;
+    if (d == null) return const SizedBox.shrink();
+    final (border, text) = switch (d.status) {
+      DisagreementInfo.conflict => (
+        FigmaColors.danger,
+        context.ev('disagreement_conflict'),
+      ),
+      DisagreementInfo.modelUnavailable => (
+        FigmaColors.danger,
+        context.ev('disagreement_model_unavailable'),
+      ),
+      DisagreementInfo.adjacent => (
+        FigmaColors.warning,
+        context.ev('disagreement_adjacent'),
+      ),
+      DisagreementInfo.incomplete => (
+        const Color(0xFF1E293B),
+        context.ev('disagreement_incomplete'),
+      ),
+      DisagreementInfo.notAsserted => (
+        const Color(0xFF1E293B),
+        context.ev('disagreement_not_asserted'),
+      ),
+      DisagreementInfo.match => (
+        const Color(0xFF14532D),
+        context.ev('disagreement_match'),
+      ),
+      _ => (const Color(0xFF1E293B), context.ev('disagreement_incomplete')),
+    };
+    return Container(
+      key: const ValueKey('disagreement-banner'),
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: ScannerHUDTheme.darkSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            d.reviewRequired ? Icons.gpp_maybe : Icons.balance,
+            size: 15,
+            color: d.reviewRequired
+                ? FigmaColors.danger
+                : ScannerHUDTheme.neonCyan,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFFE2E8F0)),
+            ),
+          ),
         ],
       ),
     );
@@ -517,6 +685,8 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                       GradcamExplanationCard(analysis: a),
                       const SizedBox(height: 8),
                       _markerCard(),
+                      _criteriaCard(),
+                      _disagreementBanner(),
                     ],
                   ),
                 ),
