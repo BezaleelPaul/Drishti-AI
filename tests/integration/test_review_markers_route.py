@@ -63,6 +63,14 @@ EXPECTED_KEYS = {
     "optic_disc",
     "fovea",
     "ma_candidates",
+    # Evidence-linked extension (schema_version 1.0): optional fields that are
+    # always emitted on available payloads (legacy fallback emits the legacy
+    # key set only).
+    "schema_version",
+    "lesion_evidence",
+    "criteria_evaluation",
+    "grading_policy",
+    "disagreement",
 }
 
 
