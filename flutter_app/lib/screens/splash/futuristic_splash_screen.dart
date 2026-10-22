@@ -218,38 +218,59 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: blink
-                      ? ScannerHUDTheme.neonCyan
-                      : ScannerHUDTheme.neonCyan.withValues(alpha: 0.3),
-                  boxShadow: [
-                    BoxShadow(
-                      color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.6),
-                      blurRadius: 8,
+          // Shrink-to-fit: the monospace build string plus its letter-spacing
+          // is wider than a 360 dp phone, and a fade still LAYOUT-overflows.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: blink
+                          ? ScannerHUDTheme.neonCyan
+                          : ScannerHUDTheme.neonCyan.withValues(alpha: 0.3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ScannerHUDTheme.neonCyan.withValues(
+                            alpha: 0.6,
+                          ),
+                          blurRadius: 8,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'ELYTRIVA // OS v1.2',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: ScannerHUDTheme.hudMonoStyle.copyWith(
+                      fontSize: 11,
+                      color: ScannerHUDTheme.neonCyan,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                'ELYTRIVA // OS v1.2',
-                style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                  fontSize: 11,
-                  color: ScannerHUDTheme.neonCyan,
-                ),
-              ),
-            ],
+            ),
           ),
+          const SizedBox(width: 6),
           TextButton(
             onPressed: _proceed,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             child: Text(
-              'SKIP BOOT \u25B6',
+              'SKIP BOOT ▶',
+              maxLines: 1,
+              softWrap: false,
               style: ScannerHUDTheme.hudMonoStyle.copyWith(
                 fontSize: 10,
                 color: Colors.white54,
@@ -301,26 +322,31 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
                 return Transform.scale(
                   scale: logoScale * breath,
                   child: Container(
+                    width: 158,
+                    height: 158,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(34),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ScannerHUDTheme.neonCyan.withValues(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          ScannerHUDTheme.neonCyan.withValues(
                             alpha: reduced
-                                ? 0.18
-                                : 0.16 +
-                                      0.10 *
+                                ? 0.10
+                                : 0.13 +
+                                      0.07 *
                                           math.sin(_pulse.value * 2 * math.pi),
                           ),
-                          blurRadius: 34,
-                          spreadRadius: 1,
-                        ),
-                      ],
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
+                    // Mark-only asset (no navy tile): the artwork sits
+                    // directly on the scanner canvas, so the eye reads as
+                    // part of the same surface instead of a pasted image.
                     child: Image.asset(
-                      'assets/branding/elytriva_icon_512.png',
-                      width: 158,
-                      height: 158,
+                      'assets/branding/elytriva_mark.png',
+                      width: 152,
+                      height: 152,
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.high,
                     ),
@@ -430,17 +456,24 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
               padding: const EdgeInsets.only(bottom: 3),
               child: Opacity(
                 opacity: i == _activeLine ? 1.0 : 0.45,
-                child: Text(
-                  i == _activeLine && _p < 1.0
-                      ? '${_lines[i].text} \u258C'
-                      : '${_lines[i].text}  \u2713',
-                  style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                    fontSize: 10,
-                    color: i == _activeLine
-                        ? (_p > 0.92
-                              ? ScannerHUDTheme.success
-                              : ScannerHUDTheme.neonCyan)
-                        : Colors.white54,
+                // FittedBox (not TextOverflow) — a fade still LAYOUT-overflows
+                // a narrow phone; scaleDown keeps the whole boot line inside
+                // a 360 dp screen.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    i == _activeLine && _p < 1.0
+                        ? '${_lines[i].text} ▌'
+                        : '${_lines[i].text}  ✓',
+                    style: ScannerHUDTheme.hudMonoStyle.copyWith(
+                      fontSize: 10,
+                      color: i == _activeLine
+                          ? (_p > 0.92
+                                ? ScannerHUDTheme.success
+                                : ScannerHUDTheme.neonCyan)
+                          : Colors.white54,
+                    ),
                   ),
                 ),
               ),

@@ -100,7 +100,7 @@ void main() {
           (w) =>
               w is Image &&
               (w.image as AssetImage).assetName ==
-                  'assets/branding/elytriva_icon_512.png',
+                  'assets/branding/elytriva_mark.png',
         ),
         findsOneWidget,
       );
@@ -112,6 +112,43 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('SKIP BOOT ▶'), findsOneWidget);
+    });
+
+    testWidgets('Splash composes without overflow on a small phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        const MaterialApp(home: FuturisticSplashScreen()),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Brand mark and wordmark must both be present and inside the viewport.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              (w.image as AssetImage).assetName ==
+                  'assets/branding/elytriva_mark.png',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              (w.image as AssetImage).assetName ==
+                  'assets/branding/elytriva_logo_horizontal_no_tagline.png',
+        ),
+        findsOneWidget,
+      );
+      // No RenderFlex overflow: the test binding fails on overflow errors.
+      // (Exception intentionally NOT captured so the framework prints the
+      // offending widget's creator chain.)
+      await tester.pump();
     });
   });
 }
