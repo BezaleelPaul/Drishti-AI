@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
+
 import '../../models/screening_models.dart';
 import 'dr_classifier.dart';
 import 'drdetect_ordinal_runner.dart';
@@ -9,6 +11,30 @@ import 'pipeline_schema.dart';
 import 'quality_gate.dart';
 import 'quality_thresholds.dart';
 import 'screening_orchestrator.dart';
+
+/// Top-level compute worker: canonical RGB decode + quality-gate metric
+/// passes run OFF the UI isolate.
+///
+/// WHY: `decodeCanonicalRgb` (package:image, pure Dart) is O(source pixels)
+/// and the gate is O(analysis pixels) — a 12 MP capture costs seconds when
+/// run synchronously, stalling the Flame game loop and every animated HUD
+/// during capture. Both stages are pure-Dart functions on sendable inputs
+/// (encoded bytes) / outputs (enum+double data classes), so they are
+/// `compute`-safe. The DECODE + ASSESS pair runs in one worker spawn so the
+/// 12 MP frame is decoded, downscaled (<=2048 analysis dim), and graded in
+/// a single background hop with no large buffer round-trips.
+///
+/// NOTE: this does NOT touch the ordinal-regression inference path — the
+/// LiteRT isolate bridge (`AsyncIsolateOrdinalRunner`) remains the
+/// orchestrator's concern and is unchanged.
+QualityAssessmentResult qualityGateComputeWorker(Uint8List encoded) {
+  final canonical = decodeCanonicalRgb(encoded);
+  return const QualityGateDart().assess(
+    canonical.bytes,
+    canonical.width,
+    canonical.height,
+  );
+}
 
 /// Bridges the on-device ML layer into the app's existing [ScreeningAnalysisModel] contract.
 ///
@@ -68,14 +94,16 @@ class OnDevicePipeline {
 
   /// Runs ONLY the on-device quality gate (Node 2) — used by the capture
   /// screen so image usability is checked with airplane mode on.
-  RetinalQualityModel? checkQualityOnDevice(Uint8List imageBytes) {
+  ///
+  /// Decode + metric passes execute on a background isolate via [compute];
+  /// the UI isolate only awaits. Failure semantics are unchanged: a
+  /// FormatException from decode maps to IMG_INVALID (fail closed), never
+  /// stale pixels — and a worker crash rethrows to the caller's guard.
+  Future<RetinalQualityModel?> checkQualityOnDevice(
+    Uint8List imageBytes,
+  ) async {
     try {
-      final canonical = decodeCanonicalRgb(imageBytes);
-      final res = const QualityGateDart().assess(
-        canonical.bytes,
-        canonical.width,
-        canonical.height,
-      );
+      final res = await compute(qualityGateComputeWorker, imageBytes);
       return _toQualityModel(res);
     } on FormatException {
       return _toQualityModel(

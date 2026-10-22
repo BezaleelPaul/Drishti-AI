@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_layout_grid/flutter_layout_grid.dart';
 
+import '../glass/glass_console.dart';
 import 'scanner_game.dart';
 import 'scanner_state.dart';
 import 'scanner_theme.dart';
@@ -12,6 +15,21 @@ import 'scanner_theme.dart';
 ///
 /// Encapsulates the FlameGame lifecycle, decodes fundus imagery into GPU textures,
 /// presents a clinical HUD overlay, and synchronizes with application state.
+///
+/// LAYOUT CONTRACT (rigid, no free-floating overlays)
+/// =================================================
+/// The console is a 3-track CSS-style grid, so no HUD element can ever
+/// overlap the canvas or another HUD element, at any aspect ratio:
+///
+///   | status    | 56 px  | fixed — status pill + cancel affordance      |
+///   | canvas    | 1fr    | the Flame game window (the only flexible track) |
+///   | telemetry | 140 px | fixed — FOV / progress / provenance readouts   |
+///
+/// The HUD is NO LONGER painted over the canvas with `Positioned` children:
+/// the canvas owns its own track, and the two console bands are glass
+/// surfaces above/below it. This is what removes the previous overlap class
+/// (HUD rows competing with the canvas for the same pixels) and guarantees
+/// a fixed-height home for every text row.
 class ScannerView extends StatefulWidget {
   final Uint8List? imageBytes;
   final ScannerAnimationState state;
@@ -118,6 +136,142 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Track 1 — fixed 56 px status band.
+  Widget _statusBand(String statusText, Color stateColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+      child: GlassConsolePanel(
+        borderRadius: 10,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        // Reduced-motion / low-end devices drop the backdrop blur (a
+        // BackdropFilter is a saveLayer) but keep the glass tint + border.
+        blurEnabled: !widget.reduceMotion,
+        accentColor: stateColor,
+        accentOpacity: 0.42,
+        child: Row(
+          children: [
+            GlassConsolePulse(color: stateColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: GlassConsoleLabel(
+                statusText.toUpperCase(),
+                color: stateColor,
+                fontSize: 10,
+                maxLines: 1,
+              ),
+            ),
+            if (widget.onCancel != null)
+              GestureDetector(
+                onTap: widget.onCancel,
+                child: GlassConsoleLabel(
+                  'CANCEL',
+                  color: const Color(0xFFCBD5E1),
+                  fontSize: 9,
+                  letterSpacing: 0.5,
+                  maxLines: 1,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Track 2 — the only flexible track: the Flame canvas window.
+  Widget _canvasBand() {
+    final stack = Stack(
+      fit: StackFit.expand,
+      children: [
+        GameWidget<ScannerGame>(game: _game),
+        if (widget.overlay != null) widget.overlay!,
+        const _HUDCornerMarkers(),
+      ],
+    );
+    if (widget.isInteractive) {
+      return InteractiveViewer(
+        minScale: 1.0,
+        maxScale: 3.5,
+        clipBehavior: Clip.antiAlias,
+        child: stack,
+      );
+    }
+    return stack;
+  }
+
+  /// Track 3 — fixed 140 px telemetry band.
+  Widget _telemetryBand(Color stateColor) {
+    final progressLabel = widget.progress > 0
+        ? '${(widget.progress * 100).toInt()}%'
+        : null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      child: GlassConsolePanel(
+        borderRadius: 10,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        blurEnabled: !widget.reduceMotion,
+        accentColor: stateColor,
+        accentOpacity: 0.34,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: GlassConsoleLabel(
+                    'FOV: 45° | MACULA CENTERED',
+                    color: const Color(0xFF94A3B8),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4,
+                    maxLines: 1,
+                  ),
+                ),
+                if (progressLabel != null) ...[
+                  const SizedBox(width: 8),
+                  GlassConsoleLabel(
+                    progressLabel,
+                    color: stateColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    maxLines: 1,
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            GlassConsoleLabel(
+              'FLAME CANVAS • ORIGINAL PIXELS',
+              color: const Color(0xFF64748B),
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+              maxLines: 1,
+            ),
+            const SizedBox(height: 6),
+            // Provenance strip: what the operator is looking at and what the
+            // pipeline is running — honest, never decorative.
+            Row(
+              children: [
+                Expanded(
+                  child: GlassConsoleLabel(
+                    'ORIGINAL CAPTURE • NO SYNTHETIC OVERLAY',
+                    color: const Color(0xFF475569),
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.6,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusText = widget.customStatusText ?? widget.state.displayName;
@@ -145,133 +299,14 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
         clipBehavior: Clip.antiAlias,
         child: AspectRatio(
           aspectRatio: widget.aspectRatio,
-          child: Stack(
-            fit: StackFit.expand,
+          child: LayoutGrid(
+            areas: 'status\ncanvas\ntelemetry',
+            columnSizes: [1.fr],
+            rowSizes: [56.px, 1.fr, 140.px],
             children: [
-              // 1. Flame Canvas Engine & Optional Diagnostic Overlay
-              if (widget.isInteractive)
-                InteractiveViewer(
-                  minScale: 1.0,
-                  maxScale: 3.5,
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      GameWidget<ScannerGame>(game: _game),
-                      if (widget.overlay != null) widget.overlay!,
-                    ],
-                  ),
-                )
-              else ...[
-                GameWidget<ScannerGame>(game: _game),
-                if (widget.overlay != null) widget.overlay!,
-              ],
-
-              // 3. Clinical HUD Corner Reticles
-              const _HUDCornerMarkers(),
-
-              // 4. Status Bar Header
-              Positioned(
-                top: 12,
-                left: 12,
-                right: 12,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: stateColor.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: stateColor,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            statusText.toUpperCase(),
-                            style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                              color: stateColor,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (widget.onCancel != null)
-                      GestureDetector(
-                        onTap: widget.onCancel,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black45,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: const Text(
-                            'CANCEL',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white70,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              // 5. HUD Telemetry Footer
-              Positioned(
-                bottom: 10,
-                left: 12,
-                right: 12,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'FOV: 45° | MACULA CENTERED',
-                        overflow: TextOverflow.ellipsis,
-                        style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                          fontSize: 9,
-                          color: Colors.white38,
-                        ),
-                      ),
-                    ),
-                    if (widget.progress > 0) ...[
-                      const SizedBox(width: 8),
-                      Text(
-                        '${(widget.progress * 100).toInt()}%',
-                        style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: stateColor,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              _statusBand(statusText, stateColor).inGridArea('status'),
+              _canvasBand().inGridArea('canvas'),
+              _telemetryBand(stateColor).inGridArea('telemetry'),
             ],
           ),
         ),
@@ -280,7 +315,7 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
   }
 }
 
-/// HUD technical corner markers.
+/// HUD technical corner markers (drawn inside the canvas track only).
 class _HUDCornerMarkers extends StatelessWidget {
   const _HUDCornerMarkers();
 

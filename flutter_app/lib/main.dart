@@ -61,6 +61,27 @@ class NetraAiApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: buildFigmaTheme(),
         home: initialHome ?? const FuturisticSplashScreen(),
+        // Accessibility-scaling guard: OS-level font sizes (Android "Font
+        // size: largest", iOS Larger Text) scale the OS textScaler to 2.0+,
+        // which shatters the high-density diagnostic HUD rows and 320dp
+        // screening matrices. Clamp every text to 1.0x–1.25x system scale:
+        // never shrink below the OS baseline (1.0 floor preserves user
+        // minimums), never exceed 1.25x. Implemented ONCE at the root so
+        // every screen inherits it — per-screen MediaQueries (e.g. the
+        // dashboard's 480x480 MATLAB embed) are built downstream and only
+        // override size, not textScaler.
+        builder: (context, child) {
+          // Effective OS multiplier (textScaler.scale(1.0) == the linear
+          // factor for a 1px reference), clamped to the 1.0x–1.25x band.
+          final osScale = MediaQuery.of(context).textScaler.scale(1.0);
+          final clamped = osScale.clamp(1.0, 1.25).toDouble();
+          return MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(clamped)),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
       ),
     );
   }

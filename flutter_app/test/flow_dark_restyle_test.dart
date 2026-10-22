@@ -111,6 +111,15 @@ void main() {
         expect(find.text('Select Eye'), findsOneWidget);
 
         // Asset load + on-device quality gate are pure Dart — no network.
+        // The gate now decodes + assesses on a background isolate (compute);
+        // real async does not advance under FakeAsync, so poll for the
+        // observable quality result under runAsync, then settle frames.
+        await tester.runAsync(() async {
+          final end = DateTime.now().add(const Duration(seconds: 10));
+          while (DateTime.now().isBefore(end) && state.quality == null) {
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+          }
+        });
         await tester.pumpAndSettle();
 
         expect(find.byType(OrbitScanner), findsOneWidget);

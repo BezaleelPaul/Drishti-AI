@@ -71,6 +71,7 @@ dependencies:
   # fl_chart: DR-severity distribution bar chart on the dashboard — derived
   # from real result counts, never synthetic decoration.
   fl_chart: ^1.2.0
+  flutter_layout_grid: ^2.0.8
 
 dev_dependencies:
   flutter_test:

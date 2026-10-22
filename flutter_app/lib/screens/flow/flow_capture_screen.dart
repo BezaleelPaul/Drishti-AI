@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../l10n/lang_scope.dart';
+import '../../l10n/evidence_strings.dart';
 import '../../models/screening_models.dart';
 import '../../services/api_service.dart';
 import '../../services/ml/on_device_pipeline.dart';
@@ -42,9 +43,18 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSample(_sample);
+    // Fresh operator session starts EMPTY at the viewfinder ('RETINAL
+    // VIEWFINDER READY'): a bundled sample is loaded only by explicit
+    // dropdown selection (demo/kiosk mode). A restored in-flight capture
+    // (bytes already in state) re-runs the quality gate directly — never
+    // replaced by a sample image.
+    if (widget.state.imageBytes != null) {
+      unawaited(_runQuality());
+    }
   }
 
+  /// Demo/kiosk sample loader — explicit selection only. A load failure is
+  /// surfaced (logged + operator-visible), never a silent blank viewfinder.
   Future<void> _loadSample(String asset) async {
     try {
       final data = await rootBundle.load(asset);
@@ -56,7 +66,13 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
         widget.state.quality = null;
       });
       unawaited(_runQuality());
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Sample asset load failed ($asset): $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.ev('capture_open_failed'))),
+      );
+    }
   }
 
   Future<void> _upload() async {
@@ -73,18 +89,17 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
       if (bytes.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not read that photo (empty file).'),
-          ),
+          SnackBar(content: Text(context.ev('capture_empty_file'))),
         );
         return;
       }
       await _useCapturedBytes(bytes, 'camera_capture.jpg');
     } catch (e) {
+      debugPrint('Photo picker failed: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not open photo: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.ev('capture_open_failed'))),
+      );
     }
   }
 
@@ -104,10 +119,11 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
         'camera_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
     } catch (e) {
+      debugPrint('Camera open failed: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Camera unavailable: $e')));
+      ).showSnackBar(SnackBar(content: Text(context.ev('camera_unavailable'))));
     }
   }
 
@@ -128,9 +144,11 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
     try {
       // Offline-first: on-device quality gate, server as fallback. Both
       // paths use the same thresholds, so verdicts agree in either mode.
+      // The on-device gate decodes + assesses on a background isolate
+      // (compute), so the Flame canvas keeps animating during capture.
       RetinalQualityModel? q;
       try {
-        q = _onDevice.checkQualityOnDevice(bytes);
+        q = await _onDevice.checkQualityOnDevice(bytes);
       } catch (_) {
         q = null;
       }
@@ -348,7 +366,7 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                               (s) => DropdownMenuItem(
                                 value: s.$1,
                                 child: Text(
-                                  s.$2,
+                                  _sampleLabel(s.$2),
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: Color(0xFFE2E8F0),
@@ -439,6 +457,14 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
         ),
       ),
     );
+  }
+
+  /// Operator-friendly sample labels (demo fixtures keep their asset paths).
+  String _sampleLabel(String filename) {
+    if (filename.startsWith('2_clear')) return context.ev('sample_healthy');
+    if (filename.startsWith('1_blurry')) return context.ev('sample_blurry');
+    if (filename.startsWith('3_severe')) return context.ev('sample_severe');
+    return filename;
   }
 
   Widget _checkRow(String label, bool ok) {
