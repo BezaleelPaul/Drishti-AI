@@ -1,6 +1,6 @@
 # 🎤 TechUtsav 2.0 — Final Expo Pitch & Judge Defense Guide
 
-### Project: **Drishti-AI (Netra-AI)**
+### Project: **ELYTRIVA**
 ### Problem Statement: **SIH26038 (MathWorks) — Explainable AI for Retinal Screening in Rural India**
 ### Venue: **CMR SOET • 8 October 2026**
 ### Team: **Bezaleel, Madhu, Akshay, Adithya, Sinduri, Megha**
@@ -16,13 +16,13 @@
 "In rural India, 77 million diabetic patients face preventable blindness, but there is only 1 ophthalmologist per 100,000 people. Worse, standard AI models forced a diagnosis even on blurry, ungradable smartphone captures—causing dangerous misdiagnoses in rural camps."
 
 [SOLUTION]
-"We built Drishti-AI: an edge-deployable, clinically-gated screening platform that operationalizes hospital-grade diabetic retinopathy detection for rural Primary Health Centres."
+"We built ELYTRIVA: an edge-deployable, clinically-gated screening platform that operationalizes hospital-grade diabetic retinopathy detection for rural Primary Health Centres."
 
 [HOW IT WORKS]
 "A multi-stage pipeline first executes an automated Model 1 Quality Gate that rejects defocused or non-retinal images in sub-180 milliseconds, giving real-time Hindi audio guidance to ASHA workers. Diagnostic scans then pass to our DRDetect Ordinal Regression neural network, generating 5-class severity grades alongside Grad-CAM++ lesion explainability in under 1.2 seconds—100% offline on a consumer CPU."
 
 [INNOVATION / USP]
-"Unlike commercial black boxes, Drishti-AI has a zero-leakage guarantee—refusing to grade ungradable scans—extracts quantitative CSME macular edema biomarkers, and includes a discrete-event district telemedicine model showing a 99.1% reduction in network bandwidth."
+"Unlike commercial black boxes, ELYTRIVA has a zero-leakage guarantee—refusing to grade ungradable scans—extracts quantitative CSME macular edema biomarkers, and includes a discrete-event district telemedicine model showing a 99.1% reduction in network bandwidth."
 
 [RESULT & IMPACT]
 "Our upgraded clinical grader achieves a 0.8931 Quadratic Weighted Kappa and 99.70% referable sensitivity on 2,810 real clinical images, completely bridging the gap between frontline rural camps and district hospitals."
@@ -84,7 +84,7 @@
 
 ### Q5: What is innovative about it? (Our Core USPs)
 **Answer:**
-"1. **Zero Diagnostic Leakage:** In our benchmark of 150 degraded captures, standard classifiers forced diagnoses on 100% of images. Drishti-AI rejects 100% of ungradable captures with zero leakage.
+"1. **Zero Diagnostic Leakage:** In our benchmark of 150 degraded captures, standard classifiers forced diagnoses on 100% of images. ELYTRIVA rejects 100% of ungradable captures with zero leakage.
 2. **Sub-180ms CPU-Only Offline Inference:** Requires zero cloud GPU and zero internet connection during field screening.
 3. **Ordinal Regression Head:** Instead of fragile independent multi-class softmax probabilities, we enforce clinical severity continuity via ordinal regression thresholds.
 4. **Physiological Cause Attribution:** We don't just say 'bad image'—we diagnose the biological root cause (e.g., lens cataract media opacity vs. un-dilated pupil requiring dark room adaptation).
@@ -125,7 +125,7 @@
 
 ### Q9: Why is our solution better than existing approaches?
 **Answer:**
-| Feature | Commercial Desktop AI (IDx-DR, Google Health) | Naive Hackathon Prototypes | **Drishti-AI (Our Platform)** |
+| Feature | Commercial Desktop AI (IDx-DR, Google Health) | Naive Hackathon Prototypes | **ELYTRIVA (Our Platform)** |
 |---|:---:|:---:|:---:|
 | **Hardware Cost** | ₹15,00,000+ (Tabletop only) | Web camera / phone | **Agnostic (₹15,000+ Handheld & Desktop)** |
 | **Internet Dependency** | Cloud API required | Cloud API required | **100% Offline CPU Execution** |
@@ -148,7 +148,7 @@
 
 ### Q11: What is the real-world deployment potential?
 **Answer:**
-"Drishti-AI is designed directly for India's public health delivery hierarchy:
+"ELYTRIVA is designed directly for India's public health delivery hierarchy:
 * **Level 1 (Sub-Centres / Village Camps):** ASHA workers carrying Android tablets or low-cost smartphones fitted with smartphone ophthalmoscope attachments (like Volk iNview or Remidio).
 * **Level 2 (Primary Health Centres - PHCs):** Mid-level health workers operating refurbished laptops and tabletop cameras (e.g., Forus 3nethra).
 * **Level 3 (Community & District Hospitals):** Ophthalmologists using the central Doctor Console to audit flagged referrals and review Grad-CAM heatmaps.

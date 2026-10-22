@@ -1,4 +1,4 @@
-# Drishti-AI — Team Plan: Next Update Cycle ("Phone Becomes the Screening Unit")
+# ELYTRIVA — Team Plan: Next Update Cycle ("Phone Becomes the Screening Unit")
 
 **Repo:** `C:\Users\bezal\Downloads\SIH HACKATHON` · SIH 2026 / PS 26038
 **Sprint:** 21 days · **Budget:** 43.5 person-days (6 people) · Freeze at Day 16

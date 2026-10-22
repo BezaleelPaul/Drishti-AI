@@ -5,7 +5,7 @@
 ---
 
 ### Slide 1: Title & Team Overview
-- **Project Title:** Drishti-AI: Explainable Dual-Stage Diabetic Retinopathy Screening & District Tele-Ophthalmology Telemedicine Pipeline
+- **Project Title:** ELYTRIVA: Explainable Dual-Stage Diabetic Retinopathy Screening & District Tele-Ophthalmology Telemedicine Pipeline
 - **Problem Statement ID:** SIH26038 | **Organization:** MathWorks
 - **Theme:** MedTech / BioTech / HealthTech
 - **Team Members:**

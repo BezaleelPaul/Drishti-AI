@@ -118,7 +118,7 @@ def test_exudate_mask_without_opencv_yields_not_ran_status(segmenter, monkeypatc
     monkeypatch.setattr(seg_module, "HAS_OPENCV", False)
     img = _fundus_with_dark_dots([])
     res = seg_module.RetinalStructureSegmenter().segment_structures(img)
-    _, lesions, statuses = normalize_structures(img, res)
+    _, _, statuses = normalize_structures(img, res)
     assert statuses[DETECTOR_ID].ran is False
     assert statuses[DETECTOR_ID].failed is True
 

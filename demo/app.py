@@ -1,4 +1,4 @@
-"""Drishti-AI demo orchestrator.
+"""ELYTRIVA demo orchestrator.
 
 Presentation is split across demo/ui_chrome (chrome + config strip),
 demo/engine (cached AI engines + status banner), demo/clinical_prep

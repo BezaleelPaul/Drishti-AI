@@ -10,7 +10,7 @@
 > **"We aren't claiming to invent 5-class deep learning classification — Google Health (Gulshan et al., JAMA 2016) and IDx-DR already proved neural networks can grade diabetic retinopathy under curated hospital conditions. Our innovation is solving the real-world deployment failure modes that prevent these models from working in rural India: democratizing screening on ₹15,000 edge hardware, eliminating the catastrophic 'garbage-in, garbage-out' ungradable image problem, and providing quantitative clinical biomarkers offline."**
 
 ### 🧭 The 4 Operational Questions Governing Every Design Decision
-What hasn't been solved by prior laboratory models is getting an AI screening system to run, day after day, in a rural Primary Health Centre (PHC) with unreliable power, patchy connectivity, a ₹15,000 camera attachment, a non-specialist operator, and no guarantee of a fixed operating system. Drishti-AI was engineered from Day 1 against four questions, in strict priority order:
+What hasn't been solved by prior laboratory models is getting an AI screening system to run, day after day, in a rural Primary Health Centre (PHC) with unreliable power, patchy connectivity, a ₹15,000 camera attachment, a non-specialist operator, and no guarantee of a fixed operating system. ELYTRIVA was engineered from Day 1 against four questions, in strict priority order:
 1. **Will it keep running here?** (Zero cloud dependency, fault-tolerant offline execution)
 2. **Can everyone reach it?** (2G/3G low-bandwidth resilience, district-scale triage)
 3. **Can everyone use it?** (Frontline ASHA/ANM usability, bilingual Hindi/English guidance)
@@ -34,9 +34,9 @@ While pioneering deep learning research (e.g., Google Health ARDA, EyePACS) achi
 
 ---
 
-### 💡 Drishti-AI's Architectural Contribution: Rural Edge Operationalization
+### 💡 ELYTRIVA's Architectural Contribution: Rural Edge Operationalization
 
-Drishti-AI is purpose-engineered to bridge this exact last-mile gap as mandated by **Smart India Hackathon 2026 (Problem Statement SIH26038 • MathWorks)**:
+ELYTRIVA is purpose-engineered to bridge this exact last-mile gap as mandated by **Smart India Hackathon 2026 (Problem Statement SIH26038 • MathWorks)**:
 
 - **Model 1 Image Quality Gating (Abstention Before Grading):** Image reliability is the first decision the system makes. Degraded or non-fundus captures are immediately rejected with sub-second actionable feedback (e.g., *"Blur detected: Hold camera steady"*, English audio prompts with Hindi on-screen guidance for ASHA workers), strictly bounded to 2 recaptures before human review.
 - **100% Offline Edge Computing (field budget ≤1.4 s end-to-end on CPU):** The entire pipeline (Model 1 Quality Gate, Model 2 5-Class Classifier, Retinal Anatomical Segmentation, and Grad-CAM++ Explainability) runs natively on consumer laptops (Intel Core i3 / AMD Ryzen 3, 4GB RAM) with zero internet and zero cloud GPU reliance. Measured latency on Apple M3 dev machine (see `results/benchmark.json`, re-run `python benchmark_latency.py` on target hardware): quality gate ~1–3 ms, classifier ~67 ms warm, full screening ~73–82 ms warm. Field budget on i3/4GB-class hardware: ≤1.4 s including cold-start margin.
@@ -79,7 +79,7 @@ Drishti-AI is purpose-engineered to bridge this exact last-mile gap as mandated 
 
 ## 🏛️ The Four Core Design Pillars
 
-Drishti-AI is structured around four architectural pillars explicitly formulated for rural Indian public healthcare:
+ELYTRIVA is structured around four architectural pillars explicitly formulated for rural Indian public healthcare:
 
 ### 1. ♻️ Sustainability (Modest Compute & Resource Longevity)
 The pipeline is engineered to run indefinitely on modest, low-power hardware rather than depending on recurring cloud subscriptions:
@@ -129,12 +129,12 @@ Health systems are never locked into a single proprietary vendor, operating syst
 
 ## ⚖️ What This System Is NOT Claiming (Honest Scientific & Regulatory Guardrails)
 
-To maintain scientific integrity and clinical rigor, the Drishti-AI team explicitly states our operational boundaries:
+To maintain scientific integrity and clinical rigor, the ELYTRIVA team explicitly states our operational boundaries:
 
 1. **We are NOT claiming to have invented image-quality gating as a concept:**  
    Quality verification is an established, expected component of serious clinical DR screening (Google ARDA, IDx-DR, EyeArt). Our contribution is an independent, lightweight, open-source implementation explicitly optimized for rural Indian edge constraints and low-cost handheld optics.
 2. **We are NOT claiming active medical device certification:**  
-   Real-world clinical deployment requires statutory CDSCO Medical Device Software approval (Class B/C under India’s 2026 guidance) and strict DPDP Act compliance for patient data privacy. Drishti-AI's human-in-the-loop, abstain-and-escalate architecture is intentionally designed to support that regulatory pathway, never to circumvent it.
+   Real-world clinical deployment requires statutory CDSCO Medical Device Software approval (Class B/C under India’s 2026 guidance) and strict DPDP Act compliance for patient data privacy. ELYTRIVA's human-in-the-loop, abstain-and-escalate architecture is intentionally designed to support that regulatory pathway, never to circumvent it.
 3. **We are NOT claiming diagnostic accuracy beyond validated boundaries:**  
    Confidence intervals are reported transparently. Grad-CAM++ is clearly presented as an attention focus visualization, **not automated lesion boundary segmentation**. Every high-risk, ambiguous, or low-confidence capture is mandatorily escalated to a human ophthalmologist.
 

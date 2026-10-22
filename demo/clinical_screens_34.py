@@ -321,7 +321,7 @@ def render_screen_4(prep) -> None:
     else:
         sms_status = "ROUTINE CARE"
     sms_payload = (
-        f"DRISHTI-AI CAMP REFERRAL:\nPatient: {patient_profile.patient_id} ({patient_profile.age}y)\n"
+        f"ELYTRIVA CAMP REFERRAL:\nPatient: {patient_profile.patient_id} ({patient_profile.age}y)\n"
         f"Status: {sms_status}\n"
         f"Orders: {', '.join(clinical_orders[:2]) if clinical_orders else 'Follow PHC lifestyle guidance'}\n"
         f"जिला अस्पताल नेत्र विभाग में संपर्क करें।"

@@ -1,4 +1,4 @@
-"""Generate the Drishti-AI SIH 2026 presentation deck."""
+"""Generate the ELYTRIVA SIH 2026 presentation deck."""
 
 import os
 
@@ -8,7 +8,7 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
-# --- Design tokens (Drishti clinical system) ---
+# --- Design tokens (ELYTRIVA clinical system) ---
 NAVY = RGBColor(0x0A, 0x25, 0x40)
 NAVY_MID = RGBColor(0x12, 0x3A, 0x5C)
 NAVY_SOFT = RGBColor(0x1B, 0x4A, 0x6E)
@@ -128,7 +128,7 @@ def footer(slide, page, total=15):
         0.22,
         [
             {
-                "text": "Drishti-AI  ·  SIH26038  ·  MathWorks  ·  Software Prototype Track",
+                "text": "ELYTRIVA  ·  SIH26038  ·  MathWorks  ·  Software Prototype Track",
                 "size": 10,
                 "color": RGBColor(0xCB, 0xD5, 0xE1),
                 "bold": False,
@@ -235,7 +235,7 @@ add_tb(
     1.70,
     12,
     1.15,
-    [{"text": "Drishti-AI", "size": 60, "bold": True, "color": WHITE, "font": FONT_DISPLAY}],
+    [{"text": "ELYTRIVA", "size": 60, "bold": True, "color": WHITE, "font": FONT_DISPLAY}],
 )
 add_tb(
     s,
@@ -915,7 +915,7 @@ header_bar(
 )
 
 # table-like rows
-headers = ["METRIC", "ARM A  ·  NO GATE", "ARM B/C  ·  DRISHTI-AI", "WHY IT MATTERS"]
+headers = ["METRIC", "ARM A  ·  NO GATE", "ARM B/C  ·  ELYTRIVA", "WHY IT MATTERS"]
 add_rect(s, 0.40, 1.48, 12.55, 0.48, NAVY)
 xs = [0.50, 3.55, 6.70, 9.70]
 ws = [3.0, 3.05, 2.90, 3.05]
@@ -970,7 +970,7 @@ add_tb(
     0.95,
     [
         {
-            "text": "Arm A is the standard hackathon classifier: 100% of degraded images still receive a clinical-looking grade. Drishti-AI leaks 0%. That is the safety metric we will defend.",
+            "text": "Arm A is the standard hackathon classifier: 100% of degraded images still receive a clinical-looking grade. ELYTRIVA leaks 0%. That is the safety metric we will defend.",
             "size": 14,
             "color": SLATE_700,
         }
@@ -1360,7 +1360,7 @@ add_tb(
     12,
     0.70,
     [
-        {"text": "Drishti-AI", "size": 22, "bold": True, "color": WHITE, "space_after": 4},
+        {"text": "ELYTRIVA", "size": 22, "bold": True, "color": WHITE, "space_after": 4},
         {
             "text": "SIH26038  ·  MathWorks  ·  MedTech  ·  Software Prototype",
             "size": 14,
@@ -1399,8 +1399,8 @@ add_notes(
 # so the builder works on any host (previously two absolute macOS paths).
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.dirname(_HERE)
-out1 = os.path.join(os.path.dirname(_REPO), "Drishti-AI_SIH2026_Presentation.pptx")
-out2 = os.path.join(_HERE, "Drishti-AI_SIH2026_Presentation.pptx")
+out1 = os.path.join(os.path.dirname(_REPO), "ELYTRIVA_SIH2026_Presentation.pptx")
+out2 = os.path.join(_HERE, "ELYTRIVA_SIH2026_Presentation.pptx")
 prs.save(out1)
 prs.save(out2)
 print("Wrote", out1)

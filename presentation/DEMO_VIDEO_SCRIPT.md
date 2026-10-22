@@ -1,12 +1,12 @@
 # SIH 2026 3-Minute Video Demonstration Script
-## System: Drishti-AI — Flutter App served by FastAPI (`http://localhost:8000/app`)
+## System: ELYTRIVA — Flutter App served by FastAPI (`http://localhost:8000/app`)
 
 ---
 
 ### Segment 1: Introduction & Problem Context (0:00 – 0:35)
-- **Visual on Screen:** Title slide or Dashboard header showing *Drishti-AI: Explainable Dual-Stage DR Screening*.
+- **Visual on Screen:** Title slide or Dashboard header showing *ELYTRIVA: Explainable Dual-Stage DR Screening*.
 - **Voiceover:**
-  > *"Diabetic retinopathy affects nearly 14 million people in India, but mass screening in rural areas fails due to variable image quality from low-cost fundus cameras and the 'black-box' nature of deep learning. Here is Drishti-AI, our explainable screening pipeline built for MathWorks problem statement SIH26038."*
+  > *"Diabetic retinopathy affects nearly 14 million people in India, but mass screening in rural areas fails due to variable image quality from low-cost fundus cameras and the 'black-box' nature of deep learning. Here is ELYTRIVA, our explainable screening pipeline built for MathWorks problem statement SIH26038."*
 
 ---
 
@@ -25,7 +25,7 @@
   8. Point out: **DR Severity Grade: "NOT GENERATED (MODEL 2 SUPPRESSED)"**.
   9. Show the detected defects: *"Severe blur / loss of retinal focus"* and *"Suspected media opacity/cataract"*.
 - **Voiceover:**
-  > *"When an operator takes a blurry photo, standard AI systems dangerously guess a grade. In Drishti-AI, the Model 1 Quality Gate strictly suppresses the DR classifier, flags the suspected biological cause—like cataract or small pupil—and prompts for immediate guided recapture. Zero diagnostic leakage."*
+  > *"When an operator takes a blurry photo, standard AI systems dangerously guess a grade. In ELYTRIVA, the Model 1 Quality Gate strictly suppresses the DR classifier, flags the suspected biological cause—like cataract or small pupil—and prompts for immediate guided recapture. Zero diagnostic leakage."*
 
 ---
 
@@ -59,4 +59,4 @@
 - **Visual on Screen:** Click Tab 3 (*"MathWorks SIH26038 Compliance"*).
   - Quick scroll showing 100% green checkmarks across all 5 MathWorks technical requirements.
 - **Voiceover:**
-  > *"Drishti-AI is offline-ready, hardware-agnostic, and medically safe. Thank you!"*
+  > *"ELYTRIVA is offline-ready, hardware-agnostic, and medically safe. Thank you!"*

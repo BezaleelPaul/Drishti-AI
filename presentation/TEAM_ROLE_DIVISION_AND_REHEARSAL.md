@@ -21,7 +21,7 @@
 ### Part 1: Introduction & Clinical Need (Minutes 0:00 – 1:30) — Speaker: Bezaleel
 - *"Respected judges, India has over 77 million diabetic adults, and diabetic retinopathy is a leading cause of preventable blindness. Early detection saves 90% of vision, yet rural India has only one ophthalmologist for every 100,000 citizens."*
 - *"Most existing AI solutions act as black boxes and suffer from a catastrophic flaw: when fed blurry, poor-quality field images, they still force a diagnosis, generating high false positives and false negatives."*
-- *"To solve this, our team has built Drishti-AI: an explainable, dual-stage, clinically-gated screening and district telemedicine pipeline compliant with all MathWorks SIH26038 requirements."*
+- *"To solve this, our team has built ELYTRIVA: an explainable, dual-stage, clinically-gated screening and district telemedicine pipeline compliant with all MathWorks SIH26038 requirements."*
 
 ---
 
@@ -51,5 +51,5 @@
 ---
 
 ### Part 5: Impact & Conclusion (Minutes 7:00 – 8:00) — Speaker: Bezaleel
-- *"Drishti-AI is hardware-agnostic, running on affordable handheld fundus cameras and low-cost laptops entirely offline. By combining upstream clinical risk, non-negotiable quality triage, explainable grading, and district-scale tele-ophthalmology modeling, we deliver a clinically trustworthy solution ready for rural India."*
+- *"ELYTRIVA is hardware-agnostic, running on affordable handheld fundus cameras and low-cost laptops entirely offline. By combining upstream clinical risk, non-negotiable quality triage, explainable grading, and district-scale tele-ophthalmology modeling, we deliver a clinically trustworthy solution ready for rural India."*
 - *"We welcome your questions. Thank you!"*

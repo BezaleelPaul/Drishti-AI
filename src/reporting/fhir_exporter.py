@@ -187,7 +187,7 @@ def export_abdm_fhir_diagnostic_report(
         "issued": timestamp,
         "performer": [
             {"display": doctor_name},
-            {"display": "Drishti-AI Screening Engine (MathWorks SIH26038)"},
+            {"display": "ELYTRIVA Screening Engine (MathWorks SIH26038)"},
         ],
         "conclusion": (
             f"Diabetic Retinopathy Grade: {grade_label}. "

@@ -1,6 +1,6 @@
 # Hardware Portability, Edge Compatibility & Offline Guarantees
 
-### SIH 2026 • Drishti-AI / Netra-AI Screening System
+### SIH 2026 • ELYTRIVA / Netra-AI Screening System
 **Architecture Defense for MathWorks SIH26038**
 
 ---
@@ -12,7 +12,7 @@ A critical clinical failure mode of standard AI screening prototypes is dependen
 - Intermittent 2G/3G or zero cellular internet connectivity
 - Low-cost handheld fundus cameras (₹15,000 – ₹2,50,000) with optical aberrations, sensor noise, and varying fields-of-view
 
-Drishti-AI is architected from the ground up to **run 100% offline on consumer CPUs**, requiring **zero GPU acceleration** and maintaining sub-second latency.
+ELYTRIVA is architected from the ground up to **run 100% offline on consumer CPUs**, requiring **zero GPU acceleration** and maintaining sub-second latency.
 
 ---
 
@@ -37,7 +37,7 @@ Drishti-AI is architected from the ground up to **run 100% offline on consumer C
 
 ## 🔌 Camera Hardware Calibration Profiles
 
-Unlike naive pipelines that apply identical thresholds across all optical instruments, Drishti-AI provides dynamically calibrated presets in `src/quality/checker.py` and `api/routes/system.py`:
+Unlike naive pipelines that apply identical thresholds across all optical instruments, ELYTRIVA provides dynamically calibrated presets in `src/quality/checker.py` and `api/routes/system.py`:
 
 ```
                     ┌─────────────────────────┐

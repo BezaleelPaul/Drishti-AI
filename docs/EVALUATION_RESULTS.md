@@ -1,6 +1,6 @@
 # Evaluation Results — External Validation on Labeled Fundus Data
 
-Honest measurement of the shipped Drishti-AI components on real, third-party
+Honest measurement of the shipped ELYTRIVA components on real, third-party
 labeled data. Everything below is reproducible from this repository; no numbers
 are copied from model cards without re-measurement.
 

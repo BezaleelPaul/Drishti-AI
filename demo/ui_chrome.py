@@ -1,4 +1,4 @@
-"""Static page chrome + top configuration strip for the Drishti-AI demo.
+"""Static page chrome + top configuration strip for the ELYTRIVA demo.
 
 Extracted verbatim from demo/app.py lines 45-271. All st.* calls here must
 execute in the original order: page config -> CSS -> header -> config
@@ -14,9 +14,9 @@ _NAVY_HEADER_HTML = """
         <div style="background: rgba(255, 255, 255, 0.12); padding: 8px 12px; border-radius: 10px; font-size: 24px; backdrop-filter: blur(4px);">👁️</div>
         <div>
             <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: #FFFFFF; display: flex; align-items: center; gap: 8px;">
-                DRISHTI-AI (दृष्टि AI) • NETRA-AI <span style="font-size: 11px; font-weight: 700; background: #0D9488; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">SIH2026 • MathWorks</span>
+                ELYTRIVA <span style="font-size: 11px; font-weight: 700; background: #0D9488; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">SIH2026 • MathWorks</span>
             </div>
-            <div style="font-size: 13px; color: #94A3B8;">Rural Diabetic Retinopathy Screening & District Telemedicine Queuing Engine</div>
+            <div style="font-size: 13px; color: #94A3B8;">Explainable Retinal Screening & District Telemedicine Queuing Engine</div>
         </div>
     </div>
     <div style="display: flex; align-items: center; gap: 16px;">
@@ -171,7 +171,7 @@ _CSS = """
 def render_page_chrome() -> None:
     """Page config + custom CSS + animated header (order-sensitive)."""
     st.set_page_config(
-        page_title="Drishti-AI (Netra-AI): Rural DR Screening & District Telemedicine",
+        page_title="ELYTRIVA: Explainable Retinal Screening & District Telemedicine",
         page_icon="👁️",
         layout="wide",
         initial_sidebar_state="collapsed",
