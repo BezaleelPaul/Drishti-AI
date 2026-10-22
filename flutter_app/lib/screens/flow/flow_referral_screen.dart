@@ -165,7 +165,7 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
         ? 'on-device'
         : 'clinic';
     final slip = [
-      'Drishti-AI Referral Slip',
+      'ELYTRIVA Referral Slip',
       'Patient: ${st.patient.name} (${st.patient.age}y)',
       'Eye: ${st.eyeSide}  |  AI: ${st.analysis?.drLabel ?? "grade $grade"}',
       'Urgency: ${urgency.label}',

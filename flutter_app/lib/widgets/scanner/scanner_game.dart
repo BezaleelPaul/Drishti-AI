@@ -61,6 +61,21 @@ class _ScannerParticle {
     } else {
       x += vx * dt;
       y += vy * dt;
+      // CONTAINMENT: keep every particle inside the scanner aperture. Without
+      // this, particles drift past the ring and paint over the console
+      // bands (the canvas clip in scanner_view.dart is the second line of
+      // defence; this is the first).
+      final dist = math.sqrt(x * x + y * y);
+      final maxDist = radius * 1.12;
+      if (dist > maxDist) {
+        final k = maxDist / dist;
+        x *= k;
+        y *= k;
+        // Reflect the velocity at the boundary so particles keep moving
+        // instead of sticking to the edge.
+        vx = -vx * 0.6;
+        vy = -vy * 0.6;
+      }
     }
   }
 }

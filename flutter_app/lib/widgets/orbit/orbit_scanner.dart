@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -107,117 +108,150 @@ class _OrbitScannerState extends State<OrbitScanner>
     final color = widget.state.color;
     final technical = widget.technicalLabel;
 
-    return AspectRatio(
-      aspectRatio: 1,
-      child: Semantics(
-        label:
-            'Orbital scanner, $_statusLabel'
-            '${technical == null || technical.isEmpty ? '' : ', $technical'}',
-        liveRegion: true,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) => CustomPaint(
-                  painter: OrbitPainter(
-                    animationValue: _controller.value,
-                    stateColor: color,
-                    reducedMotion: _reducedMotion,
-                  ),
-                ),
-              ),
-            ),
-            Center(
-              child: _CentralSlot(imageBytes: widget.imageBytes, color: color),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 8,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (technical != null && technical.isNotEmpty)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ScannerHUDTheme.darkSurface.withValues(
-                          alpha: 0.85,
-                        ),
-                        border: Border.all(color: color.withValues(alpha: 0.5)),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        technical.toUpperCase(),
-                        style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                          color: color,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: ScannerHUDTheme.darkSurface.withValues(
-                        alpha: 0.85,
-                      ),
-                      border: Border.all(color: color.withValues(alpha: 0.7)),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      _statusLabel,
-                      style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                        color: color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  if (widget.onCancel != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Semantics(
-                        button: true,
-                        label: 'Cancel analysis',
-                        child: GestureDetector(
-                          key: const Key('orbit_cancel'),
-                          onTap: widget.onCancel,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: color.withValues(alpha: 0.6),
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'CANCEL',
-                              style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                                color: color,
-                                fontSize: 10,
-                              ),
+    // LAYOUT CONTRACT — two layers, never overlapping:
+    //   1. canvas layer: the orbital rings + the central image slot (square,
+    //      hard-clipped to its own bounds);
+    //   2. information layer: the technical / status / cancel chips, laid
+    //      out BELOW the canvas in normal flow.
+    // The chips used to be `Positioned(bottom: 8)` over a `Positioned.fill`
+    // painter, so the orbit rings ran straight through the text.
+    return Semantics(
+      label:
+          'Orbital scanner, $_statusLabel'
+          '${technical == null || technical.isEmpty ? '' : ', $technical'}',
+      liveRegion: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // ADAPTIVE SIZING: the scanner is a square canvas + an information
+          // block below it. When the parent constrains the height (a fixed
+          // slot, a small phone), the canvas shrinks to fit instead of
+          // overflowing; with an unbounded height the canvas takes the full
+          // width, as before.
+          const infoBlockHeight = 104.0;
+          final maxW = constraints.maxWidth;
+          final maxH = constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : double.infinity;
+          final side = maxH.isFinite
+              ? math.max(0.0, math.min(maxW, maxH - infoBlockHeight))
+              : maxW;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: side,
+                height: side,
+                child: ClipRect(
+                  clipBehavior: Clip.hardEdge,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned.fill(
+                        child: AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, _) => CustomPaint(
+                            painter: OrbitPainter(
+                              animationValue: _controller.value,
+                              stateColor: color,
+                              reducedMotion: _reducedMotion,
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                      Center(
+                        child: _CentralSlot(
+                          imageBytes: widget.imageBytes,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _infoBlock(color, technical),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// The information layer: technical readout, state label and the optional
+  /// cancel control. Always laid out BELOW the canvas in normal flow.
+  Widget _infoBlock(Color color, String? technical) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (technical != null && technical.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: ScannerHUDTheme.darkSurface.withValues(alpha: 0.85),
+              border: Border.all(color: color.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              technical.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              style: ScannerHUDTheme.hudMonoStyle.copyWith(
+                color: color,
+                fontSize: 10,
               ),
             ),
-          ],
+          ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: ScannerHUDTheme.darkSurface.withValues(alpha: 0.85),
+            border: Border.all(color: color.withValues(alpha: 0.7)),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            _statusLabel,
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            softWrap: false,
+            style: ScannerHUDTheme.hudMonoStyle.copyWith(color: color),
+            textAlign: TextAlign.center,
+          ),
         ),
-      ),
+        if (widget.onCancel != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Semantics(
+              button: true,
+              label: 'Cancel analysis',
+              child: GestureDetector(
+                key: const Key('orbit_cancel'),
+                onTap: widget.onCancel,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: color.withValues(alpha: 0.6)),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'CANCEL',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: ScannerHUDTheme.hudMonoStyle.copyWith(
+                      color: color,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

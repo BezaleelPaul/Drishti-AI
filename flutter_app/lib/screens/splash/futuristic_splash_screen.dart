@@ -1,8 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../widgets/fx/app_logo.dart';
 import '../../widgets/fx/particle_field.dart';
 import '../../widgets/scanner/scanner.dart';
 import '../figma_dashboard_screen.dart';
@@ -38,6 +38,9 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
   // Master progress drives both the visual reveal and the telemetry reveal.
   late final AnimationController _boot;
   late final AnimationController _burst;
+  // Slow breathing clock for the brand mark — the same surface animates,
+  // so the mark never reads as a static image pasted on an animation.
+  late final AnimationController _pulse;
 
   bool _navigated = false;
   bool _burstStarted = false;
@@ -65,6 +68,10 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
       ..addListener(_onBootTick)
       ..addStatusListener(_onBootStatus);
     _burst = AnimationController(vsync: this, duration: _burstDuration);
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    );
   }
 
   @override
@@ -81,6 +88,9 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
       return;
     }
     _boot.forward();
+    // The brand mark breathes on its own slow clock so the mark and the
+    // scanner read as one animated surface.
+    _pulse.repeat();
   }
 
   void _onBootTick() {
@@ -124,6 +134,7 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
   void dispose() {
     _boot.dispose();
     _burst.dispose();
+    _pulse.dispose();
     super.dispose();
   }
 
@@ -227,7 +238,7 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
               ),
               const SizedBox(width: 8),
               Text(
-                'DRISHTI-AI // OS v1.2',
+                'ELYTRIVA // OS v1.2',
                 style: ScannerHUDTheme.hudMonoStyle.copyWith(
                   fontSize: 11,
                   color: ScannerHUDTheme.neonCyan,
@@ -258,6 +269,11 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
         alignment: Alignment.center,
         children: [
           // Flame scanner calibration runs beneath the logo.
+          //
+          // Chrome-less mode: the console's status/telemetry bands are
+          // omitted here — inside a 268 px stage they would leave a 72 px
+          // canvas and put the telemetry text behind the brand mark. The
+          // splash communicates progress through its own boot log instead.
           Opacity(
             opacity: _phase(0.16, 0.40) * 0.55,
             child: ConstrainedBox(
@@ -267,15 +283,50 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
                 progress: _p,
                 aspectRatio: 1.0,
                 reduceMotion: reduced,
+                showConsoleChrome: false,
               ),
             ),
           ),
-          // The brand mark blooms over the calibration.
+          // The ELYTRIVA brand mark blooms over the calibration, breathing
+          // with the same clock as the scanner so it reads as ONE composed
+          // surface instead of a static image pasted on an animation.
           Opacity(
             opacity: logoIn,
-            child: Transform.scale(
-              scale: logoScale,
-              child: AppLogo(size: 190, animate: !reduced, progress: _p),
+            child: AnimatedBuilder(
+              animation: _pulse,
+              builder: (context, _) {
+                final breath = reduced
+                    ? 1.0
+                    : 1.0 + 0.028 * math.sin(_pulse.value * 2 * math.pi);
+                return Transform.scale(
+                  scale: logoScale * breath,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(34),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ScannerHUDTheme.neonCyan.withValues(
+                            alpha: reduced
+                                ? 0.18
+                                : 0.16 +
+                                      0.10 *
+                                          math.sin(_pulse.value * 2 * math.pi),
+                          ),
+                          blurRadius: 34,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/branding/elytriva_icon_512.png',
+                      width: 158,
+                      height: 158,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -284,38 +335,41 @@ class _FuturisticSplashScreenState extends State<FuturisticSplashScreen>
   }
 
   Widget _wordmark(double wordIn) {
-    // Letter-spacing settles inward as the wordmark fades up.
-    final letterSpacing = 14.0 - 10.0 * wordIn;
+    // The ELYTRIVA wordmark fades up over the brand mark; the tagline
+    // resolves into the three screening outcomes the product actually
+    // returns (GOOD / BORDERLINE / REJECT).
+    //
+    // Width-constrained (not height-constrained): the master logo is 5.6:1,
+    // so sizing by height inside a stretched column made it overflow
+    // sideways and read as off-centre. Constraining the WIDTH keeps the
+    // artwork centred and complete at any screen size.
+    final maxWidth = MediaQuery.sizeOf(context).width - 96;
     return Opacity(
       opacity: wordIn,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'DRISHTI-AI',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-              letterSpacing: letterSpacing,
-              shadows: [
-                Shadow(
-                  color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.5),
-                  blurRadius: 18,
-                ),
-              ],
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth.clamp(120, 240)),
+              child: Image.asset(
+                'assets/branding/elytriva_logo_horizontal_no_tagline.png',
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Opacity(
             opacity: _phase(0.22, 0.42),
             child: Text(
-              'AUTONOMOUS RETINAL SCREENING SYSTEM',
+              'EXPLAINABLE RETINAL SCREENING  ·  GOOD / BORDERLINE / REJECT',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.9),
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.6,
+                letterSpacing: 1.2,
               ),
             ),
           ),

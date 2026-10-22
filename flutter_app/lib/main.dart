@@ -17,7 +17,7 @@ void main() {
   // to memory-only with an honest isPersisted=false flag — the app never
   // crashes at boot over storage.
   unawaited(_initOfflinePersistence());
-  runApp(NetraAiApp(langController: LangController()));
+  runApp(ElytrivaApp(langController: LangController()));
 }
 
 Future<void> _initOfflinePersistence() async {
@@ -46,18 +46,22 @@ Future<void> _initOfflinePersistence() async {
   }
 }
 
-class NetraAiApp extends StatelessWidget {
+class ElytrivaApp extends StatelessWidget {
   final LangController langController;
   final Widget? initialHome;
 
-  const NetraAiApp({super.key, required this.langController, this.initialHome});
+  const ElytrivaApp({
+    super.key,
+    required this.langController,
+    this.initialHome,
+  });
 
   @override
   Widget build(BuildContext context) {
     return LangScope(
       notifier: langController,
       child: MaterialApp(
-        title: 'Drishti-AI Rural Health Screening',
+        title: 'ELYTRIVA · Rural Retinal Screening',
         debugShowCheckedModeBanner: false,
         theme: buildFigmaTheme(),
         home: initialHome ?? const FuturisticSplashScreen(),

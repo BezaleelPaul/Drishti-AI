@@ -84,8 +84,33 @@ void main() {
 
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('DRISHTI-AI'), findsOneWidget);
-      expect(find.text('AUTONOMOUS RETINAL SCREENING SYSTEM'), findsOneWidget);
+      // ELYTRIVA brand identity: the wordmark and the brand mark are
+      // bundled assets (assets/branding), not painted text.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              (w.image as AssetImage).assetName ==
+                  'assets/branding/elytriva_logo_horizontal_no_tagline.png',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              (w.image as AssetImage).assetName ==
+                  'assets/branding/elytriva_icon_512.png',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('ELYTRIVA // OS v1.2'), findsOneWidget);
+      expect(
+        find.text(
+          'EXPLAINABLE RETINAL SCREENING  ·  GOOD / BORDERLINE / REJECT',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('SKIP BOOT ▶'), findsOneWidget);
     });
   });

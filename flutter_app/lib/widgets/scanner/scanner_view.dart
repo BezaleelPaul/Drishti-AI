@@ -41,6 +41,18 @@ class ScannerView extends StatefulWidget {
   final double aspectRatio;
   final bool isInteractive;
 
+  /// When false, only the canvas track is rendered (no status band, no
+  /// telemetry band).
+  ///
+  /// Used by the splash screen, where the console chrome would sit UNDER the
+  /// brand mark: a 56 px status band plus a 140 px telemetry band inside a
+  /// 268 px stage leaves a 72 px canvas, and the telemetry text ends up
+  /// behind the glowing logo (unreadable) while the logo circle and the
+  /// calibration rings read as two competing circles. In chrome-less mode the
+  /// scanner is a pure animation surface and the progress is communicated by
+  /// the screen's own boot log.
+  final bool showConsoleChrome;
+
   const ScannerView({
     super.key,
     this.imageBytes,
@@ -52,6 +64,7 @@ class ScannerView extends StatefulWidget {
     this.overlay,
     this.aspectRatio = 1.0,
     this.isInteractive = false,
+    this.showConsoleChrome = true,
   });
 
   @override
@@ -148,6 +161,8 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
         blurEnabled: !widget.reduceMotion,
         accentColor: stateColor,
         accentOpacity: 0.42,
+        // Opaque enough that no canvas pixel shows through the status text.
+        baseOpacity: 0.78,
         child: Row(
           children: [
             GlassConsolePulse(color: stateColor),
@@ -178,6 +193,12 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
   }
 
   /// Track 2 — the only flexible track: the Flame canvas window.
+  ///
+  /// RENDERING BOUNDARY: the game canvas is hard-clipped to its own track
+  /// (`ClipRect`, hard edge). Flame draws particles/rings in canvas space and
+  /// anything that escapes the track would otherwise paint over the console
+  /// bands above and below it. The clip is structural — it holds at any
+  /// screen size, aspect ratio or animation phase.
   Widget _canvasBand() {
     final stack = Stack(
       fit: StackFit.expand,
@@ -187,18 +208,34 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
         const _HUDCornerMarkers(),
       ],
     );
-    if (widget.isInteractive) {
-      return InteractiveViewer(
-        minScale: 1.0,
-        maxScale: 3.5,
-        clipBehavior: Clip.antiAlias,
+    final canvas = ClipRect(
+      clipBehavior: Clip.hardEdge,
+      child: ColoredBox(
+        // Opaque canvas bed: the console bands never composite against
+        // moving pixels, so their text stays crisp.
+        color: ScannerHUDTheme.background,
         child: stack,
+      ),
+    );
+    if (widget.isInteractive) {
+      return ClipRect(
+        clipBehavior: Clip.hardEdge,
+        child: InteractiveViewer(
+          minScale: 1.0,
+          maxScale: 3.5,
+          clipBehavior: Clip.hardEdge,
+          child: canvas,
+        ),
       );
     }
-    return stack;
+    return canvas;
   }
 
   /// Track 3 — fixed 140 px telemetry band.
+  ///
+  /// One information row + one provenance row. The progress percentage is a
+  /// self-contained chip in the panel's top-right corner so it never competes
+  /// with the scanner target or the telemetry text.
   Widget _telemetryBand(Color stateColor) {
     final progressLabel = widget.progress > 0
         ? '${(widget.progress * 100).toInt()}%'
@@ -211,6 +248,8 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
         blurEnabled: !widget.reduceMotion,
         accentColor: stateColor,
         accentOpacity: 0.34,
+        // Opaque enough that the canvas never shows through the text.
+        baseOpacity: 0.78,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,7 +259,7 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
                 Expanded(
                   child: GlassConsoleLabel(
                     'FOV: 45° | MACULA CENTERED',
-                    color: const Color(0xFF94A3B8),
+                    color: const Color(0xFFCBD5E1),
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.4,
@@ -229,42 +268,39 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
                 ),
                 if (progressLabel != null) ...[
                   const SizedBox(width: 8),
-                  GlassConsoleLabel(
-                    progressLabel,
-                    color: stateColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                    maxLines: 1,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: stateColor.withValues(alpha: 0.55),
+                        width: 1,
+                      ),
+                      color: stateColor.withValues(alpha: 0.10),
+                    ),
+                    child: GlassConsoleLabel(
+                      progressLabel,
+                      color: stateColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                      maxLines: 1,
+                    ),
                   ),
                 ],
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             GlassConsoleLabel(
-              'FLAME CANVAS • ORIGINAL PIXELS',
+              'ORIGINAL CAPTURE • NO SYNTHETIC OVERLAY',
               color: const Color(0xFF64748B),
-              fontSize: 9,
+              fontSize: 8,
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
+              letterSpacing: 0.6,
               maxLines: 1,
-            ),
-            const SizedBox(height: 6),
-            // Provenance strip: what the operator is looking at and what the
-            // pipeline is running — honest, never decorative.
-            Row(
-              children: [
-                Expanded(
-                  child: GlassConsoleLabel(
-                    'ORIGINAL CAPTURE • NO SYNTHETIC OVERLAY',
-                    color: const Color(0xFF475569),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.6,
-                    maxLines: 1,
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -299,15 +335,24 @@ class _ScannerViewState extends State<ScannerView> with WidgetsBindingObserver {
         clipBehavior: Clip.antiAlias,
         child: AspectRatio(
           aspectRatio: widget.aspectRatio,
-          child: LayoutGrid(
-            areas: 'status\ncanvas\ntelemetry',
-            columnSizes: [1.fr],
-            rowSizes: [56.px, 1.fr, 140.px],
-            children: [
-              _statusBand(statusText, stateColor).inGridArea('status'),
-              _canvasBand().inGridArea('canvas'),
-              _telemetryBand(stateColor).inGridArea('telemetry'),
-            ],
+          // The console is a self-contained surface: the grid can never
+          // paint outside its own box, so a track can never bleed over the
+          // content below the scanner (the note text, the action button).
+          child: ClipRect(
+            clipBehavior: Clip.hardEdge,
+            child: widget.showConsoleChrome
+                ? LayoutGrid(
+                    areas: 'status\ncanvas\ntelemetry',
+                    columnSizes: [1.fr],
+                    rowSizes: [56.px, 1.fr, 140.px],
+                    children: [
+                      _statusBand(statusText, stateColor).inGridArea('status'),
+                      _canvasBand().inGridArea('canvas'),
+                      _telemetryBand(stateColor).inGridArea('telemetry'),
+                    ],
+                  )
+                // Chrome-less mode: one pure animation surface, no bands.
+                : _canvasBand(),
           ),
         ),
       ),
