@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="950" viewBox="0 0 900 950">
+<g transform="translate(194,20) scale(1.0)">
+
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M65 256 C115 178 180 143 256 143 C332 143 397 178 447 256 C397 334 332 369 256 369 C180 369 115 334 65 256Z" stroke="#00B4D8" stroke-width="18"/>
+  <circle cx="256" cy="256" r="91" stroke="#18D6C7" stroke-width="13"/>
+  <g stroke="#00B4D8" stroke-width="8">
+    <path d="M256 256 L256 192 M256 211 L224 183 M256 211 L283 180 M256 233 L211 222 M211 222 L185 198 M211 222 L188 244"/>
+    <path d="M256 256 L306 229 M306 229 L331 199 M306 229 L345 224 M256 256 L305 280 M305 280 L336 304 M305 280 L347 277"/>
+    <path d="M256 256 L253 309 M253 309 L227 337 M253 309 L278 337 M253 309 L250 353"/>
+    <path d="M256 256 L207 284 M207 284 L177 277 M207 284 L187 313 M256 256 L289 298 M289 298 L291 323"/>
+  </g>
+  <circle cx="256" cy="256" r="35" fill="#18D6C7" stroke="#18D6C7" stroke-width="4"/>
+  <circle cx="256" cy="256" r="19" fill="#FF9F6E"/>
+  <circle cx="263" cy="249" r="5" fill="#FFFFFF" stroke="none"/>
+</g>
+</g>
+<text x="450" y="690" text-anchor="middle" font-family="Inter, Montserrat, Arial, sans-serif" font-size="94" font-weight="700" letter-spacing="9" fill="#FFFFFF">ELYTRIVA</text>
+<text x="450" y="758" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="600" letter-spacing="4" fill="#00B4D8">AI-POWERED RETINAL SCREENING</text>
+</svg>
