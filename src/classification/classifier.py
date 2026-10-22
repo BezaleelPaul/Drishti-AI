@@ -10,16 +10,16 @@ from src.tf_config import configure_tensorflow
 
 configure_tensorflow()
 
+from src.classification.drdetect_contract import (
+    REFERABLE_SCORE_CUT,
+    preprocess_fundus_to_nchw,
+)
 from src.classification.ordinal import (
     BASE_SIGMA,
     decode_grade,
     probabilities_from_score,
     uncertainty_from_scores,
     widened_sigma,
-)
-from src.classification.drdetect_contract import (
-    REFERABLE_SCORE_CUT,
-    preprocess_fundus_to_nchw,
 )
 from src.classification.tta import aggregate_scores, build_views, resolve_view_count
 from src.pipeline.schema import DRClassificationResult, DRGrade

@@ -8,7 +8,7 @@ grade is never mutated or replaced.
 import pytest
 
 from src.services.disagreement import DisagreementStatus, reconcile
-from src.services.grading_policy import ImpliedGradeStatus, POLICY_ID, POLICY_VERSION
+from src.services.grading_policy import POLICY_ID, POLICY_VERSION, ImpliedGradeStatus
 
 
 def test_match_same_level():
