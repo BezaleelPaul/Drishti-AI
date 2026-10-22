@@ -383,6 +383,33 @@ def render_screen_4(prep) -> None:
         pdf_data = st.session_state._pdf_data
         fhir_data_str = st.session_state._fhir_data_str
     else:
+        # Evidence-linked criteria section for the report (advisory; explicit
+        # absence when the chain cannot be built — never fabricated).
+        criteria_evaluation = None
+        grading_policy_info = None
+        disagreement_info = None
+        if record is not None and img_np is not None:
+            seg_src = seg_res or getattr(record, "reassessment_structures", None)
+            if seg_src is not None:
+                from src.services.evidence_service import build_evidence_payload
+
+                extension = build_evidence_payload(
+                    img_np,
+                    seg_src,
+                    cnn_grade=record.dr_prediction.predicted_grade.value
+                    if record.dr_prediction
+                    else None,
+                )
+                if extension is not None:
+                    criteria_evaluation = extension["criteria_evaluation"]
+                    grading_policy_info = extension["grading_policy"]
+                    dis_obj = extension.get("_disagreement_obj")
+                    if dis_obj is not None:
+                        disagreement_info = {
+                            "status": dis_obj.status.value,
+                            "summary": dis_obj.summary(),
+                        }
+
         pdf_data = generate_clinical_screening_pdf(
             patient_data=patient_dict,
             screening_record=record,
@@ -392,6 +419,9 @@ def render_screen_4(prep) -> None:
             doctor_notes=doctor_notes,
             doctor_signature_name=doctor_name,
             doctor_action=", ".join(clinical_orders) if clinical_orders else "Routine Care",
+            criteria_evaluation=criteria_evaluation,
+            grading_policy=grading_policy_info,
+            disagreement=disagreement_info,
         )
 
         fhir_json = export_abdm_fhir_diagnostic_report(

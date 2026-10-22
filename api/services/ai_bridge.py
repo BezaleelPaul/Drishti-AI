@@ -311,6 +311,10 @@ class AIBridge:
         microaneurysm_count = None
         csme_risk = None
         min_fovea_distance_px = None
+        lesion_evidence = None
+        criteria_evaluation = None
+        grading_policy_info = None
+        disagreement_info = None
         if _gradable:
             try:
                 # Reuse the router's reassessment segmentation on the
@@ -325,6 +329,62 @@ class AIBridge:
                 csme_risk = seg.csme_risk
                 if seg.min_fovea_distance_px is not None:
                     min_fovea_distance_px = round(float(seg.min_fovea_distance_px), 1)
+
+                # Evidence-linked extension (schema_version 1.0): typed lesion
+                # candidates + versioned ICDRS criteria + CNN reconciliation.
+                # Failure degrades to None fields (explicit absence), never a
+                # fabricated negative — and never blocks the screening result.
+                from src.services.evidence_service import build_evidence_payload
+
+                extension = build_evidence_payload(np.array(pil_img), seg, cnn_grade=dr_grade)
+                if extension is not None:
+                    lesion_evidence = extension["lesion_evidence"]
+                    criteria_evaluation = extension["criteria_evaluation"]
+                    grading_policy_info = extension["grading_policy"]
+                    disagreement_info = extension["disagreement"]
+                    # Escalate the existing review path on material conflict —
+                    # the CNN grade itself is preserved untouched. The record
+                    # is REBUILT immutably (dataclasses.replace), never
+                    # mutated in place.
+                    dis_obj = extension.get("_disagreement_obj")
+                    if dis_obj is not None and dis_obj.review_required:
+                        from dataclasses import replace as _dc_replace
+
+                        conflict_flag = (
+                            f"EVIDENCE CONFLICT (CNN grade {dr_grade} vs evidence-implied "
+                            f"{dis_obj.evidence_implied_grade}): mandatory clinician review"
+                        )
+                        new_flags = list(
+                            record.confidence_assessment.flags
+                            if record.confidence_assessment
+                            else []
+                        )
+                        if conflict_flag not in new_flags:
+                            new_flags.append(conflict_flag)
+                            new_reason = (
+                                conflict_flag
+                                if not record.human_review_reason
+                                else (
+                                    record.human_review_reason
+                                    if conflict_flag in record.human_review_reason
+                                    else f"{record.human_review_reason} | {conflict_flag}"
+                                )
+                            )
+                            record = _dc_replace(
+                                record,
+                                confidence_assessment=(
+                                    _dc_replace(record.confidence_assessment, flags=new_flags)
+                                    if record.confidence_assessment
+                                    else None
+                                ),
+                                human_review_required=True,
+                                human_review_reason=new_reason,
+                                human_review_type=(
+                                    type(record.human_review_type).CLINICAL_LEVEL
+                                    if record.human_review_type.value == "NONE"
+                                    else record.human_review_type
+                                ),
+                            )
             except Exception as exc:  # noqa: BLE001 - biomarkers are advisory, never block screening
                 _logger.warning("Biomarker extraction failed for %s: %s", screening_id, exc)
 
@@ -363,6 +423,11 @@ class AIBridge:
             "microaneurysm_count": microaneurysm_count,
             "csme_risk": csme_risk,
             "min_fovea_distance_px": min_fovea_distance_px,
+            "schema_version": "1.0" if grading_policy_info is not None else None,
+            "lesion_evidence": lesion_evidence,
+            "criteria_evaluation": criteria_evaluation,
+            "grading_policy": grading_policy_info,
+            "disagreement": disagreement_info,
             "patient_plain_language_summary": plain_summary,
             "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }

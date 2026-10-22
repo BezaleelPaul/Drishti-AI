@@ -10,6 +10,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.services import disagreement as disagreement_enums
+from src.services import evidence as evidence_enums
+from src.services import grading_policy as policy_enums
+
 
 # -----------------------------------------------------------------------------
 # 1. Patient Schemas
@@ -302,6 +306,132 @@ class MarkerPoint(BaseModel):
     y: int = Field(..., json_schema_extra={"example": 805})
 
 
+# -----------------------------------------------------------------------------
+# 4b. Evidence-linked grading extension (schema_version 1.0)
+# -----------------------------------------------------------------------------
+# Enums are re-exported from the criteria engine so Python and Dart parse the
+# SAME value strings; pydantic serializes StrEnum members to their values.
+LesionType = evidence_enums.LesionType
+DetectionStatus = evidence_enums.DetectionStatus
+CriterionStatus = policy_enums.CriterionStatus
+DisagreementStatus = disagreement_enums.DisagreementStatus
+
+
+class LesionEvidenceItem(BaseModel):
+    """One classical-CV lesion candidate with criterion links.
+
+    Coordinates are in SOURCE-image pixel space (see marker_service). Every
+    item is a CANDIDATE, not a confirmed lesion — consumers must never
+    present it as one.
+    """
+
+    lesion_id: str = Field(..., pattern=r"^LE-\d{4,}$", json_schema_extra={"example": "LE-0001"})
+    lesion_type: LesionType
+    detection_status: DetectionStatus
+    x: int = Field(..., ge=0, json_schema_extra={"example": 412})
+    y: int = Field(..., ge=0, json_schema_extra={"example": 862})
+    radius: int = Field(..., ge=0, json_schema_extra={"example": 4})
+    geometry_type: Literal["circle"] = "circle"
+    detector_id: str = "classical_cv_segmenter"
+    detector_version: str = "1.0"
+    criterion_links: list[str] = Field(default_factory=list)
+    evidence_notes: list[str] = Field(default_factory=list)
+    image_width: int = Field(0, ge=0)
+    image_height: int = Field(0, ge=0)
+
+
+class CriterionEvaluationItem(BaseModel):
+    """One versioned grading-criterion evaluation with evidence links."""
+
+    criterion_id: str = Field(..., json_schema_extra={"example": "icdrss.ma_present"})
+    status: CriterionStatus
+    supporting_evidence_ids: list[str] = Field(default_factory=list)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list)
+    reason_codes: list[str] = Field(default_factory=list)
+    explanation_key: str = Field("", json_schema_extra={"example": "criterion_ma_present"})
+
+
+class GradingPolicyInfo(BaseModel):
+    """Which versioned policy produced the criteria evaluation."""
+
+    policy_id: str
+    policy_version: str
+    framework: str
+
+
+class DisagreementAssessment(BaseModel):
+    """Deterministic CNN-vs-evidence reconciliation result.
+
+    review_required=True escalates to the existing human-review path; it
+    NEVER changes the CNN grade or silently selects either side.
+    """
+
+    status: DisagreementStatus
+    reason_codes: list[str] = Field(default_factory=list)
+    review_required: bool
+    cnn_grade: int | None = Field(None, ge=0, le=4)
+    evidence_implied_grade: int | None = Field(None, ge=0, le=4)
+    explanation_key: str
+    policy_id: str
+    policy_version: str
+
+
+# ---- Wire converters: engine dataclasses -> payload models -----------------
+# The single serialization seam used by marker_service and ai_bridge so the
+# two endpoints cannot drift apart.
+def lesion_evidence_items(lesions) -> list[LesionEvidenceItem]:
+    return [
+        LesionEvidenceItem(
+            lesion_id=l.lesion_id,
+            lesion_type=l.lesion_type,
+            detection_status=l.detection_status,
+            x=l.x,
+            y=l.y,
+            radius=l.radius or 0,
+            criterion_links=list(l.criterion_links),
+            evidence_notes=list(l.evidence_notes),
+            image_width=l.image_width,
+            image_height=l.image_height,
+        )
+        for l in lesions
+    ]
+
+
+def criterion_evaluation_items(criteria) -> list[CriterionEvaluationItem]:
+    return [
+        CriterionEvaluationItem(
+            criterion_id=c.criterion_id,
+            status=c.status,
+            supporting_evidence_ids=list(c.supporting_evidence_ids),
+            contradicting_evidence_ids=list(c.contradicting_evidence_ids),
+            reason_codes=list(c.reason_codes),
+            explanation_key=c.explanation_key,
+        )
+        for c in criteria
+    ]
+
+
+def policy_info(result) -> GradingPolicyInfo:
+    return GradingPolicyInfo(
+        policy_id=result.policy_id,
+        policy_version=result.policy_version,
+        framework=result.framework,
+    )
+
+
+def disagreement_assessment(result) -> DisagreementAssessment:
+    return DisagreementAssessment(
+        status=result.status,
+        reason_codes=list(result.reason_codes),
+        review_required=result.review_required,
+        cnn_grade=result.cnn_grade,
+        evidence_implied_grade=result.evidence_implied_grade,
+        explanation_key=result.explanation_key,
+        policy_id=result.policy_id,
+        policy_version=result.policy_version,
+    )
+
+
 class ReviewMarkersResponse(BaseModel):
     # Marker payload for GET /review/{review_id}/markers. Advisory only: a
     # marker failure never blocks the sign-off decision path.
@@ -330,6 +460,17 @@ class ReviewMarkersResponse(BaseModel):
     # Coordinates only — no vessel/exudate mask pixel data in this payload.
     # Always present; explicitly [] when there are no candidates (never null).
     ma_candidates: list[MarkerCircle] = Field(default_factory=list)
+
+    # ---- Evidence-linked extension (schema_version 1.0) --------------------
+    # All new fields are OPTIONAL with safe defaults so legacy consumers and
+    # legacy payloads are unaffected. absence of these fields in an OLD
+    # payload means the server predates the evidence contract — never that
+    # evidence was negative.
+    schema_version: Literal["1.0"] = Field("1.0")
+    lesion_evidence: list[LesionEvidenceItem] = Field(default_factory=list)
+    criteria_evaluation: list[CriterionEvaluationItem] = Field(default_factory=list)
+    grading_policy: GradingPolicyInfo | None = None
+    disagreement: DisagreementAssessment | None = None
 
 
 # -----------------------------------------------------------------------------

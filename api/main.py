@@ -170,8 +170,8 @@ if os.path.exists(flutter_web_dir):
 # off the server (fail-closed contract, Ticket C-4). Redact globally: the
 # field location (loc) and error type are kept, the value is dropped.
 # -----------------------------------------------------------------------------
-from fastapi.exceptions import RequestValidationError  # noqa: E402
-from fastapi.responses import JSONResponse  # noqa: E402
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 
 @app.exception_handler(RequestValidationError)
@@ -205,7 +205,7 @@ async def _redacted_validation_handler(request, exc: RequestValidationError):
                     ),
                 )
                 conn.commit()
-        except Exception:  # noqa: BLE001 - audit best-effort, never block the 422
+        except Exception:  # audit best-effort, never block the 422
             logger.debug("Audit log write for parse-time rejection failed", exc_info=True)
     return JSONResponse(status_code=422, content={"detail": errors})
 

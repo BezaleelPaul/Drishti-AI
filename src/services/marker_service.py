@@ -26,8 +26,8 @@ from src.image_io import MAX_IMAGE_DIM
 
 if TYPE_CHECKING:
     from src.segmentation.structure_segmenter import (
-        RetinalStructuresResult,
         RetinalStructureSegmenter,
+        RetinalStructuresResult,
     )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +83,24 @@ def _resolve_image_path(conn: sqlite3.Connection, review_id: str) -> tuple[str |
     return str(path), ""
 
 
+def _fetch_cnn_grade(conn: sqlite3.Connection, review_id: str) -> tuple[int | None, str | None]:
+    """Stored CNN grade for the review case (None when absent/ungraded).
+
+    Absence is NOT negative evidence: quality-rejected screenings never
+    stored a grade, and the payload must not fabricate one.
+    """
+    row = conn.execute(
+        "SELECT screenings.dr_grade_num "
+        "FROM doctor_reviews JOIN screenings "
+        "ON screenings.screening_id = doctor_reviews.screening_id "
+        "WHERE doctor_reviews.review_id = ?",
+        (review_id,),
+    ).fetchone()
+    if row is None or row["dr_grade_num"] is None:
+        return None, None
+    return int(row["dr_grade_num"]), None
+
+
 def _decode_image_capped(path: str) -> np.ndarray:
     """Capped decode mirroring the pipeline's image guard.
 
@@ -110,7 +128,10 @@ def _decode_image_capped(path: str) -> np.ndarray:
 
 
 def _build_payload(
-    review_id: str, np_img: np.ndarray, result: RetinalStructuresResult
+    review_id: str,
+    np_img: np.ndarray,
+    result: RetinalStructuresResult,
+    cnn_grade: int | None = None,
 ) -> ReviewMarkersResponse:
     """Map a segmenter result into the marker payload (source-pixel space).
 
@@ -118,6 +139,12 @@ def _build_payload(
     reported a zero centre (or zero radius); ``ma_candidates`` is ALWAYS a
     list — an explicitly empty list means "computed, none found" (healthy),
     which is a different state from ``available=False`` (not computed).
+
+    The evidence-linked extension (schema_version 1.0) attaches typed lesion
+    evidence, the versioned ICDRS criteria evaluation, and the CNN-vs-
+    evidence reconciliation. All extension fields are advisory and never
+    block the sign-off path; detector failure degrades to explicit
+    not-evaluated bookkeeping, never fabricated evidence.
     """
     od_x, od_y = int(result.optic_disc_center[0]), int(result.optic_disc_center[1])
     od_radius = int(result.optic_disc_radius)
@@ -136,6 +163,30 @@ def _build_payload(
     ]
 
     reason = "No microaneurysm candidates found" if not ma_candidates else None
+
+    # ---- Evidence-linked extension (fail-closed: errors drop to legacy shape)
+    from src.services.evidence_service import build_evidence_payload
+
+    extension = build_evidence_payload(np_img, result, cnn_grade=cnn_grade)
+    if extension is not None:
+        return ReviewMarkersResponse(
+            review_id=review_id,
+            available=True,
+            reason=reason,
+            width=int(np_img.shape[1]),
+            height=int(np_img.shape[0]),
+            optic_disc=optic_disc,
+            fovea=fovea,
+            ma_candidates=ma_candidates,
+            schema_version="1.0",
+            lesion_evidence=extension["lesion_evidence"],
+            criteria_evaluation=extension["criteria_evaluation"],
+            grading_policy=extension["grading_policy"],
+            disagreement=extension["disagreement"],
+        )
+    logger.warning(
+        "Evidence extension failed for review %s (degrading to legacy markers)", review_id
+    )
     return ReviewMarkersResponse(
         review_id=review_id,
         available=True,
@@ -159,6 +210,7 @@ def compute_review_markers(review_id: str) -> ReviewMarkersResponse:
     try:
         with get_db() as conn:
             image_path, resolve_error = _resolve_image_path(conn, review_id)
+            cnn_grade, _ = _fetch_cnn_grade(conn, review_id)
         if resolve_error:
             return _unavailable(review_id, resolve_error)
         if not os.path.isfile(image_path):
@@ -169,7 +221,7 @@ def compute_review_markers(review_id: str) -> ReviewMarkersResponse:
             logger.warning("Marker decode failed for review %s: %s", review_id, exc)
             return _unavailable(review_id, "fundus image could not be decoded")
         result = _get_segmenter().segment_structures(np_img)
-        return _build_payload(review_id, np_img, result)
+        return _build_payload(review_id, np_img, result, cnn_grade=cnn_grade)
     except Exception as exc:  # noqa: BLE001 - advisory path must fail closed
         logger.warning("Marker computation failed for review %s: %s", review_id, exc)
         return _unavailable(review_id, "marker computation failed")
