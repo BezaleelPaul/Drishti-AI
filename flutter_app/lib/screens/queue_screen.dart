@@ -109,15 +109,30 @@ class _QueueScreenState extends State<QueueScreen> {
                     children: [
                       // Summary Banner — dark surface with a semantic accent bar.
                       Container(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: ScannerHUDTheme.darkSurface,
-                          borderRadius: BorderRadius.circular(12),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF111C38),
+                              Color(0xFF0C1428),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: !hasPending
                                 ? _green.withValues(alpha: 0.5)
                                 : _amber.withValues(alpha: 0.5),
+                            width: 1.2,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (!hasPending ? _green : _amber).withValues(alpha: 0.1),
+                              blurRadius: 12,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Row(
                           children: [
@@ -220,17 +235,32 @@ class _QueueScreenState extends State<QueueScreen> {
                                 itemBuilder: (context, index) {
                                   final item = queue[index];
                                   return Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
+                                    margin: const EdgeInsets.only(bottom: 10),
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 12,
+                                      horizontal: 14,
+                                      vertical: 14,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: ScannerHUDTheme.darkSurface,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: const Color(0xFF1E293B),
+                                      gradient: const LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Color(0xFF111B34),
+                                          Color(0xFF0C1428),
+                                        ],
                                       ),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: const Color(0xFF1E2D4A),
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.15),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
                                     ),
                                     child: Row(
                                       children: [
@@ -238,8 +268,8 @@ class _QueueScreenState extends State<QueueScreen> {
                                           backgroundColor: ScannerHUDTheme
                                               .neonCyan
                                               .withValues(alpha: 0.16),
-                                          child: Icon(
-                                            Icons.remove_red_eye,
+                                          child: const Icon(
+                                            Icons.remove_red_eye_rounded,
                                             color: ScannerHUDTheme.neonCyan,
                                             size: 20,
                                           ),
@@ -280,13 +310,15 @@ class _QueueScreenState extends State<QueueScreen> {
                       // Sync Button
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: ScannerHUDTheme.neonCyan,
-                          foregroundColor: ScannerHUDTheme.background,
-                          disabledBackgroundColor: ScannerHUDTheme.darkSurface,
+                          backgroundColor: const Color(0xFF00B4D8),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFF101932),
                           disabledForegroundColor: const Color(0xFF475569),
-                          minimumSize: const Size.fromHeight(50),
+                          minimumSize: const Size.fromHeight(52),
+                          elevation: 3,
+                          shadowColor: const Color(0x6600B4D8),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                         icon: _isSyncing

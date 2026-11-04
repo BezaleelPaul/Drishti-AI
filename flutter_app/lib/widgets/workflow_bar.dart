@@ -24,73 +24,127 @@ class WorkflowBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < _keys.length; i++) ...[
-          _dot(context, i + 1, context.tr(_keys[i])),
-          if (i < _keys.length - 1)
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF101932) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: dark ? const Color(0xFF1E2D4A) : FigmaColors.border,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < _keys.length; i++) ...[
             Expanded(
-              child: Container(
-                height: 2,
-                margin: const EdgeInsets.only(bottom: 22, left: 4, right: 4),
-                color: (i + 1) < step
-                    ? FigmaColors.success
-                    : dark
-                    ? const Color(0xFF334155)
-                    : FigmaColors.border,
-              ),
+              flex: 2,
+              child: _dot(context, i + 1, context.tr(_keys[i])),
             ),
+            if (i < _keys.length - 1)
+              Expanded(
+                flex: 1,
+                child: Container(
+                  height: 3,
+                  margin: const EdgeInsets.only(bottom: 22, left: 2, right: 2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(2),
+                    color: (i + 1) < step
+                        ? const Color(0xFF10B981)
+                        : dark
+                        ? const Color(0xFF1E2D4A)
+                        : FigmaColors.border,
+                  ),
+                ),
+              ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
   Widget _dot(BuildContext context, int index, String label) {
     final done = index < step;
     final active = index == step;
-    final bg = done
-        ? FigmaColors.success
-        : active
-        ? FigmaColors.primary
-        : dark
-        ? const Color(0xFF1E293B)
-        : const Color(0xFFF1F5F9);
+
+    final Color dotBg;
+    final List<BoxShadow>? shadows;
+    final Border? border;
+
+    if (done) {
+      dotBg = const Color(0xFF10B981);
+      shadows = [
+        const BoxShadow(
+          color: Color(0x4010B981),
+          blurRadius: 8,
+          spreadRadius: 1,
+        ),
+      ];
+      border = null;
+    } else if (active) {
+      dotBg = const Color(0xFF00B4D8);
+      shadows = [
+        const BoxShadow(
+          color: Color(0x5500B4D8),
+          blurRadius: 10,
+          spreadRadius: 2,
+        ),
+      ];
+      border = Border.all(color: const Color(0xFF7DF9FF), width: 1.5);
+    } else {
+      dotBg = dark ? const Color(0xFF141E36) : const Color(0xFFF1F5F9);
+      shadows = null;
+      border = Border.all(
+        color: dark ? const Color(0xFF223254) : const Color(0xFFCBD5E1),
+        width: 1,
+      );
+    }
+
     final fg = (done || active)
         ? Colors.white
         : dark
         ? const Color(0xFF94A3B8)
         : FigmaColors.faint;
+
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 28,
           height: 28,
-          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: dotBg,
+            shape: BoxShape.circle,
+            border: border,
+            boxShadow: shadows,
+          ),
           child: Center(
             child: done
-                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                ? const Icon(Icons.check, size: 15, color: Colors.white)
                 : Text(
                     '$index',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: fg,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 5),
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 10,
-            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w600,
             color: active
-                ? dark
-                      ? Colors.white
-                      : FigmaColors.primaryDark
+                ? (dark ? const Color(0xFF7DF9FF) : FigmaColors.primaryDark)
                 : done
-                ? FigmaColors.success
+                ? const Color(0xFF10B981)
                 : dark
                 ? const Color(0xFF94A3B8)
                 : FigmaColors.faint,

@@ -85,17 +85,23 @@ ThemeData buildFigmaTheme() {
     colorScheme: ColorScheme.fromSeed(
       seedColor: FigmaColors.primary,
       brightness: Brightness.dark,
-      primary: FigmaColors.primary,
-      secondary: FigmaColors.primaryDark,
+      primary: const Color(0xFF00B4D8),
+      secondary: const Color(0xFF18D6C7),
       surface: const Color(0xFF0B132B),
     ),
     scaffoldBackgroundColor: const Color(0xFF0B132B),
   );
 
   return base.copyWith(
-    textTheme: GoogleFonts.nunitoTextTheme(base.textTheme),
+    textTheme: GoogleFonts.plusJakartaSansTextTheme(base.textTheme),
     canvasColor: const Color(0xFF0B132B),
-    dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF0F172A)),
+    dialogTheme: const DialogThemeData(
+      backgroundColor: Color(0xFF0F172A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        side: BorderSide(color: Color(0xFF1E293B)),
+      ),
+    ),
     menuTheme: const MenuThemeData(
       style: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(Color(0xFF0F172A)),
@@ -103,52 +109,75 @@ ThemeData buildFigmaTheme() {
     ),
     snackBarTheme: const SnackBarThemeData(
       backgroundColor: Color(0xFF1E293B),
-      contentTextStyle: TextStyle(color: Colors.white),
+      contentTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
       behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        side: BorderSide(color: Color(0xFF334155)),
+      ),
     ),
-    dividerTheme: const DividerThemeData(color: Color(0xFF334155)),
-    popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF0F172A)),
+    dividerTheme: const DividerThemeData(color: Color(0xFF243350), thickness: 1),
+    popupMenuTheme: PopupMenuThemeData(
+      color: const Color(0xFF0F172A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFF223254)),
+      ),
+    ),
     appBarTheme: const AppBarTheme(
       backgroundColor: Color(0xFF0F172A),
       foregroundColor: Color(0xFF7DF9FF),
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: false,
       titleTextStyle: TextStyle(
         fontWeight: FontWeight.w800,
         fontSize: 18,
+        letterSpacing: 0.2,
         color: Colors.white,
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: FigmaColors.primary,
+        backgroundColor: const Color(0xFF00B4D8),
         foregroundColor: Colors.white,
-        elevation: 1,
+        elevation: 2,
+        shadowColor: const Color(0x5500B4D8),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
       ),
     ),
     cardTheme: CardThemeData(
-      color: const Color(0xFF0F172A),
+      color: const Color(0xFF101932),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFF1E293B)),
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF1E2D4A), width: 1),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: const Color(0xFF101A33),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF334155)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF223254)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF334155)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF223254)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF7DF9FF), width: 2),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF00B4D8), width: 1.8),
       ),
-      fillColor: const Color(0xFF0F172A),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+      ),
+      labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+      hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
     ),
   );
 }

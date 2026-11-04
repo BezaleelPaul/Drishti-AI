@@ -304,61 +304,76 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                 // integration); upload + samples remain for demos/kiosks.
                 FilledButton.icon(
                   onPressed: _openCamera,
-                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                  icon: const Icon(Icons.photo_camera_rounded, size: 20),
                   label: Text(
                     'Use camera',
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: ScannerHUDTheme.neonCyan,
+                    backgroundColor: const Color(0xFF00B4D8),
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 3,
+                    shadowColor: const Color(0x6600B4D8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _upload,
-                        icon: const Icon(Icons.upload, size: 18),
+                        icon: const Icon(Icons.upload_file_rounded, size: 18),
                         label: Text(
                           context.tr('btn_upload'),
-                          style: const TextStyle(fontSize: 12),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xFF101932),
+                          side: const BorderSide(color: Color(0xFF223254)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _sample,
                         isDense: true,
                         isExpanded: true,
-                        dropdownColor: ScannerHUDTheme.darkSurface,
+                        dropdownColor: const Color(0xFF101A33),
                         style: const TextStyle(color: Color(0xFFE2E8F0)),
                         decoration: InputDecoration(
                           filled: true,
-                          fillColor: ScannerHUDTheme.darkSurface,
+                          fillColor: const Color(0xFF101932),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                              color: Color(0xFF334155),
+                              color: Color(0xFF223254),
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                              color: Color(0xFF334155),
+                              color: Color(0xFF223254),
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
                               color: ScannerHUDTheme.neonCyan,
                             ),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
+                            horizontal: 12,
+                            vertical: 10,
                           ),
                         ),
                         items: _samples
@@ -382,20 +397,45 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 // Quality card
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: ScannerHUDTheme.darkSurface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF1E293B)),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF111C38),
+                        Color(0xFF0C1428),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: good
+                          ? const Color(0xFF10B981).withValues(alpha: 0.35)
+                          : bad
+                          ? const Color(0xFFEF4444).withValues(alpha: 0.35)
+                          : const Color(0xFF1E2D4A),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (good ? const Color(0xFF10B981) : Colors.black)
+                            .withValues(alpha: 0.1),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: _checking
                       ? const Center(
                           child: Padding(
-                            padding: EdgeInsets.all(8),
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: ScannerHUDTheme.neonCyan,
+                            ),
                           ),
                         )
                       : q == null
@@ -406,49 +446,123 @@ class _FlowCaptureScreenState extends State<FlowCaptureScreen> {
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              context.tr('quality_title'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.health_and_safety_outlined,
+                                      size: 18,
+                                      color: good
+                                          ? const Color(0xFF10B981)
+                                          : const Color(0xFFF59E0B),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      context.tr('quality_title'),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: (good
+                                            ? const Color(0xFF10B981)
+                                            : const Color(0xFFF59E0B))
+                                        .withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: good
+                                          ? const Color(0xFF10B981)
+                                          : const Color(0xFFF59E0B),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    good ? context.tr('quality_good') : q.qualityGrade,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: good
+                                          ? const Color(0xFF34D399)
+                                          : const Color(0xFFFBBF24),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 10),
                             _checkRow(context.tr('retina_visible'), good),
                             _checkRow(context.tr('focus_ok'), good),
                             _checkRow(context.tr('brightness_ok'), good),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             Text(
                               '${context.tr('quality_label')} ${good ? context.tr('quality_good') : q.qualityGrade}',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: good
-                                    ? FigmaColors.success
-                                    : FigmaColors.warning,
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFFF59E0B),
                               ),
                             ),
                             if (bad) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                context.tr('quality_fail'),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: FigmaColors.danger,
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF350E12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFDC2626)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.info_outline, color: Color(0xFFF87171), size: 16),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        context.tr('quality_fail'),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFFF87171),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ],
                         ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 ElevatedButton(
                   onPressed: st.imageBytes == null ? null : _proceed,
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: const Color(0xFF00B4D8),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 3,
+                    shadowColor: const Color(0x6600B4D8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   child: Text(
                     context.tr('btn_proceed_ai'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
               ],

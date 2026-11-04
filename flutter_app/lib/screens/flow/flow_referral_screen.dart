@@ -247,9 +247,23 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: ScannerHUDTheme.darkSurface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: FigmaColors.danger, width: 1.5),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF2E1015),
+                        Color(0xFF16080B),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFEF4444), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,11 +306,25 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                 ),
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: ScannerHUDTheme.darkSurface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF1E293B)),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF111C38),
+                        Color(0xFF0C1428),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF1E2D4A), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,28 +363,50 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : Icon(
-                          st.referralSent ? Icons.check : Icons.send_outlined,
+                          st.referralSent ? Icons.check_circle_rounded : Icons.send_rounded,
                         ),
                   label: Text(
                     st.referralSent
                         ? context.tr('sync_complete')
                         : context.tr('btn_send_referral'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                   ),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: const Color(0xFF00B4D8),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 3,
+                    shadowColor: const Color(0x6600B4D8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: _smsSent ? null : _sendSms,
                   icon: const Icon(Icons.sms_outlined, size: 18),
-                  label: Text(context.tr('btn_send_sms')),
+                  label: Text(
+                    context.tr('btn_send_sms'),
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: const Color(0xFF101932),
+                    side: const BorderSide(color: Color(0xFF223254)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 OutlinedButton(
                   onPressed: () => Navigator.push(
                     context,
@@ -364,7 +414,24 @@ class _FlowReferralScreenState extends State<FlowReferralScreen> {
                       builder: (_) => FlowReportScreen(state: st),
                     ),
                   ),
-                  child: Text(context.tr('btn_continue_report')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: ScannerHUDTheme.neonCyan,
+                    backgroundColor: const Color(0xFF101932),
+                    side: BorderSide(
+                      color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.4),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    context.tr('btn_continue_report'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ],
             ),

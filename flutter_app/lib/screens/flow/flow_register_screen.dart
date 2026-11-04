@@ -47,6 +47,17 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    _hba1c.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _bp.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     _patientId.dispose();
@@ -299,6 +310,7 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
                       _hba1c,
                       validator: _validateHba1c,
                     ),
+                    _hba1cRiskBadge(),
                     _literalField(
                       context,
                       'Blood Pressure (mmHg)',
@@ -306,6 +318,7 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
                       hint: '145/90',
                       validator: _validateBp,
                     ),
+                    _bpRiskBadge(),
                     _literalField(
                       context,
                       'BMI (kg/m²)',
@@ -341,7 +354,14 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
                   ElevatedButton(
                     onPressed: _busy ? null : _continue,
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: const Color(0xFF00B4D8),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 3,
+                      shadowColor: const Color(0x6600B4D8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                     child: _busy
                         ? const SizedBox(
@@ -354,7 +374,11 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
                           )
                         : Text(
                             context.tr('continue_btn'),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.2,
+                            ),
                           ),
                   ),
                   const SizedBox(height: 8),
@@ -386,7 +410,7 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
     String? Function(String?)? validator,
     bool qrScanStub = false,
   }) {
-    var deco = _deco(context, label, hint: hint);
+    var deco = _deco(context, '', hint: hint, literalLabel: label);
     if (qrScanStub) {
       deco = deco.copyWith(
         suffixIcon: IconButton(
@@ -478,54 +502,200 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
     ];
   }
 
-  Widget _card(BuildContext context, String title, List<Widget> children) {
+  Widget _hba1cRiskBadge() {
+    final text = _hba1c.text.trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    final h = double.tryParse(text);
+    if (h == null) return const SizedBox.shrink();
+    if (h > 8.0) {
+      return _vitalBadge(
+        '⚠️ High Glycemic Risk: HbA1c > 8.0% (Increased DR progression risk)',
+        const Color(0xFFEF4444),
+        const Color(0xFF2A0F0F),
+      );
+    } else if (h >= 6.5) {
+      return _vitalBadge(
+        '⚡ Diabetic Range: HbA1c 6.5–8.0%',
+        const Color(0xFFF59E0B),
+        const Color(0xFF2B1D08),
+      );
+    } else {
+      return _vitalBadge(
+        '✓ Controlled / Normal Glycemic Range (<6.5%)',
+        const Color(0xFF10B981),
+        const Color(0xFF06281E),
+      );
+    }
+  }
+
+  Widget _bpRiskBadge() {
+    final text = _bp.text.trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    final match = RegExp(r'^(\d{2,3})\/(\d{2,3})$').firstMatch(text);
+    if (match == null) return const SizedBox.shrink();
+    final sys = int.tryParse(match.group(1)!);
+    final dia = int.tryParse(match.group(2)!);
+    if (sys == null || dia == null) return const SizedBox.shrink();
+
+    if (sys >= 140 || dia >= 90) {
+      return _vitalBadge(
+        '⚠️ Stage 2 Hypertension: $sys/$dia mmHg (Microvascular risk)',
+        const Color(0xFFEF4444),
+        const Color(0xFF2A0F0F),
+      );
+    } else if (sys >= 130 || dia >= 80) {
+      return _vitalBadge(
+        '⚡ Stage 1 Hypertension: $sys/$dia mmHg',
+        const Color(0xFFF59E0B),
+        const Color(0xFF2B1D08),
+      );
+    } else {
+      return _vitalBadge(
+        '✓ Optimal / Normal Blood Pressure',
+        const Color(0xFF10B981),
+        const Color(0xFF06281E),
+      );
+    }
+  }
+
+  Widget _vitalBadge(String text, Color fg, Color bg) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(top: 2, bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: ScannerHUDTheme.darkSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: fg.withValues(alpha: 0.5)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF94A3B8),
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: fg,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const Divider(height: 16, color: Color(0xFF334155)),
-          ...children.map(
-            (w) =>
-                Padding(padding: const EdgeInsets.only(bottom: 10), child: w),
           ),
         ],
       ),
     );
   }
 
-  InputDecoration _deco(BuildContext context, String labelKey, {String? hint}) {
+  Widget _card(BuildContext context, String title, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF111C38),
+            Color(0xFF0C1428),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E2D4A), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: ScannerHUDTheme.neonCyan,
+                  boxShadow: [
+                    BoxShadow(
+                      color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.6),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          Container(
+            height: 1,
+            margin: const EdgeInsets.symmetric(vertical: 14),
+            color: const Color(0xFF1E2D4A),
+          ),
+          ...children.map(
+            (w) =>
+                Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData? _iconForLabel(String key) {
+    if (key.contains('name')) return Icons.person_outline_rounded;
+    if (key.contains('id') || key.contains('patient_id')) return Icons.badge_outlined;
+    if (key.contains('age')) return Icons.cake_outlined;
+    if (key.contains('gender')) return Icons.wc_outlined;
+    if (key.contains('phone')) return Icons.phone_outlined;
+    if (key.contains('village')) return Icons.location_on_outlined;
+    if (key.contains('ABHA')) return Icons.health_and_safety_outlined;
+    if (key.contains('HbA1c')) return Icons.bloodtype_outlined;
+    if (key.contains('Pressure')) return Icons.speed_outlined;
+    if (key.contains('BMI')) return Icons.monitor_weight_outlined;
+    if (key.contains('eye')) return Icons.remove_red_eye_outlined;
+    return null;
+  }
+
+  InputDecoration _deco(BuildContext context, String labelKey, {String? hint, String? literalLabel}) {
+    final effectiveLabel = literalLabel ?? context.tr(labelKey);
+    final icon = _iconForLabel(literalLabel ?? labelKey);
     return InputDecoration(
-      labelText: context.tr(labelKey),
+      labelText: effectiveLabel,
       hintText: hint,
+      prefixIcon: icon != null
+          ? Icon(icon, color: const Color(0xFF00B4D8), size: 18)
+          : null,
       filled: true,
-      fillColor: ScannerHUDTheme.darkSurface,
-      labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
-      hintStyle: const TextStyle(color: Color(0xFF64748B)),
+      fillColor: const Color(0xFF101A33),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+      hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF334155)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF223254)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF334155)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF223254)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: ScannerHUDTheme.neonCyan),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: ScannerHUDTheme.neonCyan, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444)),
       ),
     );
   }
@@ -542,7 +712,7 @@ class _FlowRegisterScreenState extends State<FlowRegisterScreen> {
     return TextFormField(
       controller: controller,
       keyboardType: keyboard,
-      style: const TextStyle(color: Color(0xFFE2E8F0)),
+      style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 14),
       decoration: _deco(
         context,
         labelKey,

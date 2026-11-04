@@ -14,6 +14,7 @@ import '../widgets/orbit/orbit.dart';
 import '../widgets/scanner/scanner_theme.dart';
 import '../widgets/status_badge.dart';
 import 'flow/flow_register_screen.dart';
+import 'doctor_review_screen.dart';
 import 'figma_history_screen.dart';
 import 'queue_screen.dart';
 
@@ -42,6 +43,9 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   Map<String, dynamic>? _live;
   List<Map<String, Object?>> _localRows = const [];
   Timer? _poll;
+  String _searchQuery = '';
+  String _selectedFilter = 'all'; // 'all', 'urgent', 'awaiting', 'normal'
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -53,6 +57,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   @override
   void dispose() {
     _poll?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -182,6 +187,47 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     );
   }
 
+  void _openDoctorReview(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DoctorReviewScreen(apiService: _api)),
+    );
+  }
+
+  List<(String, String, String, String, FigmaStatus)> get _filteredRows {
+    final raw = _rows;
+    return raw.where((r) {
+      final pid = r.$1.toLowerCase();
+      final name = r.$2.toLowerCase();
+      final res = r.$4.toLowerCase();
+      final status = r.$5;
+
+      if (_selectedFilter == 'urgent') {
+        final isUrgent = status == FigmaStatus.referral ||
+            res.contains('severe') ||
+            res.contains('pdr') ||
+            res.contains('grade 3') ||
+            res.contains('grade 4');
+        if (!isUrgent) return false;
+      } else if (_selectedFilter == 'awaiting') {
+        final isAwaiting = status == FigmaStatus.awaitingAi ||
+            status == FigmaStatus.awaitingSpecialist;
+        if (!isAwaiting) return false;
+      } else if (_selectedFilter == 'normal') {
+        final isNormal = status == FigmaStatus.verified ||
+            res.contains('no dr') ||
+            res.contains('mild');
+        if (!isNormal) return false;
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        final q = _searchQuery.toLowerCase();
+        return pid.contains(q) || name.contains(q) || res.contains(q);
+      }
+      return true;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final online = _online;
@@ -196,6 +242,7 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
         : (online ? context.tr('online') : context.tr('offline'));
     return Scaffold(
       backgroundColor: ScannerHUDTheme.background,
+      bottomNavigationBar: _mobileBottomBar(context),
       drawer: NeonNavRail(
         entries: buildNavEntries(context),
         activeLabel: context.tr('nav_dashboard'),
@@ -359,8 +406,9 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                     // Orbit hero centered under the header; keeps the header
                     // row's baseline layout intact on every width.
                     Center(child: _orbitHero(context)),
-                    const SizedBox(height: 4),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
+                    _quickActions(context),
+                    const SizedBox(height: 14),
                     // Stat cards
                     GridView.count(
                       crossAxisCount: wide ? 4 : 2,
@@ -378,16 +426,20 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                             () => '$_localTodayCount',
                           ),
                           ScannerHUDTheme.neonCyan,
-                          ScannerHUDTheme.darkSurface,
-                          const Color(0xFF1E293B),
+                          Icons.visibility_rounded,
+                          onTap: () => setState(() {
+                            _selectedFilter = 'all';
+                            _searchQuery = '';
+                            _searchController.clear();
+                          }),
                         ),
                         _statCard(
                           context,
                           'awaiting_ai',
                           '$_queuedAi',
                           const Color(0xFFF59E0B),
-                          ScannerHUDTheme.darkSurface,
-                          const Color(0xFF1E293B),
+                          Icons.memory_rounded,
+                          onTap: () => _openQueue(context),
                         ),
                         _statCard(
                           context,
@@ -397,8 +449,8 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                             () => '$_localAwaitingReviewCount',
                           ),
                           const Color(0xFFA855F7),
-                          ScannerHUDTheme.darkSurface,
-                          const Color(0xFF1E293B),
+                          Icons.medical_services_rounded,
+                          onTap: () => _openDoctorReview(context),
                         ),
                         _statCard(
                           context,
@@ -408,8 +460,10 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                             () => '$_localUrgentCount',
                           ),
                           const Color(0xFFEF4444),
-                          ScannerHUDTheme.darkSurface,
-                          const Color(0xFF1E293B),
+                          Icons.warning_amber_rounded,
+                          onTap: () => setState(() {
+                            _selectedFilter = 'urgent';
+                          }),
                         ),
                       ],
                     ),
@@ -509,15 +563,49 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                           ],
                         ),
                       )
-                    else if (wide)
-                      _recentTable(context, _rows)
-                    else
-                      ..._rows.map(
-                        (s) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _recentCard(context, s),
+                    else ...[
+                      _searchAndFilterBar(context),
+                      const SizedBox(height: 10),
+                      if (_filteredRows.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: ScannerHUDTheme.darkSurface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF1E293B)),
+                          ),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.search_off_rounded,
+                                  color: Color(0xFF64748B),
+                                  size: 24,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _searchQuery.isNotEmpty
+                                      ? 'No screenings matching "$_searchQuery"'
+                                      : 'No screenings in this filter category',
+                                  style: const TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else if (wide)
+                        _recentTable(context, _filteredRows)
+                      else
+                        ..._filteredRows.map(
+                          (s) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _recentCard(context, s),
+                          ),
                         ),
-                      ),
+                    ],
                   ],
                 ),
               );
@@ -533,14 +621,21 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
-            borderRadius: BorderRadius.circular(6),
+            color: const Color(0xFF101A33),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.35),
+              color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.4),
+              width: 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.1),
+                blurRadius: 8,
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -551,17 +646,25 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: ScannerHUDTheme.neonCyan,
+                  boxShadow: [
+                    BoxShadow(
+                      color: ScannerHUDTheme.neonCyan,
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   'RETINAL DIAGNOSTIC HUD // AI V1.2',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: ScannerHUDTheme.hudMonoStyle.copyWith(
-                    fontSize: 9,
-                    letterSpacing: 1.0,
+                    fontSize: 10,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w700,
                     color: ScannerHUDTheme.neonCyan,
                   ),
                 ),
@@ -575,19 +678,42 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
           softWrap: true,
           style: const TextStyle(
             fontWeight: FontWeight.w800,
-            fontSize: 22,
+            fontSize: 24,
+            letterSpacing: -0.3,
             color: Colors.white,
           ),
         ),
+        const SizedBox(height: 3),
         Text(
           context.tr('dash_subtitle'),
-          style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-        ),
-        if (_localRows.isNotEmpty && !_liveReady)
-          const Text(
-            'On-device records · sync pending',
-            style: TextStyle(fontSize: 11, color: FigmaColors.faint),
+          style: const TextStyle(
+            fontSize: 13,
+            color: Color(0xFF94A3B8),
+            fontWeight: FontWeight.w500,
           ),
+        ),
+        if (_localRows.isNotEmpty && !_liveReady) ...[
+          const SizedBox(height: 5),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(
+                Icons.sync_problem_rounded,
+                size: 13,
+                color: Color(0xFFF59E0B),
+              ),
+              SizedBox(width: 4),
+              Text(
+                'On-device records · sync pending',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFF59E0B),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -595,8 +721,13 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   Widget _startButton(BuildContext context) {
     return FuturisticGlowButton(
       label: context.tr('start_screening'),
-      glowColor: FigmaColors.primary,
-      backgroundColor: FigmaColors.primary,
+      icon: const Icon(
+        Icons.add_circle_outline_rounded,
+        color: Colors.white,
+        size: 18,
+      ),
+      glowColor: const Color(0xFF00B4D8),
+      backgroundColor: const Color(0xFF00B4D8),
       onPressed: () => _startScreening(context),
     );
   }
@@ -605,20 +736,103 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
   /// from the real ping result (never claims readiness it does not have).
   Widget _orbitHero(BuildContext context) {
     final online = _online;
-    return SizedBox(
-      width: 220,
-      height: 220,
-      // The orbit sizes its central slot from ambient screen width; scope the
-      // MediaQuery so the embed fits its container instead of the viewport.
-      child: MediaQuery(
-        data: MediaQuery.of(context).copyWith(size: const Size(480, 480)),
-        child: OrbitScanner(
-          state: OrbitScannerState.idle,
-          statusText: online == null
-              ? 'PROBING LINK'
-              : (online ? 'LINK ONLINE' : 'LINK OFFLINE'),
-          technicalLabel: _queuedCount > 0 ? 'queued: $_queuedCount' : null,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF101B36),
+            Color(0xFF0B1328),
+          ],
         ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.25),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: ScannerHUDTheme.neonCyan.withValues(alpha: 0.08),
+            blurRadius: 24,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ScannerHUDTheme.neonCyan,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'AI SCANNER HUD',
+                    style: ScannerHUDTheme.hudMonoStyle.copyWith(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: ScannerHUDTheme.neonCyan,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF223254)),
+                ),
+                child: Text(
+                  online == true ? 'EDGE ENGINE ACTIVE' : 'OFFLINE STORE & FORWARD',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: 220,
+            height: 220,
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(size: const Size(480, 480)),
+              child: OrbitScanner(
+                state: OrbitScannerState.idle,
+                statusText: online == null
+                    ? 'PROBING LINK'
+                    : (online ? 'LINK ONLINE' : 'LINK OFFLINE'),
+                technicalLabel: _queuedCount > 0 ? 'queued: $_queuedCount' : null,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Dual-Eye Screening Protocol • Non-Mydriatic Fundus Engine',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.3,
+              color: const Color(0xFF94A3B8).withValues(alpha: 0.8),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -628,37 +842,514 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     String labelKey,
     String value,
     Color numberColor,
-    Color bg,
-    Color border,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
+    IconData icon, {
+    VoidCallback? onTap,
+  }) {
+    final card = Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: border),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF121D38),
+            Color(0xFF0C1428),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: numberColor.withValues(alpha: 0.28),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: numberColor.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 26,
-              color: numberColor,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: numberColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 16, color: numberColor),
+              ),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: numberColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: numberColor.withValues(alpha: 0.8),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Text(
-            context.tr(labelKey),
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF94A3B8),
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 26,
+                  letterSpacing: -0.5,
+                  color: numberColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                context.tr(labelKey),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+
+    if (onTap == null) return card;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: card,
+      ),
+    );
+  }
+
+  Widget _quickActions(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E2D4A), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 500;
+          return Row(
+            children: [
+              Expanded(
+                child: _quickActionTile(
+                  context,
+                  icon: Icons.add_circle_outline_rounded,
+                  label: isCompact ? 'Screen' : 'New Screening',
+                  color: ScannerHUDTheme.neonCyan,
+                  onTap: () => _startScreening(context),
+                  isPrimary: true,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _quickActionTile(
+                  context,
+                  icon: Icons.history_edu_outlined,
+                  label: isCompact ? 'History' : 'Records',
+                  color: const Color(0xFF38BDF8),
+                  onTap: () => _openHistory(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _quickActionTile(
+                  context,
+                  icon: Icons.medical_services_outlined,
+                  label: isCompact ? 'Triage' : 'Specialist',
+                  color: const Color(0xFFA855F7),
+                  onTap: () => _openDoctorReview(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _quickActionTile(
+                  context,
+                  icon: Icons.cloud_sync_outlined,
+                  label: isCompact ? 'Queue' : 'Sync Queue',
+                  color: const Color(0xFFF59E0B),
+                  badge: _queuedCount > 0 ? '$_queuedCount' : null,
+                  onTap: () => _openQueue(context),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _quickActionTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    bool isPrimary = false,
+    String? badge,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          decoration: BoxDecoration(
+            gradient: isPrimary
+                ? LinearGradient(
+                    colors: [
+                      color.withValues(alpha: 0.25),
+                      color.withValues(alpha: 0.08),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isPrimary ? null : const Color(0xFF131F38),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isPrimary
+                  ? color.withValues(alpha: 0.5)
+                  : const Color(0xFF223254),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(icon, size: 20, color: color),
+                  if (badge != null)
+                    Positioned(
+                      top: -6,
+                      right: -10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          badge,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
+                  color: isPrimary ? Colors.white : const Color(0xFFCBD5E1),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _searchAndFilterBar(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 4, bottom: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF101A33),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF223254)),
+          ),
+          child: TextField(
+            controller: _searchController,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Search screenings by name or patient ID...',
+              hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: Color(0xFF94A3B8),
+                size: 18,
+              ),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Color(0xFF94A3B8),
+                        size: 16,
+                      ),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+            onChanged: (val) => setState(() => _searchQuery = val.trim()),
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _filterChip('all', 'All (${_rows.length})', null),
+              const SizedBox(width: 6),
+              _filterChip('urgent', 'Urgent / Referral', const Color(0xFFEF4444)),
+              const SizedBox(width: 6),
+              _filterChip('awaiting', 'Pending Review', const Color(0xFFF59E0B)),
+              const SizedBox(width: 6),
+              _filterChip('normal', 'Normal / Mild', const Color(0xFF10B981)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _filterChip(String id, String label, Color? dotColor) {
+    final isSelected = _selectedFilter == id;
+    return InkWell(
+      onTap: () => setState(() => _selectedFilter = id),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? ScannerHUDTheme.neonCyan.withValues(alpha: 0.18)
+              : const Color(0xFF101932),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? ScannerHUDTheme.neonCyan
+                : const Color(0xFF223254),
+            width: isSelected ? 1.2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (dotColor != null) ...[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: dotColor,
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? ScannerHUDTheme.neonCyan
+                    : const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget? _mobileBottomBar(BuildContext context) {
+    if (MediaQuery.of(context).size.width >= 720) return null;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B132B).withValues(alpha: 0.95),
+        border: const Border(
+          top: BorderSide(color: Color(0xFF1E2D4A), width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _bottomNavItem(
+              icon: Icons.dashboard_rounded,
+              label: 'Dashboard',
+              isSelected: true,
+              onTap: () {},
+            ),
+            _bottomNavItem(
+              icon: Icons.history_rounded,
+              label: 'History',
+              isSelected: false,
+              onTap: () => _openHistory(context),
+            ),
+            InkWell(
+              onTap: () => _startScreening(context),
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF0077B6)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00B4D8).withValues(alpha: 0.4),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.add, color: Colors.white, size: 18),
+                    SizedBox(width: 4),
+                    Text(
+                      'Screen',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            _bottomNavItem(
+              icon: Icons.medical_services_rounded,
+              label: 'Review',
+              isSelected: false,
+              onTap: () => _openDoctorReview(context),
+            ),
+            _bottomNavItem(
+              icon: Icons.cloud_outlined,
+              label: 'Queue',
+              isSelected: false,
+              badge: _queuedCount > 0 ? '$_queuedCount' : null,
+              onTap: () => _openQueue(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomNavItem({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    final color = isSelected
+        ? ScannerHUDTheme.neonCyan
+        : const Color(0xFF64748B);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, size: 20, color: color),
+                if (badge != null)
+                  Positioned(
+                    top: -4,
+                    right: -8,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 12,
+                        minHeight: 12,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -667,47 +1358,121 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     BuildContext context,
     (String, String, String, String, FigmaStatus) s,
   ) {
+    final initial = s.$2.isNotEmpty ? s.$2.trim()[0].toUpperCase() : 'P';
     return InkWell(
       onTap: () => _openHistory(context),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: ScannerHUDTheme.darkSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF1E293B)),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF111B34),
+              Color(0xFF0C1428),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF1E2D4A), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF0E7490),
+                    Color(0xFF00B4D8),
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00B4D8).withValues(alpha: 0.25),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    s.$2,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: Colors.white,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          s.$2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            letterSpacing: 0.1,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      if (s.$1.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2642),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF283A64)),
+                          ),
+                          child: Text(
+                            s.$1,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF7DF9FF),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                  const SizedBox(height: 3),
                   Text(
-                    s.$1,
+                    '${s.$4} · ${s.$3}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 11,
                       color: Color(0xFF94A3B8),
                     ),
                   ),
-                  Text(
-                    '${s.$4} · ${s.$3}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFFCBD5E1),
-                    ),
-                  ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             StatusBadge(status: s.$5),
           ],
         ),
@@ -720,18 +1485,19 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
     List<(String, String, String, String, FigmaStatus)> rows,
   ) {
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: ScannerHUDTheme.darkSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF1E293B)),
+        color: const Color(0xFF101A33),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E2D4A), width: 1),
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
-              color: Color(0xFF1E293B),
-              border: Border(bottom: BorderSide(color: Color(0xFF334155))),
+              color: Color(0xFF152244),
+              border: Border(bottom: BorderSide(color: Color(0xFF223254))),
             ),
             child: Row(
               children: [
@@ -748,10 +1514,10 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 10,
+                  vertical: 12,
                 ),
                 decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFF1E293B))),
+                  border: Border(bottom: BorderSide(color: Color(0xFF1A2644))),
                 ),
                 child: Row(
                   children: [
@@ -767,26 +1533,34 @@ class _FigmaDashboardScreenState extends State<FigmaDashboardScreen> {
                               color: Colors.white,
                             ),
                           ),
-                          Text(
-                            s.$1,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF94A3B8),
+                          if (s.$1.isNotEmpty)
+                            Text(
+                              s.$1,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF7DF9FF),
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
                     Expanded(
                       child: Text(
                         s.$3,
-                        style: const TextStyle(color: Color(0xFF94A3B8)),
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         s.$4,
-                        style: const TextStyle(color: Color(0xFFCBD5E1)),
+                        style: const TextStyle(
+                          color: Color(0xFFE2E8F0),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     Expanded(child: StatusBadge(status: s.$5)),

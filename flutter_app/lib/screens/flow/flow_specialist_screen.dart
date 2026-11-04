@@ -116,11 +116,25 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                 const SizedBox(height: 12),
                 // AI result card
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: ScannerHUDTheme.darkSurface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF1E293B)),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF111C38),
+                        Color(0xFF0C1428),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF1E2D4A), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,7 +275,14 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                 ElevatedButton(
                   onPressed: _busy ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: const Color(0xFF00B4D8),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 3,
+                    shadowColor: const Color(0x6600B4D8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   child: _busy
                       ? const SizedBox(
@@ -274,7 +295,11 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
                         )
                       : Text(
                           context.tr('btn_verify'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
+                          ),
                         ),
                 ),
               ],
@@ -294,21 +319,40 @@ class _FlowSpecialistScreenState extends State<FlowSpecialistScreen> {
     final selected = _decision == value;
     return InkWell(
       onTap: () => setState(() => _decision = value),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: selected
-              ? ScannerHUDTheme.neonCyan.withValues(alpha: 0.12)
-              : ScannerHUDTheme.darkSurface,
-          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: selected
+                ? [
+                    const Color(0xFF10284A),
+                    const Color(0xFF0C1B34),
+                  ]
+                : [
+                    const Color(0xFF111C38),
+                    const Color(0xFF0C1428),
+                  ],
+          ),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected
                 ? ScannerHUDTheme.neonCyan
-                : const Color(0xFF334155),
-            width: selected ? 2 : 1,
+                : const Color(0xFF1E2D4A),
+            width: selected ? 1.8 : 1.2,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: selected
+                  ? ScannerHUDTheme.neonCyan.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.1),
+              blurRadius: selected ? 10 : 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [

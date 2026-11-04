@@ -425,13 +425,34 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
               children: [
                 const WorkflowBar(step: 3, dark: true),
                 const SizedBox(height: 12),
+                _urgentReferralBanner(a),
                 // Result card
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: ScannerHUDTheme.darkSurface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF1E293B)),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF111C38),
+                        Color(0xFF0C1428),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: ungraded
+                          ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
+                          : _sevColors[idx].withValues(alpha: 0.35),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (ungraded ? const Color(0xFFF59E0B) : _sevColors[idx])
+                            .withValues(alpha: 0.1),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -540,6 +561,14 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                                       ? _sevColors[idx]
                                       : const Color(0xFF1E293B),
                                   borderRadius: BorderRadius.circular(5),
+                                  boxShadow: !ungraded && i == idx
+                                      ? [
+                                          BoxShadow(
+                                            color: _sevColors[idx].withValues(alpha: 0.6),
+                                            blurRadius: 6,
+                                          ),
+                                        ]
+                                      : null,
                                 ),
                               ),
                             ),
@@ -579,11 +608,25 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                 const SizedBox(height: 10),
                 // Findings
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: ScannerHUDTheme.darkSurface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF1E293B)),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF111C38),
+                        Color(0xFF0C1428),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF1E2D4A), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,19 +750,111 @@ class _FlowResultScreenState extends State<FlowResultScreen> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: FigmaColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: const Color(0xFF00B4D8),
                     foregroundColor: Colors.white,
+                    elevation: 3,
+                    shadowColor: const Color(0x6600B4D8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   child: Text(
                     context.tr('btn_proceed_specialist'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _urgentReferralBanner(ui.ScreeningAnalysisModel a) {
+    if (a.isReferable != true && (a.drGrade ?? 0) < 2) {
+      return const SizedBox.shrink();
+    }
+    final grade = a.drGrade ?? 0;
+    final isUrgent = grade >= 3;
+    final bannerColor =
+        isUrgent ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+    final bannerBg =
+        isUrgent ? const Color(0xFF2A0F0F) : const Color(0xFF261908);
+    final title = isUrgent
+        ? 'URGENT OPHTHALMOLOGY REFERRAL REQUIRED'
+        : 'OPHTHALMOLOGY CONSULTATION RECOMMENDED';
+    final timeframe = isUrgent
+        ? 'Schedule evaluation within 48–72 hours at District Hospital'
+        : 'Schedule routine referral within 2–4 weeks at Primary Eye Care';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bannerBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: bannerColor.withValues(alpha: 0.6),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: bannerColor.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isUrgent ? Icons.warning_rounded : Icons.info_outline_rounded,
+                color: bannerColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: bannerColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            timeframe,
+            style: const TextStyle(
+              color: Color(0xFFF1F5F9),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (a.actionRecommendation.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              a.actionRecommendation,
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
