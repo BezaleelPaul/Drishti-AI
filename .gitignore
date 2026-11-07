@@ -96,3 +96,10 @@ scripts/convert/out/
 .coverage
 
 anotherhackathon/
+
+# Local research datasets and derived patient-level files — never commit.
+data/mbrset/
+**/mbrset_raw/
+**/mbrset_processed/
+mbrset_audit.json
+artifacts/mbrset_fusion/
